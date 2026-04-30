@@ -3,7 +3,7 @@ export function helpText(): string {
 
 USAGE
   suit <harness> [--persona X] [--mode Y] [--no-filter] [-- <harness args>]
-  suit init <url> [--force]
+  suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
   suit doctor
