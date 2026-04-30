@@ -1,4 +1,4 @@
-// apm-builder/lib/evolution/redact.ts
+// src/lib/evolution/redact.ts
 const PATTERNS: { re: RegExp; label: string }[] = [
   { re: /sk-ant-[a-zA-Z0-9_-]{15,}/g, label: 'ANTHROPIC_KEY' },
   { re: /ghp_[a-zA-Z0-9]{15,}/g, label: 'GITHUB_PAT' },

@@ -175,7 +175,7 @@ export async function runAcSession(
   }
   const projectDir = deps.projectDir ?? process.cwd();
   const userDir = deps.userDir ?? path.join(os.homedir(), '.config', 'agent-config');
-  // session.ts lives at <repo>/apm-builder/lib/ac/session.ts — walk up to the repo
+  // session.ts lives at <repo>/src/lib/ac/session.ts — walk up to the repo
   // root where personas/ and modes/ live.
   const builtinDir = deps.builtinDir ?? findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
   const dirs = { projectDir, userDir, builtinDir };

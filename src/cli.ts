@@ -85,7 +85,7 @@ const watchCmd = defineCommand({
   async run({ args }) {
     const repoRoot = process.cwd();
     const target = args.target as Target;
-    const watcher = chokidar.watch(['skills/**/SKILL.md', 'plugins/**/SKILL.md', 'rules/**/SKILL.md', 'apm-builder.config.yaml'], {
+    const watcher = chokidar.watch(['skills/**/SKILL.md', 'plugins/**/SKILL.md', 'rules/**/SKILL.md', 'suit.config.yaml'], {
       cwd: repoRoot,
       ignoreInitial: true,
     });
@@ -386,7 +386,7 @@ const releaseCmd = defineCommand({
 });
 
 const main = defineCommand({
-  meta: { name: 'apm-builder', description: 'Multi-harness skills build tool' },
+  meta: { name: 'suit-build', description: 'Multi-harness skills build tool' },
   subCommands: { validate: validateCmd, build: buildCmd, watch: watchCmd, docs: docsCmd, init: initCmd, evolve: evolveCmd, release: releaseCmd },
 });
 

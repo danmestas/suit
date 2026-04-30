@@ -60,7 +60,7 @@ function renderDefaultReadme(components: ComponentSource[]): string {
   return [
     '# agent-skills',
     '',
-    'Multi-harness skills monorepo. Author once in canonical `SKILL.md` format; emit per-harness artifacts via `apm-builder`.',
+    'Multi-harness skills monorepo. Author once in canonical `SKILL.md` format; emit per-harness artifacts via `suit-build`.',
     '',
     '## Components',
     '',

@@ -9,7 +9,7 @@ export interface ComposeOptions {
   target: Target;
   /** All discovered components. The composer filters internally. */
   components: ComponentSource[];
-  /** Section order — typically read from apm-builder.config.yaml. */
+  /** Section order — typically read from suit.config.yaml. */
   sectionOrder: AgentsMdSection[];
 }
 

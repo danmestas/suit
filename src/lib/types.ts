@@ -36,7 +36,7 @@ export interface ComponentSource {
 /**
  * The frontmatter manifest of a component. Intentionally permissive: type-specific
  * blocks (hooks, agent, mcp, etc.) are all optional at the type level, with
- * presence/correctness enforced by the Zod schema (apm-builder/lib/schema.ts) at
+ * presence/correctness enforced by the Zod schema (src/lib/schema.ts) at
  * parse time. Do not rewrite as a discriminated union — the validation boundary
  * is Zod, not the type system, and a discriminated union here would force callers
  * to re-narrow after Zod has already validated.
@@ -86,7 +86,7 @@ export interface Adapter {
    * `component.manifest.targets.includes(this.target)`. Override only when an
    * adapter has constraints beyond `targets:` membership (e.g., a future Claude Code
    * adapter rejecting components that require features unavailable in a target version).
-   * Keep this in sync with `targets:` validation in apm-builder/lib/validate.ts.
+   * Keep this in sync with `targets:` validation in src/lib/validate.ts.
    */
   supports(component: ComponentSource): boolean;
   /** Emit files for this component. Paths returned are relative to `dist/<target>/`. */
@@ -94,7 +94,7 @@ export interface Adapter {
 }
 
 export interface AdapterContext {
-  /** Repo-level config for this target (from apm-builder.config.yaml). */
+  /** Repo-level config for this target (from suit.config.yaml). */
   config: Record<string, unknown>;
   /** All discovered components — needed by the rules adapter for composition. */
   allComponents: ComponentSource[];
