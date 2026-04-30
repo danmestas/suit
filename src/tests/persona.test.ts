@@ -138,3 +138,65 @@ categories: [tooling]
     ).rejects.toThrow(/one/);
   });
 });
+
+describe('persona legacy path fallback', () => {
+  it('finds persona in .agent-config/ when .suit/ does not exist', async () => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-fallback-'));
+    await fs.mkdir(path.join(projectDir, '.agent-config', 'personas'), { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, '.agent-config', 'personas', 'demo.md'),
+      `---
+name: demo
+version: 1.0.0
+type: persona
+description: x
+targets: [claude-code]
+categories: [tooling]
+---
+body
+`,
+    );
+    const found = await findPersona('demo', {
+      projectDir,
+      userDir: '/nope',
+      builtinDir: '/nope',
+    });
+    expect(found.source).toBe('project');
+  });
+
+  it('prefers .suit/ over .agent-config/ when both exist', async () => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-pref-'));
+    await fs.mkdir(path.join(projectDir, '.agent-config', 'personas'), { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, '.agent-config', 'personas', 'demo.md'),
+      `---
+name: demo
+version: 1.0.0
+type: persona
+description: legacy
+targets: [claude-code]
+categories: [tooling]
+---
+`,
+    );
+    await fs.mkdir(path.join(projectDir, '.suit', 'personas'), { recursive: true });
+    await fs.writeFile(
+      path.join(projectDir, '.suit', 'personas', 'demo.md'),
+      `---
+name: demo
+version: 1.0.0
+type: persona
+description: new
+targets: [claude-code]
+categories: [tooling]
+---
+`,
+    );
+    const found = await findPersona('demo', {
+      projectDir,
+      userDir: '/nope',
+      builtinDir: '/nope',
+    });
+    expect(found.manifest.description).toBe('new');
+  });
+});

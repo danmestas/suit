@@ -55,14 +55,17 @@ async function listPersonaFilenames(dir: string): Promise<string[]> {
   return out;
 }
 
-function resolveTierRoot(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string {
+function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return path.join(dirs.projectDir, '.agent-config', 'personas');
+      return [
+        path.join(dirs.projectDir, '.suit', 'personas'),
+        path.join(dirs.projectDir, '.agent-config', 'personas'),
+      ];
     case 'userDir':
-      return path.join(dirs.userDir, 'personas');
+      return [path.join(dirs.userDir, 'personas')];
     case 'builtinDir':
-      return path.join(dirs.builtinDir, 'personas');
+      return [path.join(dirs.builtinDir, 'personas')];
   }
 }
 
@@ -72,21 +75,22 @@ export async function findPersona(
 ): Promise<FoundPersona> {
   const seen: string[] = [];
   for (const tier of TIERS) {
-    const root = resolveTierRoot(tier, dirs);
-    const files = await listPersonaFilenames(root);
-    for (const filepath of files) {
-      const raw = await fs.readFile(filepath, 'utf8');
-      const parsed = matter(raw);
-      const result = PersonaSchema.safeParse(parsed.data);
-      if (!result.success) continue; // skip invalid; validate.ts catches them at build
-      seen.push(result.data.name);
-      if (result.data.name === name) {
-        return {
-          manifest: result.data,
-          body: parsed.content,
-          source: TIER_NAMES[tier],
-          filepath,
-        };
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listPersonaFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = PersonaSchema.safeParse(parsed.data);
+        if (!result.success) continue; // skip invalid; validate.ts catches them at build
+        seen.push(result.data.name);
+        if (result.data.name === name) {
+          return {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          };
+        }
       }
     }
   }
@@ -98,21 +102,22 @@ export async function findPersona(
 export async function listAllPersonas(dirs: DiscoveryDirs): Promise<FoundPersona[]> {
   const found = new Map<string, FoundPersona>();
   for (const tier of TIERS) {
-    const root = resolveTierRoot(tier, dirs);
-    const files = await listPersonaFilenames(root);
-    for (const filepath of files) {
-      const raw = await fs.readFile(filepath, 'utf8');
-      const parsed = matter(raw);
-      const result = PersonaSchema.safeParse(parsed.data);
-      if (!result.success) continue;
-      // Higher-priority tier already won; don't overwrite.
-      if (!found.has(result.data.name)) {
-        found.set(result.data.name, {
-          manifest: result.data,
-          body: parsed.content,
-          source: TIER_NAMES[tier],
-          filepath,
-        });
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listPersonaFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = PersonaSchema.safeParse(parsed.data);
+        if (!result.success) continue;
+        // Higher-priority tier (and earlier path within tier) already won; don't overwrite.
+        if (!found.has(result.data.name)) {
+          found.set(result.data.name, {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          });
+        }
       }
     }
   }
