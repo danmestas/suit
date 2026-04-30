@@ -16,15 +16,21 @@ export async function runStatus(args: RunStatusArgs, deps: RunStatusDeps): Promi
   const lines: string[] = [];
   lines.push(`suit     v${args.version}`);
 
+  // status() can throw on corrupted git config / fs errors; degrade gracefully.
   const store = openContentStore(args.contentDir);
-  const status = await store.status();
-  if (!status.exists) {
-    lines.push(`Content: (none — run \`suit init <url>\`)`);
-  } else if (!status.isGitRepo) {
-    lines.push(`Content: ${args.contentDir} (not a git repo)`);
-  } else {
-    const remote = status.remote ?? '(no origin)';
-    lines.push(`Content: ${args.contentDir} (clone of ${remote})`);
+  try {
+    const status = await store.status();
+    if (!status.exists) {
+      lines.push(`Content: (none — run \`suit init <url>\`)`);
+    } else if (!status.isGitRepo) {
+      lines.push(`Content: ${args.contentDir} (not a git repo)`);
+    } else {
+      const remote = status.remote ?? '(no origin)';
+      lines.push(`Content: ${args.contentDir} (clone of ${remote})`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    lines.push(`Content: ${args.contentDir} (error: ${message})`);
   }
 
   if (args.harnesses.length > 0) {

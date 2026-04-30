@@ -20,6 +20,7 @@ export interface PresenceDeps {
   whichBin?: (bin: string) => string | null;
 }
 
+// POSIX. Windows callers must inject deps.whichBin.
 function defaultWhich(bin: string): string | null {
   try {
     return (
@@ -38,6 +39,8 @@ export function getHarnessPresence(
 ): HarnessPresence[] {
   const which = deps.whichBin ?? defaultWhich;
   return harnesses.map((harness) => {
+    // Unknown harnesses fall back to harness-name-as-bin; PATH lookup will
+    // fail and surface as found:false rather than throw.
     const bin = HARNESS_BINS[harness] ?? harness;
     const binPath = which(bin);
     return {
