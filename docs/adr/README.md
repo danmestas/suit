@@ -27,6 +27,7 @@ Keep ADRs tight (~80-150 lines). They are decision logs, not design documents.
 | [0005](./0005-oidc-trusted-publishing.md) | OIDC trusted publishing for npm | Accepted |
 | [0006](./0006-package-scope-agent-ops.md) | Package scope: `@agent-ops/suit` | Accepted |
 | [0007](./0007-path-migration-policy.md) | Path migration policy (agent-config → suit) | Accepted |
+| [0008](./0008-content-store-deep-module.md) | ContentStore as a deep module hiding git | Accepted |
 
 ## Adding a new ADR
 
