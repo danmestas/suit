@@ -1,6 +1,16 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { validateComponents, validateAll } from '../lib/validate.ts';
 import type { ComponentSource } from '../lib/types.ts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = path.resolve(__dirname, 'fixtures');
+const FIXTURE_DIRS = {
+  projectDir: FIXTURE_DIR,
+  userDir: FIXTURE_DIR,
+  builtinDir: FIXTURE_DIR,
+};
 
 function mk(overrides: Partial<ComponentSource['manifest']>): ComponentSource {
   return {
@@ -140,9 +150,6 @@ describe('validateComponents — Gemini-specific rejections', () => {
 });
 
 describe('persona/mode validation', () => {
-  // repoRoot points at the actual TAXONOMY.md in the worktree
-  const REPO_ROOT = new URL('../..', import.meta.url).pathname;
-
   it('rejects persona with category not in TAXONOMY', async () => {
     const errors = await validateAll(
       [
@@ -162,7 +169,7 @@ describe('persona/mode validation', () => {
           dir: '/tmp/bad',
         } as any,
       ],
-      REPO_ROOT,
+      FIXTURE_DIRS,
     );
     expect(errors.some((e) => e.message.includes('notARealCategory'))).toBe(true);
   });
@@ -186,7 +193,7 @@ describe('persona/mode validation', () => {
           dir: '/tmp/bad',
         } as any,
       ],
-      REPO_ROOT,
+      FIXTURE_DIRS,
     );
     expect(errors.some((e) => e.message.includes('definitelyNotARealSkill'))).toBe(true);
   });
@@ -211,7 +218,7 @@ describe('persona/mode validation', () => {
           dir: '/tmp/long',
         } as any,
       ],
-      REPO_ROOT,
+      FIXTURE_DIRS,
     );
     expect(
       errors.some((e) => e.message.toLowerCase().includes('too long') || e.message.includes('4096')),

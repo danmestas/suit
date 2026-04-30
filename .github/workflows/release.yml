@@ -61,7 +61,7 @@ jobs:
         run: npm link
 
       - name: Test
-        run: npm run test:ci
+        run: npm test
 
       - name: Publish to npm (via OIDC Trusted Publishing)
         run: npm publish --provenance --access public
