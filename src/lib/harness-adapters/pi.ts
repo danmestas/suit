@@ -1,7 +1,7 @@
 // Pi harness adapter — STUB. Real implementation lands when a hook needs to
 // ship to Pi.
 
-import type { HarnessAdapter } from './types';
+import type { HarnessAdapter } from './types.js';
 
 export const piHarnessAdapter: HarnessAdapter = {
   name: 'pi',

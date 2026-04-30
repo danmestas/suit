@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types';
-import { composeAgentsMd } from '../lib/agents-md';
+import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.js';
+import { composeAgentsMd } from '../lib/agents-md.js';
 
 export const piAdapter: Adapter = {
   target: 'pi',

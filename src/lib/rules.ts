@@ -1,4 +1,4 @@
-import type { ComponentSource, Target } from './types';
+import type { ComponentSource, Target } from './types.js';
 
 /**
  * Topologically sort rule components using before/after frontmatter, with

@@ -1,7 +1,7 @@
 // Gemini CLI harness adapter — STUB. Real implementation lands when a hook
 // needs to ship to Gemini CLI.
 
-import type { HarnessAdapter } from './types';
+import type { HarnessAdapter } from './types.js';
 
 export const geminiHarnessAdapter: HarnessAdapter = {
   name: 'gemini',

@@ -1,10 +1,10 @@
-import type { Adapter, Target } from '../lib/types';
-import { apmAdapter } from './apm';
-import { claudeCodeAdapter } from './claude-code';
-import { codexAdapter } from './codex';
-import { copilotAdapter } from './copilot';
-import { geminiAdapter } from './gemini';
-import { piAdapter } from './pi';
+import type { Adapter, Target } from '../lib/types.js';
+import { apmAdapter } from './apm.js';
+import { claudeCodeAdapter } from './claude-code.js';
+import { codexAdapter } from './codex.js';
+import { copilotAdapter } from './copilot.js';
+import { geminiAdapter } from './gemini.js';
+import { piAdapter } from './pi.js';
 
 const REGISTRY: Partial<Record<Target, Adapter>> = {
   'claude-code': claudeCodeAdapter,

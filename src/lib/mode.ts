@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { ModeSchema, type ModeManifest } from './schema';
-import type { DiscoveryDirs } from './persona';
+import { ModeSchema, type ModeManifest } from './schema.js';
+import type { DiscoveryDirs } from './persona.js';
 
 export interface FoundMode {
   manifest: ModeManifest;

@@ -5,13 +5,13 @@ import {
   composeRulesBody,
   isOwnerOfRulesFile,
   selectRules,
-} from '../lib/rules';
+} from '../lib/rules.js';
 import type {
   Adapter,
   AdapterContext,
   ComponentSource,
   EmittedFile,
-} from '../lib/types';
+} from '../lib/types.js';
 
 interface ApmConfig {
   package_scope?: string;

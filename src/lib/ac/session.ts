@@ -22,12 +22,12 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
-import { findPersona } from '../persona';
-import { findMode } from '../mode';
-import { resolveAndPersist } from '../resolution';
-import { discoverComponents } from '../discover';
-import type { Target } from '../types';
-import type { PersonaManifest, ModeManifest } from '../schema';
+import { findPersona } from '../persona.js';
+import { findMode } from '../mode.js';
+import { resolveAndPersist } from '../resolution.js';
+import { discoverComponents } from '../discover.js';
+import type { Target } from '../types.js';
+import type { PersonaManifest, ModeManifest } from '../schema.js';
 import {
   prelaunchComposeClaudeCode,
   prelaunchComposeGemini,
@@ -35,8 +35,8 @@ import {
   prelaunchComposeCodex,
   prelaunchComposeCopilot,
   prelaunchComposeApm,
-} from './prelaunch';
-import type { ParsedAcArgs } from './run';
+} from './prelaunch.js';
+import type { ParsedAcArgs } from './run.js';
 
 export const HARNESS_ALIASES: Record<string, Target> = {
   claude: 'claude-code',

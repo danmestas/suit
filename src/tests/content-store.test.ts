@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { openContentStore } from '../lib/content-store';
+import { openContentStore } from '../lib/content-store.js';
 
 describe('ContentStore.status', () => {
   let tmp: string;

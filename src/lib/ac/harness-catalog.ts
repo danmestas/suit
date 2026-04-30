@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import type { ComponentSource, Target } from '../types';
+import type { ComponentSource, Target } from '../types.js';
 
 interface HarnessLayout {
   /** Subdir under home where this harness stores its skills */

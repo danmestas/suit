@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ComponentSource, ComponentType, Target } from './types';
-import type { DiscoveryDirs } from './persona';
+import type { ComponentSource, ComponentType, Target } from './types.js';
+import type { DiscoveryDirs } from './persona.js';
 
 export interface ValidationError {
   severity: 'error' | 'warning';

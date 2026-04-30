@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { helpText } from '../../lib/ac/help';
+import { helpText } from '../../lib/ac/help.js';
 
 describe('helpText', () => {
   it('mentions all subcommands', () => {

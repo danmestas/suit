@@ -4,21 +4,21 @@ import path from 'node:path';
 import { defineCommand, runMain } from 'citty';
 import pc from 'picocolors';
 import chokidar from 'chokidar';
-import { discoverComponents } from './lib/discover';
-import { validateAll } from './lib/validate';
-import { runBuild } from './lib/build';
-import { matchesGlob } from './lib/glob';
-import { updateReadme } from './lib/docs';
-import { composeAgentsMd } from './lib/agents-md';
-import { composeCopilotInstructions } from './adapters/copilot';
-import { TARGETS, type Target } from './lib/types';
-import { listImplementedTargets } from './adapters/index';
-import { runEvolution } from './lib/evolution/orchestrator';
-import { renderReport } from './lib/evolution/render';
-import { runRelease } from './lib/release/release';
-import { computeTag } from './lib/release/git';
-import { renderReleaseNotes } from './lib/release/notes';
-import { loadRepoConfig } from './lib/config';
+import { discoverComponents } from './lib/discover.js';
+import { validateAll } from './lib/validate.js';
+import { runBuild } from './lib/build.js';
+import { matchesGlob } from './lib/glob.js';
+import { updateReadme } from './lib/docs.js';
+import { composeAgentsMd } from './lib/agents-md.js';
+import { composeCopilotInstructions } from './adapters/copilot.js';
+import { TARGETS, type Target } from './lib/types.js';
+import { listImplementedTargets } from './adapters/index.js';
+import { runEvolution } from './lib/evolution/orchestrator.js';
+import { renderReport } from './lib/evolution/render.js';
+import { runRelease } from './lib/release/release.js';
+import { computeTag } from './lib/release/git.js';
+import { renderReleaseNotes } from './lib/release/notes.js';
+import { loadRepoConfig } from './lib/config.js';
 
 const validateCmd = defineCommand({
   meta: { name: 'validate', description: 'Validate all components' },

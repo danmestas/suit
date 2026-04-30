@@ -77,10 +77,10 @@ export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<P
   };
 }
 
-import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution';
-import { composeHarnessHome } from './symlink-farm';
-import { loadHarnessCatalog } from './harness-catalog';
-import type { PersonaManifest, ModeManifest } from '../schema';
+import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
+import { composeHarnessHome } from './symlink-farm.js';
+import { loadHarnessCatalog } from './harness-catalog.js';
+import type { PersonaManifest, ModeManifest } from '../schema.js';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;

@@ -73,3 +73,11 @@ tsc && node scripts/postbuild.mjs
 
 - [ADR-0002](./0002-two-binaries-suit-and-suit-build.md) — both bins are products of this build pipeline.
 - [ADR-0005](./0005-oidc-trusted-publishing.md) — `prepublishOnly` ensures the rewriter runs before any publish, including OIDC ones.
+
+## Update (2026-04-30, v0.2.2)
+
+Phase 3b retired the postbuild import rewriter. The codebase migrated to `moduleResolution: "NodeNext"` and added explicit `.js` extensions to all relative imports in source. The postbuild script now only handles shebangs and exec bits — the import rewriter is gone.
+
+This was always the cleaner approach; ADR-0004 explicitly noted "Phase 2 may switch to `NodeNext` + explicit `.js` and retire the rewriter." That work happened here.
+
+Status: superseded by NodeNext migration. Retained for historical context.

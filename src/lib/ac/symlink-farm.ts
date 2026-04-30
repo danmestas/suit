@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { Target } from '../types';
+import type { Target } from '../types.js';
 
 export interface ComposeOptions {
   target: Target;

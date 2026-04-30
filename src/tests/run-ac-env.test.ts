@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runAc } from '../lib/ac/run';
+import { runAc } from '../lib/ac/run.js';
 
 describe('runAc honors SUIT_CONTENT_PATH (regression)', () => {
   let tmp: string;

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, rmSync, mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { resolveSuitPaths } from '../lib/paths';
+import { resolveSuitPaths } from '../lib/paths.js';
 
 describe('resolveSuitPaths', () => {
   let tmpHome: string;

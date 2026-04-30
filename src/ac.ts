@@ -2,14 +2,14 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { runAc } from './lib/ac/run';
-import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect';
-import { runInit } from './lib/ac/init';
-import { runSync } from './lib/ac/sync';
-import { runStatus } from './lib/ac/status';
-import { helpText } from './lib/ac/help';
-import { resolveSuitPaths } from './lib/paths';
-import { KNOWN_HARNESSES } from './lib/ac/harness-presence';
+import { runAc } from './lib/ac/run.js';
+import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect.js';
+import { runInit } from './lib/ac/init.js';
+import { runSync } from './lib/ac/sync.js';
+import { runStatus } from './lib/ac/status.js';
+import { helpText } from './lib/ac/help.js';
+import { resolveSuitPaths } from './lib/paths.js';
+import { KNOWN_HARNESSES } from './lib/ac/harness-presence.js';
 
 const argv = process.argv.slice(2);
 

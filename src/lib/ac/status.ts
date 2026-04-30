@@ -1,5 +1,5 @@
-import { openContentStore } from '../content-store';
-import { getHarnessPresence } from './harness-presence';
+import { openContentStore } from '../content-store.js';
+import { getHarnessPresence } from './harness-presence.js';
 
 export interface RunStatusArgs {
   contentDir: string;

@@ -5,12 +5,12 @@ import type {
   ComponentSource,
   EmittedFile,
   AdapterContext,
-} from '../lib/types';
+} from '../lib/types.js';
 import {
   selectRules,
   composeRulesBody,
   isOwnerOfRulesFile,
-} from '../lib/rules';
+} from '../lib/rules.js';
 
 const GEMINI_EVENTS = new Set([
   'SessionStart',

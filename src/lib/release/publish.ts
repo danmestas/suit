@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { simpleGit } from 'simple-git';
-import { zipDirectory } from './zip';
-import type { Target } from '../types';
+import { zipDirectory } from './zip.js';
+import type { Target } from '../types.js';
 
 // =============================================================================
 // publishAPM

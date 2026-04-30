@@ -1,16 +1,16 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { discoverComponents } from '../discover';
-import { validateAll } from '../validate';
-import { runBuild } from '../build';
-import { loadRepoConfig } from '../config';
-import { renderReadme } from '../docs';
-import { tagRelease } from './git';
-import { appendChangelogEntry } from './changelog';
-import { renderReleaseNotes } from './notes';
-import { publishAPM, publishClaudeCode, publishGitUrl } from './publish';
-import { renderMarketplaceEntry, marketplaceFilePath } from './marketplace';
-import type { Target } from '../types';
+import { discoverComponents } from '../discover.js';
+import { validateAll } from '../validate.js';
+import { runBuild } from '../build.js';
+import { loadRepoConfig } from '../config.js';
+import { renderReadme } from '../docs.js';
+import { tagRelease } from './git.js';
+import { appendChangelogEntry } from './changelog.js';
+import { renderReleaseNotes } from './notes.js';
+import { publishAPM, publishClaudeCode, publishGitUrl } from './publish.js';
+import { renderMarketplaceEntry, marketplaceFilePath } from './marketplace.js';
+import type { Target } from '../types.js';
 
 export interface ReleaseOptions {
   repoRoot: string;
