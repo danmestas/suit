@@ -18,7 +18,6 @@
     "dev:suit": "tsx src/ac.ts",
     "dev:build": "tsx src/cli.ts",
     "test": "vitest run",
-    "test:ci": "vitest run --exclude='**/validate.test.ts'",
     "smoke": "vitest run src/tests/smoke.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

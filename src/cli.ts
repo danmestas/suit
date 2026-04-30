@@ -5,7 +5,7 @@ import { defineCommand, runMain } from 'citty';
 import pc from 'picocolors';
 import chokidar from 'chokidar';
 import { discoverComponents } from './lib/discover';
-import { validateComponents } from './lib/validate';
+import { validateAll } from './lib/validate';
 import { runBuild } from './lib/build';
 import { matchesGlob } from './lib/glob';
 import { updateReadme } from './lib/docs';
@@ -29,7 +29,11 @@ const validateCmd = defineCommand({
     const repoRoot = process.cwd();
     const all = await discoverComponents(repoRoot);
     const components = args.filter ? all.filter((c) => matchesGlob(c.manifest.name, args.filter!)) : all;
-    const errors = validateComponents(components);
+    const errors = await validateAll(components, {
+      projectDir: repoRoot,
+      userDir: repoRoot,
+      builtinDir: repoRoot,
+    });
     for (const e of errors) {
       const prefix = e.severity === 'error' ? pc.red('error') : pc.yellow('warn');
       console.log(`${prefix} [${e.componentName}] ${e.message}`);

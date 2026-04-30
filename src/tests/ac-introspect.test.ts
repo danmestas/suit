@@ -66,46 +66,39 @@ readme body
 });
 
 describe('ac doctor', () => {
-  it('reports harness binary not on PATH for unknown binary names', async () => {
+  it('reports binary missing for unknown bin names (now falls back to harness as bin)', async () => {
     const out: string[] = [];
-    // Use a binary name guaranteed not to exist
+    // Unknown harness now treated as bin name verbatim → not found → exit 1
     const code = await doctorCommand({
       harnesses: ['__nonexistent_harness_ac_test__'],
       print: (l) => out.push(l),
     });
-    // Unknown harness (no entry in HARNESS_BINS) → skipped → 0 problems
-    expect(code).toBe(0);
+    expect(code).toBe(1);
+    expect(out.join('\n')).toMatch(/✗.*__nonexistent_harness_ac_test__/);
   });
 
-  it('reports binary not on PATH for known harnesses with missing bins', async () => {
-    // Patch: pass a harness whose bin we know won't exist in CI
-    // We do this by invoking doctorCommand and checking the [!!] path exists
+  it('returns 0 with no harnesses to check', async () => {
     const out: string[] = [];
-    // 'codex' is unlikely to be on PATH in test env; but we can't guarantee it.
-    // Instead, test the [ok] path by checking claude (may be present) or just
-    // verify structure: code=1 and text includes "not on PATH" when no bin found.
-    // To isolate: mock execSync by checking a harness with a clearly absent bin.
-    // Since we can't mock without vi.mock here, test the return-0 path:
-    const code2 = await doctorCommand({
+    const code = await doctorCommand({
       harnesses: [],
       print: (l) => out.push(l),
     });
-    expect(code2).toBe(0);
+    expect(code).toBe(0);
   });
 
-  it('formats [ok] and [!!] lines correctly', async () => {
+  it('formats ✓ / ✗ lines correctly', async () => {
     const out: string[] = [];
-    // Feed a harness with a bin that definitely does not exist
     const code = await doctorCommand({
       harnesses: ['pi'],
       print: (l) => out.push(l),
     });
     const text = out.join('\n');
-    // Either ok or not-on-PATH — both should mention 'pi'
     expect(text).toMatch(/pi/);
-    // If not found, exit code is 1 and message mentions PATH
+    // pi will not be on PATH in test env → ✗ + exit 1
     if (code !== 0) {
-      expect(text).toMatch(/not on PATH/);
+      expect(text).toMatch(/✗.*pi/);
+    } else {
+      expect(text).toMatch(/✓.*pi/);
     }
   });
 });

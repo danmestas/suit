@@ -1,6 +1,6 @@
-import { execSync } from 'node:child_process';
 import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona';
 import { listAllModes, findMode } from '../mode';
+import { getHarnessPresence } from './harness-presence';
 
 export interface IntrospectDeps extends DiscoveryDirs {
   print: (line: string) => void;
@@ -86,31 +86,13 @@ export interface DoctorDeps {
   print: (line: string) => void;
 }
 
-const HARNESS_BINS: Record<string, string> = {
-  'claude-code': 'claude',
-  apm: 'apm',
-  codex: 'codex',
-  gemini: 'gemini',
-  copilot: 'copilot',
-  pi: 'pi',
-};
-
 export async function doctorCommand(deps: DoctorDeps): Promise<number> {
-  let problems = 0;
-  for (const target of deps.harnesses) {
-    const bin = HARNESS_BINS[target];
-    if (!bin) continue;
-    try {
-      execSync(`which ${bin}`, { stdio: 'ignore' });
-      deps.print(`[ok]  ${target}: ${bin} found on PATH`);
-    } catch {
-      deps.print(`[!!]  ${target}: ${bin} not on PATH`);
-      problems += 1;
-    }
+  const presence = getHarnessPresence(deps.harnesses);
+  let allFound = true;
+  for (const entry of presence) {
+    const status = entry.found ? '✓' : '✗';
+    deps.print(`${status} ${entry.harness}${entry.binPath ? ` (${entry.binPath})` : ''}`);
+    if (!entry.found) allFound = false;
   }
-  if (problems > 0) {
-    deps.print('');
-    deps.print(`${problems} harness binary(ies) missing from PATH.`);
-  }
-  return problems === 0 ? 0 : 1;
+  return allFound ? 0 : 1;
 }

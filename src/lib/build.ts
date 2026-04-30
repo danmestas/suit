@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import pLimit from 'p-limit';
 import { discoverComponents } from './discover';
-import { validateComponents, type ValidationError } from './validate';
+import { validateAll, type ValidationError } from './validate';
 import { loadRepoConfig } from './config';
 import { matchesGlob } from './glob';
 import { getAdapter } from '../adapters/index';
@@ -26,7 +26,11 @@ export async function runBuild(opts: BuildOptions): Promise<BuildResult> {
   const filtered = opts.filter
     ? components.filter((c) => matchesGlob(c.manifest.name, opts.filter!))
     : components;
-  const errors = validateComponents(filtered);
+  const errors = await validateAll(filtered, {
+    projectDir: opts.repoRoot,
+    userDir: opts.repoRoot,
+    builtinDir: opts.repoRoot,
+  });
   const fatal = errors.filter((e) => e.severity === 'error');
   if (fatal.length > 0) return { errors, written: [] };
 

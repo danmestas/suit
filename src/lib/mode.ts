@@ -18,14 +18,17 @@ const TIER_NAMES: Record<keyof DiscoveryDirs, FoundMode['source']> = {
   builtinDir: 'builtin',
 };
 
-function resolveTierRoot(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string {
+function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return path.join(dirs.projectDir, '.agent-config', 'modes');
+      return [
+        path.join(dirs.projectDir, '.suit', 'modes'),
+        path.join(dirs.projectDir, '.agent-config', 'modes'),
+      ];
     case 'userDir':
-      return path.join(dirs.userDir, 'modes');
+      return [path.join(dirs.userDir, 'modes')];
     case 'builtinDir':
-      return path.join(dirs.builtinDir, 'modes');
+      return [path.join(dirs.builtinDir, 'modes')];
   }
 }
 
@@ -54,21 +57,22 @@ async function listModeFilenames(dir: string): Promise<string[]> {
 export async function findMode(name: string, dirs: DiscoveryDirs): Promise<FoundMode> {
   const seen: string[] = [];
   for (const tier of TIERS) {
-    const root = resolveTierRoot(tier, dirs);
-    const files = await listModeFilenames(root);
-    for (const filepath of files) {
-      const raw = await fs.readFile(filepath, 'utf8');
-      const parsed = matter(raw);
-      const result = ModeSchema.safeParse(parsed.data);
-      if (!result.success) continue;
-      seen.push(result.data.name);
-      if (result.data.name === name) {
-        return {
-          manifest: result.data,
-          body: parsed.content,
-          source: TIER_NAMES[tier],
-          filepath,
-        };
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listModeFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = ModeSchema.safeParse(parsed.data);
+        if (!result.success) continue;
+        seen.push(result.data.name);
+        if (result.data.name === name) {
+          return {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          };
+        }
       }
     }
   }
@@ -80,20 +84,21 @@ export async function findMode(name: string, dirs: DiscoveryDirs): Promise<Found
 export async function listAllModes(dirs: DiscoveryDirs): Promise<FoundMode[]> {
   const found = new Map<string, FoundMode>();
   for (const tier of TIERS) {
-    const root = resolveTierRoot(tier, dirs);
-    const files = await listModeFilenames(root);
-    for (const filepath of files) {
-      const raw = await fs.readFile(filepath, 'utf8');
-      const parsed = matter(raw);
-      const result = ModeSchema.safeParse(parsed.data);
-      if (!result.success) continue;
-      if (!found.has(result.data.name)) {
-        found.set(result.data.name, {
-          manifest: result.data,
-          body: parsed.content,
-          source: TIER_NAMES[tier],
-          filepath,
-        });
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listModeFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = ModeSchema.safeParse(parsed.data);
+        if (!result.success) continue;
+        if (!found.has(result.data.name)) {
+          found.set(result.data.name, {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          });
+        }
       }
     }
   }

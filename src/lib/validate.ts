@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ComponentSource, ComponentType, Target } from './types';
+import type { DiscoveryDirs } from './persona';
 
 export interface ValidationError {
   severity: 'error' | 'warning';
@@ -170,12 +171,11 @@ async function loadValidCategories(repoRoot: string): Promise<Set<string>> {
  *   3. mode body size limit (error >4096 bytes, warning >1024 bytes)
  *
  * @param components  Discovered component sources.
- * @param repoRoot    Absolute path to the repository root (where TAXONOMY.md lives).
- *                    Defaults to cwd so tests can omit it when they don't need taxonomy checks.
+ * @param dirs        Discovery dirs. TAXONOMY.md is loaded from `dirs.builtinDir`.
  */
 export async function validateAll(
   components: ComponentSource[],
-  repoRoot: string = process.cwd(),
+  dirs: DiscoveryDirs,
 ): Promise<ValidationError[]> {
   const errors = validateComponents(components);
 
@@ -187,7 +187,7 @@ export async function validateAll(
 
   let validCats: Set<string> | null = null;
   async function getValidCats(): Promise<Set<string>> {
-    if (!validCats) validCats = await loadValidCategories(repoRoot);
+    if (!validCats) validCats = await loadValidCategories(dirs.builtinDir);
     return validCats;
   }
 
