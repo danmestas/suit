@@ -51,11 +51,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        run: npm run test:ci
-
       - name: Build
         run: npm run build
+
+      - name: Link bins onto PATH
+        run: npm link
+
+      - name: Test
+        run: npm run test:ci
 
       - name: Publish to npm
         run: npm publish --provenance --access public
