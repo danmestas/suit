@@ -1,4 +1,4 @@
-// apm-builder/tests/evolution/memory.test.ts
+// src/tests/evolution/memory.test.ts
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,13 +6,13 @@ import { detectStaleMemoryRefs } from '../../lib/evolution/memory.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MEMORY_DIR = path.join(HERE, 'fixtures/memory');
-const REPO_ROOT = path.resolve(HERE, '../../..'); // agent-skills root
+const REPO_ROOT = path.resolve(HERE, '../../..'); // suit repo root
 
 describe('detectStaleMemoryRefs', () => {
   it('flags a path reference that does not exist', async () => {
     const findings = await detectStaleMemoryRefs(MEMORY_DIR, REPO_ROOT);
     const pathFinding = findings.find((f) =>
-      f.evidence.some((e) => e.includes('apm-builder/lib/missing-file.ts')),
+      f.evidence.some((e) => e.includes('src/lib/missing-file.ts')),
     );
     expect(pathFinding).toBeDefined();
     expect(pathFinding?.severity).toBe('low'); // single occurrence

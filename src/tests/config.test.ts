@@ -5,10 +5,10 @@ import fs from 'node:fs/promises';
 import { loadRepoConfig } from '../lib/config.ts';
 
 describe('loadRepoConfig', () => {
-  it('parses apm-builder.config.yaml when present', async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-cfg-'));
+  it('parses suit.config.yaml when present', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-cfg-'));
     await fs.writeFile(
-      path.join(tmp, 'apm-builder.config.yaml'),
+      path.join(tmp, 'suit.config.yaml'),
       'apm:\n  package_scope: "@test"\n',
     );
     const cfg = await loadRepoConfig(tmp);
@@ -16,7 +16,7 @@ describe('loadRepoConfig', () => {
   });
 
   it('returns empty config when file missing', async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-cfg-'));
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-cfg-'));
     const cfg = await loadRepoConfig(tmp);
     expect(cfg).toEqual({});
   });

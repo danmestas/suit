@@ -1,4 +1,4 @@
-// apm-builder/tests/evolution/redact.test.ts
+// src/tests/evolution/redact.test.ts
 import { describe, it, expect } from 'vitest';
 import { redact } from '../../lib/evolution/redact.ts';
 
@@ -21,7 +21,7 @@ describe('redact', () => {
   });
 
   it('preserves non-secret content', () => {
-    const input = 'See `apm-builder/lib/foo.ts` line 42.';
+    const input = 'See `src/lib/foo.ts` line 42.';
     expect(redact(input)).toBe(input);
   });
 });

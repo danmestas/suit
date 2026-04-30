@@ -34,7 +34,7 @@ describe('runRelease', () => {
       ].join('\n'),
     );
     await fs.writeFile(
-      path.join(repo, 'apm-builder.config.yaml'),
+      path.join(repo, 'suit.config.yaml'),
       'apm:\n  package_scope: "@test"\n  registry: ""\nclaude-code:\n  marketplace: claude-plugins-official\n',
     );
     await g.add('.').commit('init');
@@ -127,7 +127,7 @@ describe('runRelease', () => {
       path.join(repo, 'plugins/bundle/SKILL.md'),
       '---\nname: bundle\nversion: 0.2.0\ndescription: b\ntype: plugin\ntargets: [claude-code]\nincludes: [../../skills/foo]\n---\n\nbody\n',
     );
-    await fs.writeFile(path.join(repo, 'apm-builder.config.yaml'), 'apm: {}\n');
+    await fs.writeFile(path.join(repo, 'suit.config.yaml'), 'apm: {}\n');
     await g.add('.').commit('init');
     await g.addRemote('origin', remote);
     await g.push('origin', 'HEAD:main');

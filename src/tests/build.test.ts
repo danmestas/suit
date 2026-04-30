@@ -5,7 +5,7 @@ import path from 'node:path';
 import { runBuild } from '../lib/build.ts';
 
 async function setupRepo(structure: Record<string, string>): Promise<string> {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-build-'));
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-'));
   for (const [rel, content] of Object.entries(structure)) {
     const full = path.join(tmp, rel);
     await fs.mkdir(path.dirname(full), { recursive: true });

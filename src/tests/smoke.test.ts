@@ -10,7 +10,7 @@ import { updateReadme, COMPONENTS_BEGIN, COMPONENTS_END } from '../lib/docs.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '../..');
-const CLI_ENTRY = path.join(REPO_ROOT, 'apm-builder/cli.ts');
+const CLI_ENTRY = path.join(REPO_ROOT, 'src/cli.ts');
 const TSX_BIN = path.join(
   REPO_ROOT,
   'node_modules/.bin',

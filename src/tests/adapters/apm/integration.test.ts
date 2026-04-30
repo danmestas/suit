@@ -6,9 +6,9 @@ import { runBuild } from '../../../lib/build.ts';
 
 describe('apm adapter end-to-end', () => {
   it('builds a mixed-component repo to dist/apm/', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-apm-e2e-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-apm-e2e-'));
     const files: Record<string, string> = {
-      'apm-builder.config.yaml': 'apm:\n  package_scope: "@danmestas"\n',
+      'suit.config.yaml': 'apm:\n  package_scope: "@danmestas"\n',
       'skills/foo/SKILL.md':
         '---\nname: foo\nversion: 1.0.0\ndescription: a skill\ntype: skill\ntargets: [apm]\n---\n\nFoo body.\n',
       'rules/style/SKILL.md':

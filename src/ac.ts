@@ -6,11 +6,18 @@ import { runAc } from './lib/ac/run';
 import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect';
 
 const argv = process.argv.slice(2);
-const homeDirs = () => ({
-  projectDir: process.cwd(),
-  userDir: path.join(os.homedir(), '.config', 'agent-config'),
-  builtinDir: path.dirname(path.dirname(fileURLToPath(import.meta.url))),
-});
+// SUIT_CONTENT_PATH overrides builtinDir so suit can read personas/modes/skills
+// from an external content directory (e.g., agent-config) without bundling them.
+const homeDirs = () => {
+  const envContent = process.env.SUIT_CONTENT_PATH;
+  return {
+    projectDir: process.cwd(),
+    userDir: path.join(os.homedir(), '.config', 'agent-config'),
+    builtinDir: envContent
+      ? path.resolve(envContent)
+      : path.dirname(path.dirname(fileURLToPath(import.meta.url))),
+  };
+};
 
 async function main(): Promise<number> {
   if (argv[0] === 'list') {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
 
-describe('apm-builder docs --target --resolution', () => {
+describe('suit-build docs --target --resolution', () => {
   it('regenerates AGENTS.md filtered per resolution artifact (codex target)', async () => {
     // Set up minimal repo with two skills, both targeting codex.
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'docs-cmd-'));
@@ -54,7 +54,7 @@ B body
 
     // Run the command using tsx from project root, passing --repo to scope discovery.
     execSync(
-      `node_modules/.bin/tsx apm-builder/cli.ts docs --target codex --resolution ${resPath} --repo ${repo} --out ${outPath}`,
+      `node_modules/.bin/tsx src/cli.ts docs --target codex --resolution ${resPath} --repo ${repo} --out ${outPath}`,
       { cwd: process.cwd() },
     );
 

@@ -3,8 +3,8 @@ import { matchesGlob } from '../lib/glob.ts';
 
 describe('matchesGlob', () => {
   it('matches an exact name', () => {
-    expect(matchesGlob('apm-builder', 'apm-builder')).toBe(true);
-    expect(matchesGlob('apm-builder', 'other')).toBe(false);
+    expect(matchesGlob('suit-build', 'suit-build')).toBe(true);
+    expect(matchesGlob('suit-build', 'other')).toBe(false);
   });
 
   it('handles a leading wildcard', () => {

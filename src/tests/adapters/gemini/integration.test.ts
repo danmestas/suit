@@ -6,9 +6,9 @@ import { runBuild } from '../../../lib/build.ts';
 
 describe('gemini end-to-end build', () => {
   it('builds skill + rules + hook + mcp into dist/gemini/', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-gemini-e2e-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-gemini-e2e-'));
     const files: Record<string, string> = {
-      'apm-builder.config.yaml':
+      'suit.config.yaml':
         'gemini:\n  user_settings_path: "~/.gemini/settings.json"\n',
       'skills/foo/SKILL.md':
         '---\nname: foo\nversion: 1.0.0\ndescription: a skill\ntype: skill\ntargets: [gemini]\n---\n\nFoo body.\n',

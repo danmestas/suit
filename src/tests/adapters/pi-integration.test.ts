@@ -17,7 +17,7 @@ async function setupRepo(structure: Record<string, string>): Promise<string> {
 describe('pi adapter end-to-end via runBuild', () => {
   it('emits a mixed-component repo to dist/pi/', async () => {
     const repo = await setupRepo({
-      'apm-builder.config.yaml':
+      'suit.config.yaml':
         'pi:\n  package_keyword: pi-package\n  agents_md_section_order: [rules, agents, skills]\n',
       'skills/foo/SKILL.md':
         '---\nname: foo\nversion: 1.0.0\ndescription: a skill\ntype: skill\ntargets: [pi]\n---\n\nFoo body.\n',

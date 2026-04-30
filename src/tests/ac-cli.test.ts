@@ -32,12 +32,12 @@ describe('parseAcArgs', () => {
 });
 
 describe('findRepoRoot (via runAc builtinDir)', () => {
-  it('resolves builtinDir to the workspace root containing package.json named "agent-config"', async () => {
+  it('resolves builtinDir to the workspace root containing package.json named "@agent-config/suit"', async () => {
     // runAc's exec hook receives the spawn environment. builtinDir itself is
     // not passed as an env var, but we can verify it indirectly: if findRepoRoot
     // succeeds (no throw) and the resolved dir is correct, runAc completes
     // without error. We also verify the repo root directly from the test file's
-    // own location (apm-builder/tests/ → up 2 dirs → repo root).
+    // own location (src/tests/ → up 2 dirs → repo root).
     let execCalled = false;
     const exitCode = await runAc(['claude', '--no-filter'], {
       resolveHarnessBin: () => 'true',
@@ -50,12 +50,12 @@ describe('findRepoRoot (via runAc builtinDir)', () => {
     expect(execCalled).toBe(true);
 
     // Verify the repo root itself so the test asserts something concrete about the path.
-    // This file: apm-builder/tests/ac-cli.test.ts → dirname up 2 → workspace root
+    // This file: src/tests/ac-cli.test.ts → dirname up 2 → workspace root
     const thisFile = new URL(import.meta.url).pathname;
     const repoRoot = path.dirname(path.dirname(path.dirname(thisFile)));
     const pkgPath = path.join(repoRoot, 'package.json');
     expect(existsSync(pkgPath)).toBe(true);
     const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
-    expect(pkg.name).toBe('agent-config');
+    expect(pkg.name).toBe('@agent-config/suit');
   });
 });

@@ -6,9 +6,9 @@ import { runBuild } from '../lib/build.ts';
 
 describe('end-to-end build', () => {
   it('builds a mixed-component repo to dist/claude-code/', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-e2e-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-e2e-'));
     const files: Record<string, string> = {
-      'apm-builder.config.yaml': 'claude-code:\n  marketplace: claude-plugins-official\n',
+      'suit.config.yaml': 'claude-code:\n  marketplace: claude-plugins-official\n',
       'skills/foo/SKILL.md':
         '---\nname: foo\nversion: 1.0.0\ndescription: a skill\ntype: skill\ntargets: [claude-code]\n---\n\nFoo body.\n',
       'rules/style/SKILL.md':
@@ -38,9 +38,9 @@ describe('end-to-end build', () => {
 
 describe('end-to-end build — codex', () => {
   it('builds a mixed-component repo to dist/codex/', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-codex-e2e-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-codex-e2e-'));
     const files: Record<string, string> = {
-      'apm-builder.config.yaml':
+      'suit.config.yaml':
         'codex:\n  agents_md_section_order: [rules, agents, skills]\n',
       'skills/foo/SKILL.md':
         '---\nname: foo\nversion: 1.0.0\ndescription: a skill\ntype: skill\ntargets: [codex]\n---\n\nFoo body.\n',

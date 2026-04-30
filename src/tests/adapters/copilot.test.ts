@@ -138,9 +138,9 @@ describe('copilot adapter', () => {
 
 describe('copilot adapter — end-to-end via runBuild', () => {
   it('builds rules + skills + hook into dist/copilot/', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-copilot-e2e-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-copilot-e2e-'));
     const files: Record<string, string> = {
-      'apm-builder.config.yaml': 'copilot:\n  hooks_dir: ".github/hooks"\n',
+      'suit.config.yaml': 'copilot:\n  hooks_dir: ".github/hooks"\n',
       'rules/style/SKILL.md':
         '---\nname: style\nversion: 1.0.0\ndescription: style\ntype: rules\ntargets: [copilot]\nscope: project\n---\n\nUse 2-space indent.\n',
       'skills/foo/SKILL.md':
@@ -180,7 +180,7 @@ describe('copilot adapter — end-to-end via runBuild', () => {
   });
 
   it('runBuild rejects plugin/agent/mcp targeting copilot via validator', async () => {
-    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-builder-copilot-rej-'));
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-build-copilot-rej-'));
     await fs.mkdir(path.join(repo, 'plugins/bad'), { recursive: true });
     await fs.writeFile(
       path.join(repo, 'plugins/bad/SKILL.md'),
