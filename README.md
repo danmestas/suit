@@ -4,7 +4,7 @@ Multi-harness AI agent configurator. Suit up your harness with personas and mode
 
 ## Status
 
-**v0.1.0** — first publishable release. Renamed extraction of the `ac` wrapper from [agent-config](https://github.com/danmestas/agent-config). Phase 1 of a multi-phase rollout. Phase 2 will add `suit init`, `suit sync`, and `suit status`.
+**v0.2.0** — adds `suit init`, `suit sync`, `suit status`, and `--help`. Path migration: `~/.config/agent-config/` → `~/.config/suit/`, `.agent-config/` → `.suit/` (legacy paths still read in v0.2.x with deprecation warning; removed in v0.3).
 
 ## Install
 
@@ -18,27 +18,27 @@ This puts two binaries on your PATH:
 
 ## Quick start
 
-`suit` needs to know where your content lives — a directory containing `personas/`, `modes/`, and `skills/`. In v0.1.0, you point it explicitly via the `SUIT_CONTENT_PATH` environment variable. Phase 2 will add `suit init` to clone a starter automatically.
-
 ```bash
-# Point at a checked-out content repo:
-export SUIT_CONTENT_PATH=~/projects/your-agent-config
+# Install
+npm install -g @agent-ops/suit
 
-# Discover what's available:
+# Point at any suit-compatible content repo
+suit init https://github.com/your-username/your-config
+
+# Discover what's available
 suit list personas
 suit list modes
 
-# Inspect a persona:
-suit show persona backend
+# Inspect the current state
+suit status
 
-# Check that all harness binaries are installed:
-suit doctor
-
-# Launch a harness with a persona + mode applied:
+# Launch a harness with a persona + mode applied
 suit claude --persona backend --mode focused
-suit codex --persona backend --mode focused
+suit codex --persona backend
 suit gemini --persona frontend --mode design
-suit copilot --persona personal
+
+# Pull updates from the content repo whenever you want
+suit sync
 ```
 
 Pass-through arguments work after `--`:
@@ -53,6 +53,18 @@ To bypass filtering for one invocation:
 suit claude --no-filter
 ```
 
+## Dev mode (point at a local content repo)
+
+If you're maintaining a content repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
+
+```bash
+export SUIT_CONTENT_PATH=~/projects/your-config
+suit list personas
+suit claude --persona backend
+```
+
+`SUIT_CONTENT_PATH` overrides the default cloned-content location for the current shell.
+
 ## Migration from `apm-builder`
 
 If you used `ac` from the `agent-config` repo:
@@ -65,6 +77,18 @@ If you used `ac` from the `agent-config` repo:
 | `npm install -g @agent-config/apm-builder` | `npm install -g @agent-ops/suit` |
 
 **The config filename is renamed.** If you have an `apm-builder.config.yaml` in your content repo, rename it to `suit.config.yaml`. v0.1.0 does NOT read the legacy filename — it will be silently ignored.
+
+### Path migration in v0.2
+
+If you used suit v0.1, the user-machine overlay moved from `~/.config/agent-config/` to `~/.config/suit/`, and the per-project overlay moved from `.agent-config/` to `.suit/`. v0.2.x reads both paths with a deprecation warning. Move your files when convenient:
+
+```bash
+mv ~/.config/agent-config ~/.config/suit
+# In any project that has .agent-config/:
+git mv .agent-config .suit
+```
+
+Legacy paths will be removed in v0.3.
 
 ## How it works
 
@@ -88,11 +112,9 @@ SUIT_CONTENT_PATH=~/projects/agent-config suit list personas
 
 `npm link` is required to use `suit` and `suit-build` together — the runtime invokes `suit-build` via PATH for Codex/Copilot prelaunch. Without `npm link` (or `npm install -g`), those subcommands will fail with `ENOENT: spawn suit-build`.
 
-## Known limitations (v0.1.0)
+## Known limitations
 
-- **No `suit init`** — content discovery is manual via `SUIT_CONTENT_PATH`. Coming in Phase 2.
-- **No `--help`** — bare `suit` prints usage; full help is in this README. Coming in Phase 2.
-- **3 tests fail in standalone repo** — they require `TAXONOMY.md` from a content repo. Documented in `KNOWN-FAILURES.md`. Will be addressed with content fixtures in Phase 2.
+- Legacy path support (`~/.config/agent-config/`, `.agent-config/`) is read with a deprecation warning. Removed in v0.3.
 
 ## License
 
