@@ -65,5 +65,8 @@
     "persona",
     "harness",
     "cli"
-  ]
+  ],
+  "suit": {
+    "templateUrl": "https://github.com/danmestas/suit-template"
+  }
 }

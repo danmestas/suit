@@ -24,6 +24,18 @@ function readVersion(): string {
   }
 }
 
+function readTemplateUrl(): string | undefined {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const pkgPath = path.join(here, '..', 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    const url = pkg.suit?.templateUrl;
+    return typeof url === 'string' && url.length > 0 ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveSuitDirs() {
   const { paths, warnings } = resolveSuitPaths();
   for (const w of warnings) process.stderr.write(`${w}\n`);
@@ -58,13 +70,14 @@ async function main(): Promise<number> {
 
   if (cmd === 'init') {
     const parsed = parseInitArgs(argv.slice(1));
-    if (parsed.url === null) {
-      process.stderr.write('suit init: missing <url> argument\n');
-      process.stderr.write('Usage: suit init <url> [--force]\n');
+    const url = parsed.url ?? readTemplateUrl();
+    if (url === undefined) {
+      process.stderr.write('suit init: missing <url> argument and no `suit.templateUrl` configured\n');
+      process.stderr.write('Usage: suit init [<url>] [--force]\n');
       return 2;
     }
     return runInit(
-      { url: parsed.url, force: parsed.force, contentDir: paths.contentDir },
+      { url, force: parsed.force, contentDir: paths.contentDir },
       {
         stdout: (s) => process.stdout.write(s),
         stderr: (s) => process.stderr.write(s),
