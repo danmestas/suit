@@ -104,7 +104,7 @@ function emitPluginPackage(
     name: manifest.name,
     version: manifest.version,
     description: manifest.description,
-    main: 'src/index',
+    main: 'src/index.ts',
     type: 'module',
   };
   if (manifest.author) pkgJson.author = manifest.author;
@@ -263,7 +263,7 @@ function emitHookExtension(component: ComponentSource): EmittedFile[] {
         name: manifest.name,
         version: manifest.version,
         description: manifest.description,
-        main: 'index',
+        main: 'index.ts',
         type: 'module',
         peerDependencies: { '@mariozechner/pi-coding-agent': '*' },
       },
