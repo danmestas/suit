@@ -141,6 +141,8 @@ main().then(
   (code) => process.exit(code),
   (err) => {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(2);
+    // exit 1 = runtime error (thrown during execution); exit 2 = usage error (returned from main).
+    // Anything that reaches the catch handler is by definition runtime.
+    process.exit(1);
   },
 );
