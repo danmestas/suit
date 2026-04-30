@@ -75,6 +75,38 @@ class ContentStoreImpl implements ContentStore {
   }
 
   async sync(): Promise<SyncResult> {
-    throw new Error('not implemented yet');
+    if (!existsSync(this.target)) {
+      return {
+        ok: false,
+        message: `${this.target} does not exist. Run \`suit init <url>\` first.`,
+      };
+    }
+    if (!existsSync(path.join(this.target, '.git'))) {
+      return {
+        ok: false,
+        message: `${this.target} is not a git repo. Re-run \`suit init\`.`,
+      };
+    }
+    const git = simpleGit(this.target);
+    const status = await git.status();
+    if (!status.isClean()) {
+      return {
+        ok: false,
+        message:
+          `${this.target} has uncommitted changes. Stash or commit them, then re-run.`,
+      };
+    }
+    const before = (await git.revparse(['HEAD'])).trim();
+    await git.pull();
+    const after = (await git.revparse(['HEAD'])).trim();
+    if (before === after) {
+      return { ok: true, updatedCommits: 0, message: 'Already up to date' };
+    }
+    const log = await git.log({ from: before, to: after });
+    return {
+      ok: true,
+      updatedCommits: log.total,
+      message: `Updated ${log.total} commit${log.total === 1 ? '' : 's'}`,
+    };
   }
 }

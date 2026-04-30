@@ -91,3 +91,69 @@ describe('ContentStore.init', () => {
     expect(existsSync(path.join(target, 'README.md'))).toBe(true);
   });
 });
+
+describe('ContentStore.sync', () => {
+  let tmp: string;
+  let sourceRepo: string;
+  let target: string;
+
+  beforeEach(async () => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), 'suit-sync-'));
+    sourceRepo = path.join(tmp, 'source');
+    target = path.join(tmp, 'target');
+    mkdirSync(sourceRepo, { recursive: true });
+    execSync('git init -q -b main', { cwd: sourceRepo });
+    execSync('git config user.email "t@t.com"', { cwd: sourceRepo });
+    execSync('git config user.name "t"', { cwd: sourceRepo });
+    writeFileSync(path.join(sourceRepo, 'README.md'), 'v1');
+    execSync('git add -A && git commit -qm v1', { cwd: sourceRepo });
+
+    const store = openContentStore(target);
+    await store.init(sourceRepo, false);
+  });
+
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('returns ok with 0 commits when already up to date', async () => {
+    const store = openContentStore(target);
+    const r = await store.sync();
+    expect(r.ok).toBe(true);
+    expect(r.updatedCommits).toBe(0);
+  });
+
+  it('returns ok with N commits when remote has new commits', async () => {
+    writeFileSync(path.join(sourceRepo, 'README.md'), 'v2');
+    execSync('git add -A && git commit -qm v2', { cwd: sourceRepo });
+
+    const store = openContentStore(target);
+    const r = await store.sync();
+    expect(r.ok).toBe(true);
+    expect(r.updatedCommits).toBe(1);
+  });
+
+  it('refuses sync when target is not a git repo', async () => {
+    rmSync(path.join(target, '.git'), { recursive: true, force: true });
+    const store = openContentStore(target);
+    const r = await store.sync();
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/not a git repo/i);
+  });
+
+  it('refuses sync when working tree is dirty', async () => {
+    writeFileSync(path.join(target, 'dirty'), 'modified');
+    const store = openContentStore(target);
+    const r = await store.sync();
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/uncommitted|dirty/i);
+  });
+
+  it('refuses sync when target does not exist', async () => {
+    rmSync(target, { recursive: true, force: true });
+    const store = openContentStore(target);
+    const r = await store.sync();
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/does not exist|no content/i);
+  });
+});
