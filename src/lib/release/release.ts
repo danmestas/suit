@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { discoverComponents } from '../discover';
-import { validateComponents } from '../validate';
+import { validateAll } from '../validate';
 import { runBuild } from '../build';
 import { loadRepoConfig } from '../config';
 import { renderReadme } from '../docs';
@@ -57,7 +57,11 @@ export async function runRelease(opts: ReleaseOptions): Promise<ReleaseResult> {
       `manifest version (${target.manifest.version}) does not match --version (${opts.version}); update SKILL.md before releasing`,
     );
   }
-  const errors = validateComponents(components);
+  const errors = await validateAll(components, {
+    projectDir: opts.repoRoot,
+    userDir: opts.repoRoot,
+    builtinDir: opts.repoRoot,
+  });
   const fatal = errors.filter((e) => e.severity === 'error');
   if (fatal.length > 0) {
     throw new Error(`validation failed: ${fatal.map((e) => e.message).join('; ')}`);
