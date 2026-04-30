@@ -86,7 +86,7 @@ suit sync
 - Errors if target is not a git repo (`.git/` missing).
 - Errors if working tree dirty: prints `git status` summary and refuses. User stashes/commits manually.
 - Errors if HEAD has diverged from upstream: prints "ahead N, behind M" and refuses. User resolves manually with native git.
-- Otherwise runs `git pull` against current branch's tracking remote (no `--rebase`, no `--ff-only` flags — let the user's git config decide; default is `--ff-only` in modern git).
+- Otherwise runs `git pull` against current branch's tracking remote. No `--rebase`, no `--ff-only` flags — respect the user's git config (`pull.ff`, `pull.rebase`).
 - Prints `Already up to date` or `Updated N commits`.
 
 ### `suit status` (and bare `suit`)
@@ -157,19 +157,22 @@ See https://github.com/danmestas/suit for full docs.
 ```
 src/lib/
 ├── ac/
-│   ├── init.ts            # suit init logic
-│   ├── sync.ts            # suit sync logic
-│   ├── status.ts          # suit status logic (composes content + harness + defaults)
-│   └── help.ts            # --help text generator
-├── content-path.ts        # resolve default content dir (env var > XDG clone > undefined)
-└── paths.ts               # XDG-style constants: contentDir, userOverlayDir, projectOverlayName
+│   ├── init.ts            # suit init: thin formatter; delegates to ContentStore
+│   ├── sync.ts            # suit sync: thin formatter; delegates to ContentStore
+│   ├── status.ts          # suit status: composes ContentStore.status + harness presence + defaults
+│   ├── help.ts            # --help text generator
+│   └── harness-presence.ts # shared by status and doctor: getHarnessPresence(): HarnessPresence[]
+├── content-store.ts       # deep module: hides git operations behind ContentStore interface
+└── paths.ts               # resolveSuitPaths(env): single function returning all path constants
 
 src/tests/
 ├── ac/
 │   ├── init.test.ts
 │   ├── sync.test.ts
-│   └── status.test.ts
-├── content-path.test.ts
+│   ├── status.test.ts
+│   └── harness-presence.test.ts
+├── content-store.test.ts  # tests against tmpdir + real simple-git
+├── paths.test.ts          # tests resolveSuitPaths with various env combinations
 ├── dist-runnable.test.ts  # regression: dist/ as standalone Node ESM
 ├── run-ac-env.test.ts     # regression: runAc honors SUIT_CONTENT_PATH
 └── fixtures/
@@ -180,9 +183,13 @@ src/tests/
 
 ```
 src/ac.ts                  # argv routing: dispatch to init/sync/status/help/etc.
-src/lib/validate.ts        # accept contentPath: string parameter (no more implicit cwd)
+                           # Rename homeDirs() → resolveSuitDirs() (or similar) for accurate naming.
+                           # Print resolveSuitPaths().warnings to stderr at top of main().
+src/lib/validate.ts        # accept Dirs parameter (consistent with rest of codebase),
+                           # not bare contentPath. Removes implicit cwd dependency.
 src/lib/persona.ts         # use new path constants (.suit/ + .agent-config/ fallback)
 src/lib/mode.ts            # same
+src/lib/ac/introspect.ts   # doctor command: switch to getHarnessPresence() + format helper
 src/tests/validate.test.ts # pass fixture path explicitly
 package.json               # remove test:ci script (no longer needed)
 .github/workflows/release.yml  # change `npm run test:ci` → `npm test`
@@ -190,43 +197,71 @@ package.json               # remove test:ci script (no longer needed)
 
 ### Module responsibilities
 
-- **`paths.ts`**: pure constants and a single `resolvePaths()` that returns `{ contentDir, userOverlayDir, projectOverlayName, legacyUserOverlayDir, legacyProjectOverlayName }`. No I/O. No business logic.
-- **`content-path.ts`**: `resolveContentDir(env: NodeJS.ProcessEnv): string` — implements the precedence (`SUIT_CONTENT_PATH` > XDG clone path). One pure function. Existing `homeDirs()` in `ac.ts` calls this.
-- **`init.ts`**: orchestrates `git clone`. Validates target absence, runs simple-git, scans result. Single exported function: `runInit(args: { url: string, force: boolean }): Promise<number>`.
-- **`sync.ts`**: orchestrates `git pull`. Validates state. Single exported function: `runSync(): Promise<number>`.
-- **`status.ts`**: composes a status report. Reads content-dir state, harness presence (reuses `doctor` logic), default config (reads `.suit/default.yaml`). Single exported function: `runStatus(): Promise<number>`. Pure formatting; no side effects.
-- **`help.ts`**: returns help text as a string. Pure function.
+- **`paths.ts`** — single function `resolveSuitPaths(env = process.env)` returning `{ paths: SuitPaths, warnings: string[] }`. All env reads happen at call time (not module load). `warnings` is for legacy-path deprecation messages — caller (top-level `main`) prints them. No module state, no I/O.
+- **`content-store.ts`** — deep module hiding git operations:
+  ```typescript
+  interface ContentStore {
+    status(): Promise<{ exists: boolean; remote?: string; sync?: SyncState }>;
+    init(url: string, force: boolean): Promise<void>;
+    sync(): Promise<{ updated: number } | { error: string }>;
+  }
+  function openContentStore(targetPath: string): ContentStore;
+  ```
+  All `simple-git` calls, target-existence checks, dirty-tree detection, divergence detection live here. The three commands below are thin formatters consuming this interface.
+- **`ac/init.ts`** — `runInit(args: { url: string; force: boolean }): Promise<number>`. Calls `ContentStore.init`, formats output, returns exit code.
+- **`ac/sync.ts`** — `runSync(): Promise<number>`. Calls `ContentStore.sync`, formats output, returns exit code.
+- **`ac/status.ts`** — `runStatus(): Promise<number>`. Calls `ContentStore.status` + `getHarnessPresence()` + reads `.suit/default.yaml`, formats the multi-line output. Pure formatting; no side effects.
+- **`ac/harness-presence.ts`** — `getHarnessPresence(harnesses: string[]): Promise<HarnessPresence[]>`. Returns one entry per harness with `{ name, found, path }`. Consumed by both `status` and `doctor` so their output cannot drift.
+- **`ac/help.ts`** — returns help text string. Pure function.
 
 Each file ≤ 150 lines. If any file approaches that, split.
 
-### Path constants (concrete values)
+### Path resolution (concrete shape)
 
 ```typescript
 // src/lib/paths.ts
 import os from 'node:os';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 
-const HOME = os.homedir();
+export interface SuitPaths {
+  contentDir: string;
+  userOverlayDir: string;
+  projectOverlayName: string;
+  legacyUserOverlayDir: string;
+  legacyProjectOverlayName: string;
+}
 
-export const SUIT_PATHS = {
-  // Default tier (cloned content)
-  contentDir: process.env.XDG_DATA_HOME
-    ? path.join(process.env.XDG_DATA_HOME, 'suit', 'content')
-    : path.join(HOME, '.local', 'share', 'suit', 'content'),
+export function resolveSuitPaths(
+  env: NodeJS.ProcessEnv = process.env,
+): { paths: SuitPaths; warnings: string[] } {
+  const home = os.homedir();
+  const paths: SuitPaths = {
+    contentDir: env.SUIT_CONTENT_PATH
+      ? path.resolve(env.SUIT_CONTENT_PATH)
+      : env.XDG_DATA_HOME
+        ? path.join(env.XDG_DATA_HOME, 'suit', 'content')
+        : path.join(home, '.local', 'share', 'suit', 'content'),
+    userOverlayDir: env.XDG_CONFIG_HOME
+      ? path.join(env.XDG_CONFIG_HOME, 'suit')
+      : path.join(home, '.config', 'suit'),
+    projectOverlayName: '.suit',
+    legacyUserOverlayDir: path.join(home, '.config', 'agent-config'),
+    legacyProjectOverlayName: '.agent-config',
+  };
 
-  // User overlay (per-machine personal)
-  userOverlayDir: process.env.XDG_CONFIG_HOME
-    ? path.join(process.env.XDG_CONFIG_HOME, 'suit')
-    : path.join(HOME, '.config', 'suit'),
-
-  // Project overlay (per-repo)
-  projectOverlayName: '.suit',
-
-  // Legacy paths (read-only with deprecation warning in v0.2; removed in v0.3)
-  legacyUserOverlayDir: path.join(HOME, '.config', 'agent-config'),
-  legacyProjectOverlayName: '.agent-config',
-} as const;
+  const warnings: string[] = [];
+  if (existsSync(paths.legacyUserOverlayDir) && !existsSync(paths.userOverlayDir)) {
+    warnings.push(
+      `[suit] WARNING: ~/.config/agent-config/ is deprecated. ` +
+        `Move to ~/.config/suit/. Legacy path will be removed in v0.3.`,
+    );
+  }
+  return { paths, warnings };
+}
 ```
+
+Single function. All env reads at call time (not module load). Warnings returned, not printed — caller decides.
 
 XDG support is free (`XDG_DATA_HOME` / `XDG_CONFIG_HOME` env vars override defaults). Most users will never set them; macOS/Linux defaults are sensible.
 
@@ -250,20 +285,21 @@ XDG support is free (`XDG_DATA_HOME` / `XDG_CONFIG_HOME` env vars override defau
 - `init` and `sync` tests use real `simple-git` against tmpdir fixture repos (no mocks). The repo is created in `beforeEach` with a couple of commits, served via `file://` URL for `init`. This exercises the actual git path.
 - `status` tests stub harness binary lookup via the existing `resolveHarnessBin` injection pattern. Content/sync state is built into the tmpdir fixture.
 - `validate.ts` refactor: existing 17 tests pass after the parameter threading. The `TAXONOMY.md` fixture lives at `src/tests/fixtures/TAXONOMY.md`.
-- `dist-runnable.test.ts`: runs `npm run build` (or relies on it being built), then spawns `node /path/to/dist/ac.js list personas` from a tmpdir with `SUIT_CONTENT_PATH` pointing at a fixture. Verifies exit 0 and non-empty output. This catches regressions in the postbuild import rewriter.
+- `dist-runnable.test.ts`: setup ALWAYS runs `npm run build` (no fallback paths — eliminates the unknown-unknown of "is dist/ stale?"). Then spawns `node /path/to/dist/ac.js list personas` from a tmpdir with `SUIT_CONTENT_PATH` pointing at a fixture. Verifies exit 0 and non-empty output. This catches regressions in the postbuild import rewriter. Test annotated with `slow` tag in vitest config so it can be excluded in fast inner-loop runs but always runs in `npm test`.
 - `run-ac-env.test.ts`: programmatic call to `runAc()` with `SUIT_CONTENT_PATH` set in `process.env`, asserts the resolved content dir is the env-var path. Catches regressions of the bug we fixed in Task 9.
 
 After Phase 2: `npm test` is the single CI gate. No exclusions. The `test:ci` script is removed from `package.json` and the workflow.
 
 ## Backward compatibility notes
 
-For one minor version (v0.2.x), suit reads from BOTH the new and legacy paths:
+For one minor version (v0.2.x), suit reads from BOTH new and legacy paths:
 
-- `SUIT_PATHS.userOverlayDir` (new) and `SUIT_PATHS.legacyUserOverlayDir` (old) are both checked
-- If only the legacy path has content, suit reads it AND prints a deprecation warning to stderr the first time per process: `[suit] WARNING: ~/.config/agent-config/ is deprecated. Move to ~/.config/suit/. Legacy path will be removed in v0.3.`
-- Same for project-overlay: read both `.suit/` and `.agent-config/` with a single warning.
+- New paths: `~/.config/suit/`, `.suit/`. Legacy paths: `~/.config/agent-config/`, `.agent-config/`.
+- If only the legacy path has content, suit reads it. `resolveSuitPaths()` returns a `warnings: string[]` array containing a deprecation message per legacy path that's still in use.
+- The top-level `main()` in `ac.ts` prints any returned warnings to stderr once. No module-scoped state, no hidden flags — the warnings are inputs to formatting, not a side channel.
+- Removal in v0.3 deletes both the legacy fields from `SuitPaths` and the warning emission. Tracked in the v0.3 punch list.
 
-The warning is printed via `console.warn` (stderr), once per invocation. Removal in v0.3 is tracked in the v0.3 punch list.
+This is documented in **ADR-0007: Path migration policy** (committed alongside the path-resolution code change).
 
 ## CLI argument parsing
 
@@ -305,19 +341,42 @@ None for v0.2. No telemetry, no analytics, no remote logging. CLI output to stdo
 - `run-ac-env.test.ts` passes — regression-protects the env-var injection
 - Legacy paths still read with deprecation warning (one warning per invocation)
 - README updated with new install + quick start (no env-var dance for new users)
-- All ADRs amended or new ADRs added where Phase 2 makes new architectural decisions (specifically: ADR-0007 for path migration policy, ADR-0008 if any of init/sync/status surface decisions warrant it)
+- ADR-0007 (path migration policy) committed
+- ADR-0008 (ContentStore deep module) committed
+- `validate.ts` accepts `Dirs` parameter (no implicit cwd dependency)
+- `getHarnessPresence()` extracted; `status` and `doctor` both consume it; output cannot drift
+- Module count: paths.ts (merged with content-path), content-store.ts, ac/{init,sync,status,help,harness-presence}.ts
 
-## Open items deferred
+## ADRs to write in Phase 2
 
-- ADR-0007 (path migration policy) — write during implementation; commit alongside the code change that uses the new constants
-- Whether `suit status` should accept `--json` for scripting use — defer to v0.3 if anyone asks
+- **ADR-0007: Path migration policy.** Documents the v0.2 → v0.3 deprecation of `~/.config/agent-config/` and `.agent-config/`. Commit alongside `paths.ts`.
+- **ADR-0008: ContentStore as deep module hiding git.** Documents the decision to abstract git operations behind `ContentStore` rather than calling `simple-git` from each command. Commit alongside `content-store.ts`.
+
+## Open items deferred to v0.3+
+
+- Whether `suit status` should accept `--json` for scripting use — defer until someone asks
 - Whether `suit sync` should accept `--rebase` flag — defer; respect user's git config
+- Removing legacy path support (`~/.config/agent-config/`, `.agent-config/`) — v0.3
 
 ---
 
 ## Spec self-review
 
 - **Placeholder scan:** none. Every section concrete.
-- **Internal consistency:** path tables, command sections, and implementation breakdown all reference the same `SUIT_PATHS.*` constants.
+- **Internal consistency:** path resolution, module responsibilities, and acceptance criteria all reference `resolveSuitPaths()` and `ContentStore`.
 - **Scope check:** Group A + Group B is one PR. No subsystem in here is independent enough to peel off without losing the value of the bundle.
 - **Ambiguity check:** `suit init` validates clone has expected layout — explicitly says "warn, don't refuse." `suit sync` divergence behavior — explicitly says "refuse, don't auto-rebase." `suit status` empty content dir — explicitly says "degrade gracefully, exit 0."
+
+## Ousterhout review applied (2026-04-30)
+
+Spec was reviewed through Ousterhout's "deep modules / minimize complexity" lens before approval. Changes made:
+
+- **Merged `content-path.ts` into `paths.ts`.** A 2-line precedence function in its own file is a shallow module. Single function `resolveSuitPaths(env)` now owns all path resolution.
+- **Added `content-store.ts` deep module.** Hides all `simple-git` operations behind `{init, sync, status}` interface. Prevents change amplification across the three command files. ADR-0008 documents the decision.
+- **Extracted `getHarnessPresence()`.** Both `status` and `doctor` consume it; their output cannot drift. Conjoined-methods risk eliminated.
+- **`validate.ts` accepts `Dirs`, not bare contentPath.** Consistent with rest of codebase; no implicit cwd dependency.
+- **Deprecation warnings returned from `resolveSuitPaths`, not printed via module state.** No hidden state, no test flakiness.
+- **`dist-runnable.test.ts` always builds in setup.** Eliminates "is dist/ stale?" unknown-unknown.
+- **ADR-0007 written now, not deferred.** Policy is decided in this spec; commit the ADR alongside the code.
+
+The result: same total source-file count (modules of similar size), but each module is deeper, cross-module change amplification removed, and there's no hidden state in path/warning resolution.
