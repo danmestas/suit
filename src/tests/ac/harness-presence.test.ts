@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getHarnessPresence } from '../../lib/ac/harness-presence';
+import { getHarnessPresence } from '../../lib/ac/harness-presence.js';
 
 describe('getHarnessPresence', () => {
   it('returns one entry per requested harness', () => {

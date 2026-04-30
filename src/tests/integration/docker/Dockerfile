@@ -25,14 +25,14 @@ RUN npm install -g @mariozechner/pi-coding-agent
 # Copy repo content into /workspace
 COPY . /workspace
 
-# Install apm-builder deps (tsx, vitest, etc.)
-WORKDIR /workspace/apm-builder
+# Install suit deps (tsx, vitest, etc.)
+WORKDIR /workspace
 RUN npm install
 
 # Make test scripts executable
-RUN chmod +x /workspace/apm-builder/tests/integration/docker/test-runner.sh \
-  && chmod +x /workspace/apm-builder/tests/integration/docker/scenarios/*.sh
+RUN chmod +x /workspace/src/tests/integration/docker/test-runner.sh \
+  && chmod +x /workspace/src/tests/integration/docker/scenarios/*.sh
 
 WORKDIR /workspace
 
-ENTRYPOINT ["/workspace/apm-builder/tests/integration/docker/test-runner.sh"]
+ENTRYPOINT ["/workspace/src/tests/integration/docker/test-runner.sh"]

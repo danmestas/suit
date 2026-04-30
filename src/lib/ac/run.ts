@@ -1,4 +1,4 @@
-import { runAcSession, type AcSessionDeps } from './session';
+import { runAcSession, type AcSessionDeps } from './session.js';
 
 export interface ParsedAcArgs {
   harness: string;

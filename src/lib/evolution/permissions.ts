@@ -1,5 +1,5 @@
-import type { LoadedSession } from './sessions';
-import type { Finding, Severity } from './types';
+import type { LoadedSession } from './sessions.js';
+import type { Finding, Severity } from './types.js';
 
 const APPROVAL_THRESHOLD = 5;
 

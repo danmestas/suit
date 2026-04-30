@@ -18,7 +18,7 @@ fi
 # Require the matrix image
 if ! docker image inspect agent-config-test >/dev/null 2>&1; then
   echo "Image agent-config-test not found. Build first:" >&2
-  echo "  docker build -f apm-builder/tests/integration/docker/Dockerfile -t agent-config-test ." >&2
+  echo "  docker build -f src/tests/integration/docker/Dockerfile -t agent-config-test ." >&2
   exit 1
 fi
 

@@ -2,7 +2,7 @@
 // to ship to Codex; until then we throw on use so callers fail loudly rather
 // than silently.
 
-import type { HarnessAdapter } from './types';
+import type { HarnessAdapter } from './types.js';
 
 export const codexHarnessAdapter: HarnessAdapter = {
   name: 'codex',

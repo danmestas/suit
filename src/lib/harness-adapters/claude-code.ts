@@ -7,7 +7,7 @@ import type {
   HarnessAdapter,
   NormalizedHookInput,
   NormalizedHookOutput,
-} from './types';
+} from './types.js';
 
 interface ClaudeCodeRawInput {
   hook_event_name?: string;

@@ -1,4 +1,4 @@
-import { openContentStore } from '../content-store';
+import { openContentStore } from '../content-store.js';
 
 export interface RunSyncArgs {
   contentDir: string;

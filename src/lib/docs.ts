@@ -1,4 +1,4 @@
-import type { ComponentSource } from './types';
+import type { ComponentSource } from './types.js';
 
 /** Marker that opens the auto-generated component table region. */
 export const COMPONENTS_BEGIN = '<!-- AUTO-GENERATED: COMPONENTS -->';

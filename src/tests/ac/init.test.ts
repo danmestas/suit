@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runInit } from '../../lib/ac/init';
+import { runInit } from '../../lib/ac/init.js';
 
 describe('runInit', () => {
   let tmp: string;

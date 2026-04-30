@@ -1,4 +1,4 @@
-import type { ComponentSource } from '../types';
+import type { ComponentSource } from '../types.js';
 
 /** Event from a JSONL transcript. Subset we care about for v1 detectors. */
 export interface SessionEvent {

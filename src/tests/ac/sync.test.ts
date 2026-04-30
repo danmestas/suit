@@ -3,8 +3,8 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runSync } from '../../lib/ac/sync';
-import { openContentStore } from '../../lib/content-store';
+import { runSync } from '../../lib/ac/sync.js';
+import { openContentStore } from '../../lib/content-store.js';
 
 describe('runSync', () => {
   let tmp: string;

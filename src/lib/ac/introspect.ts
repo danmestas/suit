@@ -1,6 +1,6 @@
-import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona';
-import { listAllModes, findMode } from '../mode';
-import { getHarnessPresence } from './harness-presence';
+import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona.js';
+import { listAllModes, findMode } from '../mode.js';
+import { getHarnessPresence } from './harness-presence.js';
 
 export interface IntrospectDeps extends DiscoveryDirs {
   print: (line: string) => void;

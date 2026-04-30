@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { SessionEvent } from './types';
+import type { SessionEvent } from './types.js';
 
 export interface LoadedSession {
   sessionId: string;

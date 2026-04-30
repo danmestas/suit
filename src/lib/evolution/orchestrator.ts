@@ -1,11 +1,11 @@
 // src/lib/evolution/orchestrator.ts
 import path from 'node:path';
 import os from 'node:os';
-import { loadSessionsSince } from './sessions';
-import { detectPermissionPrompts } from './permissions';
-import { detectStaleMemoryRefs } from './memory';
-import { redact } from './redact';
-import type { EvolutionReport, EvolveOptions, Finding } from './types';
+import { loadSessionsSince } from './sessions.js';
+import { detectPermissionPrompts } from './permissions.js';
+import { detectStaleMemoryRefs } from './memory.js';
+import { redact } from './redact.js';
+import type { EvolutionReport, EvolveOptions, Finding } from './types.js';
 
 export interface OrchestratorOptions extends EvolveOptions {
   /** Override default sessions dir (used by tests). */

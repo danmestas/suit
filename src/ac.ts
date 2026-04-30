@@ -2,16 +2,16 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { runAc } from './lib/ac/run';
-import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect';
-import { runInit } from './lib/ac/init';
-import { runSync } from './lib/ac/sync';
-import { runStatus } from './lib/ac/status';
-import { helpText } from './lib/ac/help';
-import { resolveSuitPaths } from './lib/paths';
+import { runAc } from './lib/ac/run.js';
+import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect.js';
+import { runInit } from './lib/ac/init.js';
+import { runSync } from './lib/ac/sync.js';
+import { runStatus } from './lib/ac/status.js';
+import { helpText } from './lib/ac/help.js';
+import { resolveSuitPaths } from './lib/paths.js';
+import { KNOWN_HARNESSES } from './lib/ac/harness-presence.js';
 
 const argv = process.argv.slice(2);
-const HARNESSES = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'];
 
 function readVersion(): string {
   try {
@@ -97,7 +97,7 @@ async function main(): Promise<number> {
 
   if (cmd === 'status' || cmd === undefined) {
     return runStatus(
-      { contentDir: paths.contentDir, version: readVersion(), harnesses: HARNESSES },
+      { contentDir: paths.contentDir, version: readVersion(), harnesses: KNOWN_HARNESSES },
       { stdout: (s) => process.stdout.write(s) },
     );
   }
@@ -128,7 +128,7 @@ async function main(): Promise<number> {
 
   if (cmd === 'doctor') {
     return doctorCommand({
-      harnesses: HARNESSES,
+      harnesses: KNOWN_HARNESSES,
       print: (l) => process.stdout.write(l + '\n'),
     });
   }
@@ -141,6 +141,8 @@ main().then(
   (code) => process.exit(code),
   (err) => {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(2);
+    // exit 1 = runtime error (thrown during execution); exit 2 = usage error (returned from main).
+    // Anything that reaches the catch handler is by definition runtime.
+    process.exit(1);
   },
 );

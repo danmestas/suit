@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { COMPONENT_TYPES } from '../lib/types';
+import { COMPONENT_TYPES } from '../lib/types.js';
 
 describe('COMPONENT_TYPES', () => {
   it('includes persona', () => {

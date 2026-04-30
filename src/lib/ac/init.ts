@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { openContentStore } from '../content-store';
+import { openContentStore } from '../content-store.js';
 
 export interface RunInitArgs {
   url: string;
