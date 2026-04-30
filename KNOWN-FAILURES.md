@@ -14,12 +14,10 @@ All three failures share root cause: `validate.ts` reads `TAXONOMY.md` from repo
 - `persona/mode validation > rejects persona referencing nonexistent skill in skill_include` — `ENOENT: TAXONOMY.md`
 - `persona/mode validation > rejects mode body > 4096 bytes` — `ENOENT: TAXONOMY.md`
 
-### `src/tests/ac-prelaunch.test.ts`
-Both tests `spawn('suit-build', ...)`. After Task 9 runs `npm link`, the binary lands on `PATH` and these may still fail because they exercise content paths (codex/copilot prelaunch generates filtered AGENTS.md / copilot-instructions.md from personas+skills). Phase 2 content fixtures will resolve.
-
-- `prelaunchComposeCodex > writes AGENTS.md to a tempdir and returns it as new cwd` — `Error: spawn suit-build ENOENT`
-- `prelaunchComposeCopilot > writes copilot-instructions.md to tempdir` — `Error: spawn suit-build ENOENT`
-
 ## Failing tests NOT due to missing content
 
-None — the only non-content failure (a Task 3 sed regression in `src/adapters/pi.ts`) was fixed in commit `<see git log for "fix: restore .ts string literals in pi.ts">`.
+None — the Task 3 sed regression in `src/adapters/pi.ts` was fixed earlier, and the two `ac-prelaunch.test.ts` cases that were blocked on `spawn suit-build ENOENT` now pass after Task 9's `npm link` puts `suit-build` on `PATH`.
+
+## Final tally
+
+After Task 9: **3 failures / 269 tests** — all three are the `TAXONOMY.md` ENOENT cases above.
