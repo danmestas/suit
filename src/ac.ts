@@ -9,7 +9,7 @@ const argv = process.argv.slice(2);
 // SUIT_CONTENT_PATH overrides builtinDir so suit can read personas/modes/skills
 // from an external content directory (e.g., agent-config) without bundling them.
 const homeDirs = () => {
-  const envContent = process.env.SUIT_CONTENT_PATH;
+  const envContent = process.env.SUIT_CONTENT_PATH?.trim();
   return {
     projectDir: process.cwd(),
     userDir: path.join(os.homedir(), '.config', 'agent-config'),
