@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { simpleGit } from 'simple-git';
 
@@ -58,8 +58,20 @@ class ContentStoreImpl implements ContentStore {
     };
   }
 
-  async init(_url: string, _force: boolean): Promise<InitResult> {
-    throw new Error('not implemented yet');
+  async init(url: string, force: boolean): Promise<InitResult> {
+    if (existsSync(this.target)) {
+      if (!force) {
+        throw new Error(
+          `${this.target} already exists. Run \`suit sync\` to update, ` +
+            `or \`suit init --force <url>\` to overwrite.`,
+        );
+      }
+      rmSync(this.target, { recursive: true, force: true });
+    }
+    mkdirSync(path.dirname(this.target), { recursive: true });
+    const git = simpleGit();
+    await git.clone(url, this.target);
+    return { ok: true };
   }
 
   async sync(): Promise<SyncResult> {
