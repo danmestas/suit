@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.ts';
-import { composeAgentsMd } from '../lib/agents-md.ts';
+import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types';
+import { composeAgentsMd } from '../lib/agents-md';
 
 export const piAdapter: Adapter = {
   target: 'pi',
@@ -104,7 +104,7 @@ function emitPluginPackage(
     name: manifest.name,
     version: manifest.version,
     description: manifest.description,
-    main: 'src/index.ts',
+    main: 'src/index',
     type: 'module',
   };
   if (manifest.author) pkgJson.author = manifest.author;
@@ -263,7 +263,7 @@ function emitHookExtension(component: ComponentSource): EmittedFile[] {
         name: manifest.name,
         version: manifest.version,
         description: manifest.description,
-        main: 'index.ts',
+        main: 'index',
         type: 'module',
         peerDependencies: { '@mariozechner/pi-coding-agent': '*' },
       },

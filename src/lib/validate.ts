@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ComponentSource, ComponentType, Target } from './types.ts';
+import type { ComponentSource, ComponentType, Target } from './types';
 
 export interface ValidationError {
   severity: 'error' | 'warning';

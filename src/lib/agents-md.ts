@@ -1,5 +1,5 @@
-import type { ComponentSource, Target } from './types.ts';
-import { selectRules } from './rules.ts';
+import type { ComponentSource, Target } from './types';
+import { selectRules } from './rules';
 
 export type AgentsMdSection = 'rules' | 'agents' | 'skills';
 export const DEFAULT_SECTION_ORDER: AgentsMdSection[] = ['rules', 'agents', 'skills'];

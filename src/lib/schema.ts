@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMPONENT_TYPES, TARGETS, type ComponentType, type Target } from './types.ts';
+import { COMPONENT_TYPES, TARGETS, type ComponentType, type Target } from './types';
 
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$/;
 const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;

@@ -2,18 +2,18 @@
 // returns the matching adapter. Falls back to claude-code when no signal is
 // present — that's the primary harness this repo targets.
 
-import type { HarnessAdapter } from './types.ts';
-import { claudeCodeHarnessAdapter } from './claude-code.ts';
-import { codexHarnessAdapter } from './codex.ts';
-import { geminiHarnessAdapter } from './gemini.ts';
-import { copilotHarnessAdapter } from './copilot.ts';
-import { piHarnessAdapter } from './pi.ts';
+import type { HarnessAdapter } from './types';
+import { claudeCodeHarnessAdapter } from './claude-code';
+import { codexHarnessAdapter } from './codex';
+import { geminiHarnessAdapter } from './gemini';
+import { copilotHarnessAdapter } from './copilot';
+import { piHarnessAdapter } from './pi';
 
 export type {
   HarnessAdapter,
   NormalizedHookInput,
   NormalizedHookOutput,
-} from './types.ts';
+} from './types';
 
 export const HARNESS_ADAPTERS: Record<string, HarnessAdapter> = {
   'claude-code': claudeCodeHarnessAdapter,

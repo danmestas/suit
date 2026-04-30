@@ -22,7 +22,7 @@ async function runApmBuilderDocs(
   originalCwd: string,
 ): Promise<void> {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const cli = path.resolve(here, '..', '..', 'cli.ts');
+  const cli = path.resolve(here, '..', '..', 'cli');
   const tsx = path.resolve(here, '..', '..', '..', 'node_modules', '.bin', 'tsx');
   await new Promise<void>((resolveCb, reject) => {
     const child = spawn(
@@ -81,10 +81,10 @@ export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<P
   };
 }
 
-import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.ts';
-import { composeHarnessHome } from './symlink-farm.ts';
-import { loadHarnessCatalog } from './harness-catalog.ts';
-import type { PersonaManifest, ModeManifest } from '../schema.ts';
+import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution';
+import { composeHarnessHome } from './symlink-farm';
+import { loadHarnessCatalog } from './harness-catalog';
+import type { PersonaManifest, ModeManifest } from '../schema';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;

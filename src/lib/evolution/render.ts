@@ -1,4 +1,4 @@
-import type { EvolutionReport, Finding, Severity } from './types.ts';
+import type { EvolutionReport, Finding, Severity } from './types';
 
 const SEVERITY_RANK: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
 

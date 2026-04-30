@@ -7,8 +7,8 @@ export type Target = typeof TARGETS[number];
 // Re-export the Category type so callers depending on `types.ts` get the full
 // public surface in one import. The canonical list lives in `schema.ts` to
 // keep the Zod enum and the TypeScript type derived from a single source.
-export type { Category } from './schema.ts';
-import type { Category } from './schema.ts';
+export type { Category } from './schema';
+import type { Category } from './schema';
 
 /**
  * Attribution metadata for components vendored from an upstream source.

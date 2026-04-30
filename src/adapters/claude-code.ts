@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
-import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.ts';
-import { selectRules, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules.ts';
+import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types';
+import { selectRules, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules';
 
 function yamlValue(v: string): string {
   // Use yaml.stringify to safely encode a single scalar (with quoting if needed).

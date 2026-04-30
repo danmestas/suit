@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { ComponentSource } from '../types.ts';
+import type { ComponentSource } from '../types';
 
 export interface MarketplaceContext {
   /** Git host + repo, e.g. "github.com/danmestas/agent-skills". */

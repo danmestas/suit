@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import pLimit from 'p-limit';
-import { discoverComponents } from './discover.ts';
-import { validateComponents, type ValidationError } from './validate.ts';
-import { loadRepoConfig } from './config.ts';
-import { matchesGlob } from './glob.ts';
-import { getAdapter } from '../adapters/index.ts';
-import type { Target } from './types.ts';
+import { discoverComponents } from './discover';
+import { validateComponents, type ValidationError } from './validate';
+import { loadRepoConfig } from './config';
+import { matchesGlob } from './glob';
+import { getAdapter } from '../adapters/index';
+import type { Target } from './types';
 
 export interface BuildOptions {
   repoRoot: string;
@@ -69,4 +69,4 @@ export async function runBuild(opts: BuildOptions): Promise<BuildResult> {
   return { errors, written };
 }
 
-export { matchesGlob } from './glob.ts';
+export { matchesGlob } from './glob';

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import Anthropic from '@anthropic-ai/sdk';
-import type { SkillEntry } from './types.ts';
+import type { SkillEntry } from './types';
 
 export interface CatalogPaths {
   repoLocal?: string;

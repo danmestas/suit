@@ -1,7 +1,7 @@
 // Copilot CLI harness adapter — STUB. Real implementation lands when a hook
 // needs to ship to Copilot CLI.
 
-import type { HarnessAdapter } from './types.ts';
+import type { HarnessAdapter } from './types';
 
 export const copilotHarnessAdapter: HarnessAdapter = {
   name: 'copilot',

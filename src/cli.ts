@@ -4,21 +4,21 @@ import path from 'node:path';
 import { defineCommand, runMain } from 'citty';
 import pc from 'picocolors';
 import chokidar from 'chokidar';
-import { discoverComponents } from './lib/discover.ts';
-import { validateComponents } from './lib/validate.ts';
-import { runBuild } from './lib/build.ts';
-import { matchesGlob } from './lib/glob.ts';
-import { updateReadme } from './lib/docs.ts';
-import { composeAgentsMd } from './lib/agents-md.ts';
-import { composeCopilotInstructions } from './adapters/copilot.ts';
-import { TARGETS, type Target } from './lib/types.ts';
-import { listImplementedTargets } from './adapters/index.ts';
-import { runEvolution } from './lib/evolution/orchestrator.ts';
-import { renderReport } from './lib/evolution/render.ts';
-import { runRelease } from './lib/release/release.ts';
-import { computeTag } from './lib/release/git.ts';
-import { renderReleaseNotes } from './lib/release/notes.ts';
-import { loadRepoConfig } from './lib/config.ts';
+import { discoverComponents } from './lib/discover';
+import { validateComponents } from './lib/validate';
+import { runBuild } from './lib/build';
+import { matchesGlob } from './lib/glob';
+import { updateReadme } from './lib/docs';
+import { composeAgentsMd } from './lib/agents-md';
+import { composeCopilotInstructions } from './adapters/copilot';
+import { TARGETS, type Target } from './lib/types';
+import { listImplementedTargets } from './adapters/index';
+import { runEvolution } from './lib/evolution/orchestrator';
+import { renderReport } from './lib/evolution/render';
+import { runRelease } from './lib/release/release';
+import { computeTag } from './lib/release/git';
+import { renderReleaseNotes } from './lib/release/notes';
+import { loadRepoConfig } from './lib/config';
 
 const validateCmd = defineCommand({
   meta: { name: 'validate', description: 'Validate all components' },

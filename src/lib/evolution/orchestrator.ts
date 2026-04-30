@@ -1,11 +1,11 @@
 // apm-builder/lib/evolution/orchestrator.ts
 import path from 'node:path';
 import os from 'node:os';
-import { loadSessionsSince } from './sessions.ts';
-import { detectPermissionPrompts } from './permissions.ts';
-import { detectStaleMemoryRefs } from './memory.ts';
-import { redact } from './redact.ts';
-import type { EvolutionReport, EvolveOptions, Finding } from './types.ts';
+import { loadSessionsSince } from './sessions';
+import { detectPermissionPrompts } from './permissions';
+import { detectStaleMemoryRefs } from './memory';
+import { redact } from './redact';
+import type { EvolutionReport, EvolveOptions, Finding } from './types';
 
 export interface OrchestratorOptions extends EvolveOptions {
   /** Override default sessions dir (used by tests). */

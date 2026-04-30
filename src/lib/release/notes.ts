@@ -1,4 +1,4 @@
-import type { ComponentSource, Target } from '../types.ts';
+import type { ComponentSource, Target } from '../types';
 
 export interface NotesContext {
   component: ComponentSource;

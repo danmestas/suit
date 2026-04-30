@@ -2,8 +2,8 @@
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runAc } from './lib/ac/run.ts';
-import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect.ts';
+import { runAc } from './lib/ac/run';
+import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect';
 
 const argv = process.argv.slice(2);
 const homeDirs = () => ({

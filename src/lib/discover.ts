@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { ManifestSchema } from './schema.ts';
-import type { ComponentSource } from './types.ts';
+import { ManifestSchema } from './schema';
+import type { ComponentSource } from './types';
 
 const COMPONENT_DIRS = ['skills', 'plugins', 'rules', 'hooks', 'agents', 'mcp', 'personas', 'modes'] as const;
 

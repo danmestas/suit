@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { PersonaSchema, type PersonaManifest } from './schema.ts';
+import { PersonaSchema, type PersonaManifest } from './schema';
 
 export interface DiscoveryDirs {
   /** Project-scoped: <cwd>/.agent-config/personas/ (or modes/). */

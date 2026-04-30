@@ -1,16 +1,16 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { discoverComponents } from '../discover.ts';
-import { validateComponents } from '../validate.ts';
-import { runBuild } from '../build.ts';
-import { loadRepoConfig } from '../config.ts';
-import { renderReadme } from '../docs.ts';
-import { tagRelease } from './git.ts';
-import { appendChangelogEntry } from './changelog.ts';
-import { renderReleaseNotes } from './notes.ts';
-import { publishAPM, publishClaudeCode, publishGitUrl } from './publish.ts';
-import { renderMarketplaceEntry, marketplaceFilePath } from './marketplace.ts';
-import type { Target } from '../types.ts';
+import { discoverComponents } from '../discover';
+import { validateComponents } from '../validate';
+import { runBuild } from '../build';
+import { loadRepoConfig } from '../config';
+import { renderReadme } from '../docs';
+import { tagRelease } from './git';
+import { appendChangelogEntry } from './changelog';
+import { renderReleaseNotes } from './notes';
+import { publishAPM, publishClaudeCode, publishGitUrl } from './publish';
+import { renderMarketplaceEntry, marketplaceFilePath } from './marketplace';
+import type { Target } from '../types';
 
 export interface ReleaseOptions {
   repoRoot: string;

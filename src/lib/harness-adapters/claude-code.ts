@@ -7,7 +7,7 @@ import type {
   HarnessAdapter,
   NormalizedHookInput,
   NormalizedHookOutput,
-} from './types.ts';
+} from './types';
 
 interface ClaudeCodeRawInput {
   hook_event_name?: string;

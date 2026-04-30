@@ -1,5 +1,5 @@
-import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.ts';
-import { composeRulesBody, selectRules } from '../lib/rules.ts';
+import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types';
+import { composeRulesBody, selectRules } from '../lib/rules';
 
 export const copilotAdapter: Adapter = {
   target: 'copilot',

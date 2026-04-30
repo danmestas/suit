@@ -1,7 +1,7 @@
 // apm-builder/lib/evolution/memory.ts
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Finding } from './types.ts';
+import type { Finding } from './types';
 
 const PATH_REGEX = /`([a-zA-Z0-9_\-./]+\.(?:ts|js|md|json|yml|yaml|sh|go|py))`/g;
 

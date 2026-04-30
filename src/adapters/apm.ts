@@ -5,13 +5,13 @@ import {
   composeRulesBody,
   isOwnerOfRulesFile,
   selectRules,
-} from '../lib/rules.ts';
+} from '../lib/rules';
 import type {
   Adapter,
   AdapterContext,
   ComponentSource,
   EmittedFile,
-} from '../lib/types.ts';
+} from '../lib/types';
 
 interface ApmConfig {
   package_scope?: string;

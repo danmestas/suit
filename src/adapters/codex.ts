@@ -5,13 +5,13 @@ import type {
   AdapterContext,
   ComponentSource,
   EmittedFile,
-} from '../lib/types.ts';
+} from '../lib/types';
 import {
   composeAgentsMd,
   DEFAULT_SECTION_ORDER,
   type AgentsMdSection,
-} from '../lib/agents-md.ts';
-import { renderMcpServerToml } from '../lib/toml.ts';
+} from '../lib/agents-md';
+import { renderMcpServerToml } from '../lib/toml';
 
 const TARGET = 'codex' as const;
 

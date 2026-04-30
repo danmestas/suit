@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
-import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona.ts';
-import { listAllModes, findMode } from '../mode.ts';
+import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona';
+import { listAllModes, findMode } from '../mode';
 
 export interface IntrospectDeps extends DiscoveryDirs {
   print: (line: string) => void;

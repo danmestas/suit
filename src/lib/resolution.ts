@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { ComponentSource, Target } from './types.ts';
-import type { PersonaManifest, ModeManifest } from './schema.ts';
-import { loadHarnessCatalog } from './ac/harness-catalog.ts';
+import type { ComponentSource, Target } from './types';
+import type { PersonaManifest, ModeManifest } from './schema';
+import { loadHarnessCatalog } from './ac/harness-catalog';
 
 export interface Resolution {
   schemaVersion: 1;
