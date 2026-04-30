@@ -9,6 +9,8 @@ const HARNESS_BINS: Record<string, string> = {
   pi: 'pi',
 };
 
+export const KNOWN_HARNESSES = Object.keys(HARNESS_BINS);
+
 export interface HarnessPresence {
   harness: string;
   bin: string;

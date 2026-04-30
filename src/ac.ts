@@ -9,9 +9,9 @@ import { runSync } from './lib/ac/sync';
 import { runStatus } from './lib/ac/status';
 import { helpText } from './lib/ac/help';
 import { resolveSuitPaths } from './lib/paths';
+import { KNOWN_HARNESSES } from './lib/ac/harness-presence';
 
 const argv = process.argv.slice(2);
-const HARNESSES = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'];
 
 function readVersion(): string {
   try {
@@ -97,7 +97,7 @@ async function main(): Promise<number> {
 
   if (cmd === 'status' || cmd === undefined) {
     return runStatus(
-      { contentDir: paths.contentDir, version: readVersion(), harnesses: HARNESSES },
+      { contentDir: paths.contentDir, version: readVersion(), harnesses: KNOWN_HARNESSES },
       { stdout: (s) => process.stdout.write(s) },
     );
   }
@@ -128,7 +128,7 @@ async function main(): Promise<number> {
 
   if (cmd === 'doctor') {
     return doctorCommand({
-      harnesses: HARNESSES,
+      harnesses: KNOWN_HARNESSES,
       print: (l) => process.stdout.write(l + '\n'),
     });
   }
