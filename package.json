@@ -1,5 +1,5 @@
 {
-  "name": "@suit/cli",
+  "name": "@agent-ops/suit",
   "version": "0.1.0",
   "description": "Multi-harness AI agent configurator. Suit up your harness with personas and modes.",
   "type": "module",

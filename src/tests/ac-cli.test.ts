@@ -32,7 +32,7 @@ describe('parseAcArgs', () => {
 });
 
 describe('findRepoRoot (via runAc builtinDir)', () => {
-  it('resolves builtinDir to the workspace root containing package.json named "@suit/cli"', async () => {
+  it('resolves builtinDir to the workspace root containing package.json named "@agent-ops/suit"', async () => {
     // runAc's exec hook receives the spawn environment. builtinDir itself is
     // not passed as an env var, but we can verify it indirectly: if findRepoRoot
     // succeeds (no throw) and the resolved dir is correct, runAc completes
@@ -56,6 +56,6 @@ describe('findRepoRoot (via runAc builtinDir)', () => {
     const pkgPath = path.join(repoRoot, 'package.json');
     expect(existsSync(pkgPath)).toBe(true);
     const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
-    expect(pkg.name).toBe('@suit/cli');
+    expect(pkg.name).toBe('@agent-ops/suit');
   });
 });

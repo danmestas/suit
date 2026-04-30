@@ -9,7 +9,7 @@ Multi-harness AI agent configurator. Suit up your harness with personas and mode
 ## Install
 
 ```bash
-npm install -g @suit/cli
+npm install -g @agent-ops/suit
 ```
 
 This puts two binaries on your PATH:
@@ -62,7 +62,7 @@ If you used `ac` from the `agent-config` repo:
 | `ac claude --persona X` | `suit claude --persona X` |
 | `apm-builder docs` | `suit-build docs` |
 | `apm-builder.config.yaml` | `suit.config.yaml` |
-| `npm install -g @agent-config/apm-builder` | `npm install -g @suit/cli` |
+| `npm install -g @agent-config/apm-builder` | `npm install -g @agent-ops/suit` |
 
 **The config filename is renamed.** If you have an `apm-builder.config.yaml` in your content repo, rename it to `suit.config.yaml`. v0.1.0 does NOT read the legacy filename — it will be silently ignored.
 
