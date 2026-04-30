@@ -49,7 +49,8 @@ async function main(): Promise<number> {
     });
   }
   // Default: ac <harness> [flags] -- <harness args>
-  return runAc(argv);
+  // Pass discovery dirs so SUIT_CONTENT_PATH overrides the builtin lookup.
+  return runAc(argv, homeDirs());
 }
 
 main().then(
