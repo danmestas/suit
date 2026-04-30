@@ -19,13 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -60,10 +60,8 @@ jobs:
       - name: Test
         run: npm run test:ci
 
-      - name: Publish to npm
+      - name: Publish to npm (via OIDC Trusted Publishing)
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         env:
