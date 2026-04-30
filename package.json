@@ -1,0 +1,69 @@
+{
+  "name": "@agent-config/suit",
+  "version": "0.1.0",
+  "description": "Multi-harness AI agent configurator. Suit up your harness with personas and modes.",
+  "type": "module",
+  "bin": {
+    "suit": "./dist/ac.js",
+    "suit-build": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && node scripts/postbuild.mjs",
+    "prepublishOnly": "npm run build",
+    "dev:suit": "tsx src/ac.ts",
+    "dev:build": "tsx src/cli.ts",
+    "test": "vitest run",
+    "smoke": "vitest run src/tests/smoke.test.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@iarna/toml": "^2.2.5",
+    "archiver": "^7.0.1",
+    "chokidar": "^4.0.1",
+    "citty": "^0.1.6",
+    "gray-matter": "^4.0.3",
+    "p-limit": "^6.1.0",
+    "picocolors": "^1.1.1",
+    "simple-git": "^3.27.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^22.0.0",
+    "@types/unzipper": "^0.10.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "unzipper": "^0.12.3",
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danmestas/suit.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "codex",
+    "gemini",
+    "copilot",
+    "agent",
+    "persona",
+    "harness",
+    "cli"
+  ]
+}
