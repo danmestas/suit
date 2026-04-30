@@ -14,11 +14,14 @@ export interface StoreStatus {
   exists: boolean;
   isGitRepo: boolean;
   remote?: string;
+  // sync is populated when status() can compute upstream divergence; reserved
+  // for richer reporting in `suit status` (Task 8).
   sync?: SyncState;
 }
 
 export interface InitResult {
-  ok: true;
+  ok: boolean;
+  message: string;
 }
 
 export interface SyncResult {
@@ -61,17 +64,20 @@ class ContentStoreImpl implements ContentStore {
   async init(url: string, force: boolean): Promise<InitResult> {
     if (existsSync(this.target)) {
       if (!force) {
-        throw new Error(
-          `${this.target} already exists. Run \`suit sync\` to update, ` +
+        return {
+          ok: false,
+          message:
+            `${this.target} already exists. Run \`suit sync\` to update, ` +
             `or \`suit init --force <url>\` to overwrite.`,
-        );
+        };
       }
       rmSync(this.target, { recursive: true, force: true });
     }
+    // simple-git's clone() creates the target dir but requires the parent to exist.
     mkdirSync(path.dirname(this.target), { recursive: true });
     const git = simpleGit();
     await git.clone(url, this.target);
-    return { ok: true };
+    return { ok: true, message: `Cloned ${url} → ${this.target}` };
   }
 
   async sync(): Promise<SyncResult> {

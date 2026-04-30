@@ -16,6 +16,8 @@ export interface ResolveResult {
 }
 
 export function resolveSuitPaths(env: NodeJS.ProcessEnv = process.env): ResolveResult {
+  // env.HOME first so tests can inject a tmp home; falls back to os.homedir()
+  // which is the source of truth on Windows where HOME may be unset.
   const home = env.HOME ?? os.homedir();
   const envContent = env.SUIT_CONTENT_PATH?.trim();
 
@@ -34,6 +36,8 @@ export function resolveSuitPaths(env: NodeJS.ProcessEnv = process.env): ResolveR
   };
 
   const warnings: string[] = [];
+  // NOTE: project-overlay legacy (.agent-config/) detection lives in the
+  // project-tier resolver (Task 10) which has cwd context.
   if (existsSync(paths.legacyUserOverlayDir) && !existsSync(paths.userOverlayDir)) {
     warnings.push(
       `[suit] WARNING: ${paths.legacyUserOverlayDir} is deprecated. ` +

@@ -70,23 +70,27 @@ describe('ContentStore.init', () => {
 
   it('clones the URL into the target', async () => {
     const store = openContentStore(target);
-    await store.init(sourceRepo, false);
+    const r = await store.init(sourceRepo, false);
+    expect(r.ok).toBe(true);
     expect(existsSync(path.join(target, '.git'))).toBe(true);
     expect(existsSync(path.join(target, 'README.md'))).toBe(true);
   });
 
-  it('throws if target exists and force=false', async () => {
+  it('returns ok=false if target exists and force=false', async () => {
     mkdirSync(target);
     writeFileSync(path.join(target, 'something'), 'x');
     const store = openContentStore(target);
-    await expect(store.init(sourceRepo, false)).rejects.toThrow(/already exists/);
+    const r = await store.init(sourceRepo, false);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/already exists/);
   });
 
   it('overwrites if force=true', async () => {
     mkdirSync(target);
     writeFileSync(path.join(target, 'old-file'), 'x');
     const store = openContentStore(target);
-    await store.init(sourceRepo, true);
+    const r = await store.init(sourceRepo, true);
+    expect(r.ok).toBe(true);
     expect(existsSync(path.join(target, 'old-file'))).toBe(false);
     expect(existsSync(path.join(target, 'README.md'))).toBe(true);
   });
