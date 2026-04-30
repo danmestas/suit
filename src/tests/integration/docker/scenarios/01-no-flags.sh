@@ -8,7 +8,7 @@ set -uo pipefail
 harness="${1:?harness name required}"
 
 WORKSPACE="${WORKSPACE:-/workspace}"
-AC="$WORKSPACE/apm-builder/ac.ts"
+AC="$WORKSPACE/src/ac.ts"
 TSX="$WORKSPACE/node_modules/.bin/tsx"
 
 # Build a stub that prints env and exits 0

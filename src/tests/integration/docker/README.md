@@ -1,5 +1,7 @@
 # Docker Test Matrix
 
+> **NOTE:** This docker harness was extracted from agent-config and is not currently exercised by `npm test`. It needs a separate fixture content repo to run end-to-end. Tracked for future Phase 3+ work.
+
 End-to-end test scaffold that exercises `ac` against all 4 real harness CLIs inside a clean Docker environment.
 
 ## What it tests
@@ -24,7 +26,7 @@ Run from repo root so the Dockerfile can `COPY . /workspace`:
 
 ```bash
 docker build \
-  -f apm-builder/tests/integration/docker/Dockerfile \
+  -f src/tests/integration/docker/Dockerfile \
   -t agent-config-test \
   .
 ```
@@ -81,7 +83,7 @@ If you modify scenarios to use real harness invocations, budget ~$0.04 per full 
 Each scenario script is self-contained and accepts the harness name as `$1`:
 
 ```bash
-bash apm-builder/tests/integration/docker/scenarios/02-persona-only.sh claude
+bash src/tests/integration/docker/scenarios/02-persona-only.sh claude
 ```
 
 Requires `tsx` and `ac.ts` on the expected paths (`/workspace/...` inside Docker,  
