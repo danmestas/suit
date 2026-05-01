@@ -67,19 +67,6 @@ suit claude --persona backend
 
 `SUIT_CONTENT_PATH` overrides the default cloned-content location for the current shell.
 
-## Migration from `apm-builder`
-
-If you used `ac` from the `agent-config` repo:
-
-| Old | New |
-|---|---|
-| `ac claude --persona X` | `suit claude --persona X` |
-| `apm-builder docs` | `suit-build docs` |
-| `apm-builder.config.yaml` | `suit.config.yaml` |
-| `npm install -g @agent-config/apm-builder` | `npm install -g @agent-ops/suit` |
-
-**The config filename is renamed.** If you have an `apm-builder.config.yaml` in your content repo, rename it to `suit.config.yaml`. v0.1.0 does NOT read the legacy filename — it will be silently ignored.
-
 ## How it works
 
 `suit` reads YAML-frontmatter persona and mode definitions, computes a per-session resolution (which skills to keep, which to drop, what mode prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
