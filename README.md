@@ -53,6 +53,8 @@ To bypass filtering for one invocation:
 suit claude --no-filter
 ```
 
+For a more detailed walkthrough — including content tier resolution, authoring, and troubleshooting — see [USAGE.md](docs/USAGE.md).
+
 ## Dev mode (point at a local content repo)
 
 If you're maintaining a content repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
