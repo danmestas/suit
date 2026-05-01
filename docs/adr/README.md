@@ -28,6 +28,7 @@ Keep ADRs tight (~80-150 lines). They are decision logs, not design documents.
 | [0006](./0006-package-scope-agent-ops.md) | Package scope: `@agent-ops/suit` | Accepted |
 | [0007](./0007-path-migration-policy.md) | Path migration policy (agent-config → suit) | Accepted |
 | [0008](./0008-content-store-deep-module.md) | ContentStore as a deep module hiding git | Accepted |
+| [0009](./0009-explicit-dependencies-and-shared-presence.md) | Explicit path dependencies and shared harness presence | Accepted |
 
 ## Adding a new ADR
 
