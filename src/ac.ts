@@ -37,8 +37,7 @@ function readTemplateUrl(): string | undefined {
 }
 
 function resolveSuitDirs() {
-  const { paths, warnings } = resolveSuitPaths();
-  for (const w of warnings) process.stderr.write(`${w}\n`);
+  const paths = resolveSuitPaths();
   return {
     paths,
     dirs: {

@@ -4,7 +4,7 @@ Multi-harness AI agent configurator. Suit up your harness with personas and mode
 
 ## Status
 
-**v0.2.0** — adds `suit init`, `suit sync`, `suit status`, and `--help`. Path migration: `~/.config/agent-config/` → `~/.config/suit/`, `.agent-config/` → `.suit/` (legacy paths still read in v0.2.x with deprecation warning; removed in v0.3).
+**v0.3.0** — drops legacy path support. `~/.config/agent-config/` and `.agent-config/` are no longer read. If you used suit v0.2.x and have content under those paths, migrate before upgrading.
 
 ## Install
 
@@ -78,18 +78,6 @@ If you used `ac` from the `agent-config` repo:
 
 **The config filename is renamed.** If you have an `apm-builder.config.yaml` in your content repo, rename it to `suit.config.yaml`. v0.1.0 does NOT read the legacy filename — it will be silently ignored.
 
-### Path migration in v0.2
-
-If you used suit v0.1, the user-machine overlay moved from `~/.config/agent-config/` to `~/.config/suit/`, and the per-project overlay moved from `.agent-config/` to `.suit/`. v0.2.x reads both paths with a deprecation warning. Move your files when convenient:
-
-```bash
-mv ~/.config/agent-config ~/.config/suit
-# In any project that has .agent-config/:
-git mv .agent-config .suit
-```
-
-Legacy paths will be removed in v0.3.
-
 ## How it works
 
 `suit` reads YAML-frontmatter persona and mode definitions, computes a per-session resolution (which skills to keep, which to drop, what mode prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
@@ -111,10 +99,6 @@ SUIT_CONTENT_PATH=~/projects/agent-config suit list personas
 ```
 
 `npm link` is required to use `suit` and `suit-build` together — the runtime invokes `suit-build` via PATH for Codex/Copilot prelaunch. Without `npm link` (or `npm install -g`), those subcommands will fail with `ENOENT: spawn suit-build`.
-
-## Known limitations
-
-- Legacy path support (`~/.config/agent-config/`, `.agent-config/`) is read with a deprecation warning. Removed in v0.3.
 
 ## License
 
