@@ -1,7 +1,7 @@
 # ADR-0007: Path migration policy (agent-config → suit)
 
 Date: 2026-04-30
-Status: Accepted
+Status: Superseded — legacy support removed in v0.3.0
 
 ## Context
 
@@ -41,3 +41,9 @@ Phase 1 inherited path constants from the agent-config monorepo: `~/.config/agen
 
 - ADR-0003 (content discovery via env var) — `SUIT_CONTENT_PATH` contract is preserved
 - ADR-0008 (ContentStore deep module) — uses `paths.contentDir` from `resolveSuitPaths()`
+
+## Update (2026-04-30, v0.3.0)
+
+Phase 3d removed legacy path support per the schedule defined here. `~/.config/agent-config/` and `<projectDir>/.agent-config/` are no longer read; users must migrate to `~/.config/suit/` and `<projectDir>/.suit/`. The deprecation warnings from v0.2.x are gone.
+
+This ADR is superseded by the actual code state. Retained for historical context — explains why v0.2.x had dual-path-read code.
