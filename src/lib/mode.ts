@@ -21,10 +21,7 @@ const TIER_NAMES: Record<keyof DiscoveryDirs, FoundMode['source']> = {
 function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return [
-        path.join(dirs.projectDir, '.suit', 'modes'),
-        path.join(dirs.projectDir, '.agent-config', 'modes'),
-      ];
+      return [path.join(dirs.projectDir, '.suit', 'modes')];
     case 'userDir':
       return [path.join(dirs.userDir, 'modes')];
     case 'builtinDir':

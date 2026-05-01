@@ -4,11 +4,11 @@ import matter from 'gray-matter';
 import { PersonaSchema, type PersonaManifest } from './schema.js';
 
 export interface DiscoveryDirs {
-  /** Project-scoped: <cwd>/.agent-config/personas/ (or modes/). */
+  /** Project-scoped: <cwd>/.suit/personas/ (or modes/). */
   projectDir: string;
-  /** User-scoped: ~/.config/agent-config/. */
+  /** User-scoped: ~/.config/suit/. */
   userDir: string;
-  /** Built-in: agent-config/. */
+  /** Built-in: suit content dir. */
   builtinDir: string;
 }
 
@@ -28,7 +28,7 @@ const TIER_NAMES: Record<keyof DiscoveryDirs, FoundPersona['source']> = {
 
 async function listPersonaFilenames(dir: string): Promise<string[]> {
   // The 3 tiers each store personas slightly differently:
-  //   projectDir: <projectDir>/.agent-config/personas/<name>.md
+  //   projectDir: <projectDir>/.suit/personas/<name>.md
   //   userDir:    <userDir>/personas/<name>.md
   //   builtinDir: <builtinDir>/personas/<name>/persona.md
   // The caller ensures each `dir` is rooted appropriately before invoking.
@@ -58,10 +58,7 @@ async function listPersonaFilenames(dir: string): Promise<string[]> {
 function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return [
-        path.join(dirs.projectDir, '.suit', 'personas'),
-        path.join(dirs.projectDir, '.agent-config', 'personas'),
-      ];
+      return [path.join(dirs.projectDir, '.suit', 'personas')];
     case 'userDir':
       return [path.join(dirs.userDir, 'personas')];
     case 'builtinDir':
