@@ -4,7 +4,7 @@ Date: 2026-04-30
 
 ## Status
 
-Accepted
+Superseded by NodeNext migration in v0.2.2 (see Update section below)
 
 ## Context
 
