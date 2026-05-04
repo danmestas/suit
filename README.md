@@ -4,7 +4,11 @@ Multi-harness AI agent configurator. Suit up your harness with outfits and modes
 
 ## Status
 
-**v0.3.0** — drops legacy path support. `~/.config/agent-config/` and `.agent-config/` are no longer read. If you used suit v0.2.x and have content under those paths, migrate before upgrading.
+**v0.5.0** — adds `suit up` / `suit off` / `suit current` for project-state mutation alongside the existing stateless launcher. See [ADR-0012](docs/adr/0012-suit-up-and-suit-off.md).
+
+**v0.4.0** — major composition-model rename: persona → outfit, with new accessory primitive and mode-include-block. See [CHANGELOG](CHANGELOG.md).
+
+**v0.3.0** — dropped legacy path support (`~/.config/agent-config/`, `.agent-config/`).
 
 ## Install
 
@@ -33,13 +37,25 @@ suit list accessories
 # Inspect the current state
 suit status
 
-# Launch a harness with an outfit + mode applied
-suit claude --outfit backend --mode focused
-suit codex --outfit backend
-suit gemini --outfit frontend --mode design
+# Two ways of working — pick the one that fits your session:
 
-# Layer accessories on top of an outfit (repeatable, applied left-to-right)
-suit claude --outfit backend --accessory tracing --accessory pr-policy
+# 1. Stateless launcher — wraps the harness for one session, then cleans up.
+#    Right answer for: "try this outfit for one query."
+suit claude --outfit backend --mode focused
+suit codex --outfit backend --accessory tracing --accessory pr-policy
+
+# 2. Project-state mutator — dresses the project so native invocations
+#    (claude, codex, pi from your shell or IDE) inherit the suit.
+#    Right answer for: "wear this for the next few hours of work."
+suit up --outfit backend --mode focused      # writes .claude/, .codex/, .pi/, .suit/lock.json
+claude                                       # native; picks up the dressed config
+codex --skip-git-repo-check
+pi --provider openrouter
+suit current                                 # inspect what's applied
+suit off                                     # remove everything suit applied
+
+# suit up without flags (on a TTY) drops into an interactive picker.
+suit up
 
 # Pull updates from the content repo whenever you want
 suit sync

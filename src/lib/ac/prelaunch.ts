@@ -2,10 +2,17 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { TempdirWriter, type Writer } from '../writer.js';
 
 export interface PrelaunchOptions {
   resolutionPath: string;
   originalCwd: string;
+  /**
+   * Sink for emitted files. Defaults to a fresh `TempdirWriter` (today's
+   * behavior). Phase B's `suit up` will pass a `ProjectWriter` rooted at the
+   * project to write the same artifacts straight into the project tree.
+   */
+  writer?: Writer;
 }
 
 export interface PrelaunchResult {
@@ -14,31 +21,51 @@ export interface PrelaunchResult {
   cleanup: () => Promise<void>;
 }
 
-async function runSuitBuildDocs(
+/**
+ * Run `suit-build docs ...` and capture its output into a Buffer rather than
+ * a fixed file path, so the result can be routed through a Writer (tempdir or
+ * project).
+ *
+ * Implemented by writing `suit-build`'s output to a tempfile, reading it back,
+ * and removing the tempfile. We can't easily ask `suit-build docs` to emit to
+ * stdout without changing its CLI, so this is the smallest-surface change.
+ */
+async function buildDocsToBuffer(
   target: 'codex' | 'copilot',
   resolutionPath: string,
-  outFile: string,
   originalCwd: string,
-): Promise<void> {
-  await new Promise<void>((resolveCb, reject) => {
-    const child = spawn(
-      'suit-build',
-      ['docs', '--target', target, '--resolution', resolutionPath, '--out', outFile, '--repo', originalCwd],
-      { stdio: 'inherit' },
-    );
-    child.on('error', reject);
-    child.on('close', (code) => (code === 0 ? resolveCb() : reject(new Error(`suit-build docs exited ${code}`))));
-  });
+): Promise<Buffer> {
+  const tmpOut = path.join(
+    await fs.mkdtemp(path.join(os.tmpdir(), 'ac-build-out-')),
+    'out.md',
+  );
+  try {
+    await new Promise<void>((resolveCb, reject) => {
+      const child = spawn(
+        'suit-build',
+        ['docs', '--target', target, '--resolution', resolutionPath, '--out', tmpOut, '--repo', originalCwd],
+        { stdio: 'inherit' },
+      );
+      child.on('error', reject);
+      child.on('close', (code) => (code === 0 ? resolveCb() : reject(new Error(`suit-build docs exited ${code}`))));
+    });
+    return await fs.readFile(tmpOut);
+  } finally {
+    await fs.rm(path.dirname(tmpOut), { recursive: true, force: true }).catch(() => {});
+  }
 }
 
-async function symlinkProjectFiles(originalCwd: string, tempdir: string): Promise<void> {
-  // Symlink common project files so the harness can still read them.
+/**
+ * Symlink common project files into the writer destination so the harness
+ * (codex/copilot, which run with cwd=tempdir) can still see them.
+ */
+async function symlinkProjectFiles(originalCwd: string, writer: Writer): Promise<void> {
   const toLink = ['.git', 'package.json', 'tsconfig.json', '.env'];
   for (const name of toLink) {
     const src = path.join(originalCwd, name);
     try {
       await fs.access(src);
-      await fs.symlink(src, path.join(tempdir, name));
+      await writer.symlink(src, name);
     } catch {
       // skip missing
     }
@@ -46,34 +73,24 @@ async function symlinkProjectFiles(originalCwd: string, tempdir: string): Promis
 }
 
 export async function prelaunchComposeCodex(opts: PrelaunchOptions): Promise<PrelaunchResult> {
-  const tempdir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-prelaunch-'));
-  await runSuitBuildDocs('codex', opts.resolutionPath, path.join(tempdir, 'AGENTS.md'), opts.originalCwd);
-  await symlinkProjectFiles(opts.originalCwd, tempdir);
+  const writer = opts.writer ?? (await TempdirWriter.create());
+  const content = await buildDocsToBuffer('codex', opts.resolutionPath, opts.originalCwd);
+  await writer.write({ path: 'AGENTS.md', content });
+  await symlinkProjectFiles(opts.originalCwd, writer);
   return {
-    tempdir,
-    cleanup: async () => {
-      try {
-        await fs.rm(tempdir, { recursive: true, force: true });
-      } catch {
-        // best-effort
-      }
-    },
+    tempdir: writer.destination,
+    cleanup: writer.cleanup ?? (async () => {}),
   };
 }
 
 export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<PrelaunchResult> {
-  const tempdir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-prelaunch-'));
-  await runSuitBuildDocs('copilot', opts.resolutionPath, path.join(tempdir, 'copilot-instructions.md'), opts.originalCwd);
-  await symlinkProjectFiles(opts.originalCwd, tempdir);
+  const writer = opts.writer ?? (await TempdirWriter.create());
+  const content = await buildDocsToBuffer('copilot', opts.resolutionPath, opts.originalCwd);
+  await writer.write({ path: 'copilot-instructions.md', content });
+  await symlinkProjectFiles(opts.originalCwd, writer);
   return {
-    tempdir,
-    cleanup: async () => {
-      try {
-        await fs.rm(tempdir, { recursive: true, force: true });
-      } catch {
-        // best-effort
-      }
-    },
+    tempdir: writer.destination,
+    cleanup: writer.cleanup ?? (async () => {}),
   };
 }
 

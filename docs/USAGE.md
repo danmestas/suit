@@ -63,6 +63,9 @@ The full surface (from `suit --help`):
 
 ```text
 suit <harness> [--outfit X] [--mode Y] [--accessory A]... [--no-filter] [-- <harness args>]
+suit up        --outfit X [--mode Y] [--accessory A]... [--force]
+suit off       [--force]
+suit current
 suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
 suit sync
 suit status
@@ -71,7 +74,14 @@ suit list <outfits|modes|accessories>
 suit show <outfit|mode|accessory> <name>
 ```
 
-### 3.1 `suit <harness>` — the launcher
+`suit` has **two modes of working** (v0.5+):
+
+- **`suit <harness>` — stateless launcher** (default; per-session). Spawns the harness binary against an ephemeral prelaunch tempdir, deletes the tempdir on exit. Right answer for "try this outfit for one query."
+- **`suit up` — project-state mutator**. Writes the resolved components into the project's `.claude/`, `.codex/`, `.pi/` etc. directly, backed by `.suit/lock.json`. Native invocations of `claude`, `codex`, `pi` from inside the dressed project pick up the suit automatically — no need to go through `suit <harness>`. Right answer for "wear this for the next few hours of work in this project." `suit off` cleanly removes everything suit applied.
+
+Both modes use the same outfit/mode/accessory composition model. Pick whichever fits your session shape.
+
+### 3.1 `suit <harness>` — the stateless launcher
 
 The most-used command. Spawns a harness binary against a tempdir that has outfits, modes, and filtered skills applied.
 
@@ -109,6 +119,63 @@ Exit codes:
 | 1 | Runtime error in `suit` itself |
 | 2 | Usage error (bad flag, unknown harness, missing arg) |
 | (other) | Whatever the harness binary returned |
+
+### 3.1.1 `suit up` — dress the project
+
+Writes the resolved components directly into the project's harness directories (`.claude/`, `.codex/`, `.pi/`, etc.) backed by `.suit/lock.json`. Native invocations of the harness CLIs from inside the project then pick up the suit automatically — no `suit <harness>` wrapper required. Use when you're settling in for a long session in a project.
+
+```bash
+suit up --outfit backend --mode focused
+suit up --outfit frontend --accessory tracing --accessory pr-policy
+suit up                          # interactive picker on a TTY
+```
+
+| Flag | Meaning |
+|---|---|
+| `--outfit <name>` | Required (or use the interactive picker on a TTY). |
+| `--mode <name>` | Optional. |
+| `--accessory <name>` | Optional, repeatable. |
+| `--force` | Override the refuse-when-dirty checks (see below). |
+
+**Refuse-when-dirty** (per [ADR-0012](./adr/0012-suit-up-and-suit-off.md)):
+
+- If a target file exists and isn't tracked in a prior `.suit/lock.json` → refuse with `target exists and is not suit-managed: <path>`. `--force` overwrites.
+- If a target file IS tracked but its current sha256 doesn't match what was recorded → refuse (file was hand-edited since suit applied it). `--force` overwrites.
+- If `.suit/lock.json` already records a different resolution than the new flags → refuse with `project already dressed: <prior>. Run \`suit off\` first, or pass --force to switch.`
+
+**Interactive picker** (TTY only): if `--outfit` is missing on a TTY, `suit up` prompts you to pick from the available outfits / modes / accessories — numbered list per primitive, blank input skips the optional sections, comma-separated multi-select for accessories.
+
+JSON fragment files emitted by multiple components (e.g. `.claude/settings.fragment.json` from each hook) are deep-merged so all contributions land in one file. Markdown emits don't merge — they're already composed at the adapter layer.
+
+### 3.1.2 `suit off` — undress the project
+
+Reads `.suit/lock.json`, removes every tracked file (verifying sha256), removes empty parent dirs, deletes the lockfile. Idempotent — running on an undressed project is a no-op.
+
+```bash
+suit off          # refuses to remove hand-edited tracked files
+suit off --force  # remove anyway
+```
+
+If multiple files were hand-edited, `suit off` reports them ALL before exiting non-zero (one pass; not fail-fast on the first hit).
+
+### 3.1.3 `suit current` — inspect the dressed state
+
+Read-only. Reports what's currently applied: resolution, applied-at timestamp, file count, sample paths. Detects drift (tracked files that have been hand-edited since `suit up`) and reports them as informational — drift is not an error.
+
+```bash
+$ suit current
+outfit:       backend
+mode:         focused
+accessories:  []
+applied at:   2026-05-04T20:28:43.840Z
+files:        54
+  .claude/agents/architect-review.md
+  .claude/agents/code-reviewer.md
+  .claude/agents/debugger.md
+  ... and 51 more
+
+lockfile:     /Users/foo/projects/bar/.suit/lock.json
+```
 
 ### 3.2 `suit list <outfits|modes|accessories>`
 
