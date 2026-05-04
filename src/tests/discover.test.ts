@@ -57,6 +57,30 @@ body
     expect(result.find((c) => c.manifest.type === 'outfit' && c.manifest.name === 'test-outfit')).toBeDefined();
   });
 
+  it('finds accessories under accessories/', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
+    await fs.mkdir(path.join(tmp, 'accessories', 'test-accessory'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'accessories', 'test-accessory', 'accessory.md'),
+      `---
+name: test-accessory
+version: 1.0.0
+type: accessory
+description: t
+targets: [claude-code]
+include:
+  skills: [some-skill]
+---
+
+body
+`,
+    );
+    const result = await discoverComponents(tmp);
+    expect(
+      result.find((c) => c.manifest.type === 'accessory' && c.manifest.name === 'test-accessory'),
+    ).toBeDefined();
+  });
+
   it('finds modes under modes/', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
     await fs.mkdir(path.join(tmp, 'modes', 'test-mode'), { recursive: true });

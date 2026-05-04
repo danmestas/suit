@@ -62,13 +62,13 @@ If a harness shows missing, install that harness's CLI separately. `suit` doesn'
 The full surface (from `suit --help`):
 
 ```text
-suit <harness> [--outfit X] [--mode Y] [--no-filter] [-- <harness args>]
+suit <harness> [--outfit X] [--mode Y] [--accessory A]... [--no-filter] [-- <harness args>]
 suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
 suit sync
 suit status
 suit doctor
-suit list <outfits|modes>
-suit show <outfit|mode> <name>
+suit list <outfits|modes|accessories>
+suit show <outfit|mode|accessory> <name>
 ```
 
 ### 3.1 `suit <harness>` — the launcher
@@ -80,17 +80,25 @@ The most-used command. Spawns a harness binary against a tempdir that has outfit
 | `<harness>` | One of `claude-code`, `codex`, `gemini`, `copilot`, `apm`, `pi`. (`claude` is an accepted shorthand for `claude-code`.) |
 | `--outfit <name>` | Apply the named outfit. Skills are filtered by its `categories`, `skill_include`, `skill_exclude`. |
 | `--mode <name>` | Apply the named mode. The mode's body is injected as additional context. |
-| `--no-filter` | Skip outfit/mode filtering — launch the harness as-is for one session. Useful when you suspect filtering is hiding something. |
+| `--accessory <name>` | Apply the named accessory as a piecemeal overlay on top of the outfit + mode. **Repeatable** — pass `--accessory` multiple times to layer in multiple. Layered left-to-right in CLI order. |
+| `--no-filter` | Skip outfit, mode, **and accessory** loading — launch the harness as-is for one session. Useful when you suspect filtering is hiding something. |
 | `--verbose` | Extra logging from `suit`'s prelaunch step. |
 | `-- <args>` | Everything after `--` is passed verbatim to the harness binary. |
+
+`--accessory` is **repeatable**: every occurrence pushes a name onto an
+ordered list, and accessories are applied left-to-right after outfit + mode.
+A reference to a missing component inside an accessory's `include:` block is
+a hard error — the resolver fails fast with `accessory "X" includes <kind>
+"Y" not found in wardrobe` rather than silently emitting a partial session.
 
 Examples:
 
 ```bash
 suit claude --outfit backend --mode focused
+suit claude --outfit backend --accessory tracing --accessory pr-policy
 suit codex --outfit frontend -- --resume sess-123
 suit gemini --outfit personal --mode focused
-suit claude --no-filter      # launch with no outfit/mode applied
+suit claude --no-filter      # launch with no outfit/mode/accessory applied
 ```
 
 Exit codes:
@@ -102,9 +110,9 @@ Exit codes:
 | 2 | Usage error (bad flag, unknown harness, missing arg) |
 | (other) | Whatever the harness binary returned |
 
-### 3.2 `suit list <outfits|modes>`
+### 3.2 `suit list <outfits|modes|accessories>`
 
-Lists every outfit or mode discovered across the 3 tiers. The output is `name version [tier] description`:
+Lists every outfit, mode, or accessory discovered across the 3 tiers. The output is `name version [tier] description`:
 
 ```bash
 $ suit list outfits
@@ -112,11 +120,15 @@ backend       v1.0.0    [builtin]  Backend dev work — Go, observability, infra
 frontend      v1.0.0    [builtin]  Frontend / Datastar work
 machines      v1.0.0    [builtin]  Machine + server management
 personal      v1.0.0    [builtin]  Personal projects, journaling
+
+$ suit list accessories
+pr-policy     v1.0.0    [builtin]  Force PR-policy rules into this session
+tracing       v1.0.0    [builtin]  Add OpenTelemetry tracing context
 ```
 
-The `[tier]` column is `project` / `user` / `builtin` — useful for confirming an overlay actually wins.
+The `[tier]` column is `project` / `user` / `builtin` — useful for confirming an overlay actually wins. When no accessories exist anywhere, the command prints `(no accessories found)`.
 
-### 3.3 `suit show <outfit|mode> <name>`
+### 3.3 `suit show <outfit|mode|accessory> <name>`
 
 Pretty-prints the resolved manifest plus body. Resolution honors the 3-tier chain (project beats user beats builtin):
 
@@ -133,6 +145,25 @@ skill_exclude: datastar-tao, datastar-patterns, datastar
 ```
 
 For modes, `suit show mode <name>` also prints the prompt body that gets injected.
+
+For accessories, `suit show accessory <name>` prints the same header plus the `include:` block:
+
+```bash
+$ suit show accessory tracing
+name: tracing
+version: 1.0.0
+source: builtin (/Users/you/.local/share/suit/content/accessories/tracing/accessory.md)
+description: Add OpenTelemetry tracing context to a session
+targets: claude-code, codex, pi
+include:
+  skills: otel-conventions
+  rules:
+  hooks: trace
+  agents:
+  commands:
+```
+
+If the accessory has body content, it's printed beneath a `--- body ---` section the same way outfits do.
 
 ### 3.4 `suit status` (and bare `suit`)
 
@@ -250,7 +281,54 @@ Body: a few hundred words framing the mode. Capped at 4096 bytes.
 
 Modes compose with outfits: `--outfit backend --mode focused` applies both.
 
-### 4.3 Skill
+### 4.3 Accessory
+
+An **accessory** is a piecemeal overlay layered after outfit + mode at invocation time. Where an outfit defines a complete role and a mode flavors the workflow, an accessory adds (typically) a single extra component or a small named bundle. Pass `--accessory <name>` once per accessory you want layered in, in any order — accessories compose left-to-right after the outfit's category-based filtering.
+
+Frontmatter shape:
+
+```yaml
+---
+name: tracing
+version: 1.0.0
+type: accessory
+description: Add OpenTelemetry tracing context to a session
+targets: [claude-code, codex, pi]
+include:
+  skills: [otel-conventions]
+  rules: []
+  hooks: [trace]
+  agents: []
+  commands: []
+---
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | Slug used on the CLI (`--accessory tracing`) |
+| `version` | Semver |
+| `type` | Always `accessory` |
+| `description` | One-liner shown in `suit list accessories` |
+| `targets` | Which harnesses this accessory is valid for |
+| `include.skills` | Skill names to force-include — overrides the outfit's category drop. |
+| `include.rules` | Rules names to layer in (validated against the catalog). |
+| `include.hooks` | Hook names to layer in. |
+| `include.agents` | Agent names to layer in. |
+| `include.commands` | Command names (no first-class type yet; treated as informational). |
+
+All five sub-arrays default to `[]` so you only declare the keys you care about.
+
+**Strict-include semantics.** Each name in `include.skills`, `include.rules`, `include.hooks`, and `include.agents` is validated against the discovered component catalog at resolve time. A missing reference fails resolution with a precise error like:
+
+```
+accessory "tracing" includes hook "trace" not found in wardrobe
+```
+
+This catches typos at prelaunch instead of letting the session start with a silently-dropped component. Accessories cannot reference unknown components.
+
+**Composition order.** The resolver applies outfit → mode → each accessory in CLI order. Accessory force-includes override the outfit's category-based drops: a skill the outfit would normally filter out is brought back in if any active accessory names it.
+
+### 4.4 Skill
 
 Skills are the stuff the outfit's category list filters. Each skill lives under `skills/<name>/SKILL.md` (or `skill.md` for Gemini) with frontmatter:
 
@@ -275,7 +353,7 @@ Skill resolution per session:
 4. Force-drop anything in `skill_exclude`.
 5. Mirror the kept set into the session tempdir.
 
-### 4.4 What `suit claude --outfit X --mode Y` actually does
+### 4.5 What `suit claude --outfit X --mode Y` actually does
 
 Step by step:
 
@@ -290,13 +368,13 @@ Your real `~/.<harness>/` is never modified. See ADR-0002 for the two-binary spl
 
 ## 5. Content sources and resolution order
 
-Outfits, modes, and skills are looked up across three tiers, highest priority first:
+Outfits, modes, accessories, and skills are looked up across three tiers, highest priority first:
 
 | Priority | Tier | Path |
 |---|---|---|
-| 1 | Project overlay | `<cwd>/.suit/outfits/<name>.md` (and `modes/`, `skills/`) |
-| 2 | User overlay | `~/.config/suit/outfits/<name>.md` (and `modes/`, `skills/`) |
-| 3 | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or `<name>.md` for non-builtin tiers) |
+| 1 | Project overlay | `<cwd>/.suit/outfits/<name>.md` (and `modes/`, `accessories/`, `skills/`) |
+| 2 | User overlay | `~/.config/suit/outfits/<name>.md` (and `modes/`, `accessories/`, `skills/`) |
+| 3 | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or `<name>.md` for non-builtin tiers; `accessories/<name>/accessory.md` likewise) |
 
 Note the slight shape difference: builtin uses a `<name>/outfit.md` directory layout, while the overlay tiers accept a flat `<name>.md`. Both work — `suit list` shows whichever tier found it.
 
@@ -464,9 +542,11 @@ If `suit status` looks healthy but a launch silently fails, re-run with `--verbo
 | `suit doctor` | Verify each harness binary on PATH | `suit doctor` |
 | `suit list outfits` | List discoverable outfits | `suit list outfits` |
 | `suit list modes` | List discoverable modes | `suit list modes` |
+| `suit list accessories` | List discoverable accessories | `suit list accessories` |
 | `suit show outfit <name>` | Print resolved outfit | `suit show outfit backend` |
 | `suit show mode <name>` | Print resolved mode + body | `suit show mode focused` |
-| `suit <harness>` | Launch with outfit/mode | `suit claude --outfit backend --mode focused` |
+| `suit show accessory <name>` | Print resolved accessory + include block | `suit show accessory tracing` |
+| `suit <harness>` | Launch with outfit/mode/accessory | `suit claude --outfit backend --mode focused --accessory tracing` |
 | `suit <harness> --no-filter` | Launch without filtering | `suit claude --no-filter` |
 | `suit <harness> -- <args>` | Pass-through to harness | `suit codex --outfit frontend -- --resume sess-123` |
 

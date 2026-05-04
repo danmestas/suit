@@ -28,14 +28,18 @@ suit init https://github.com/your-username/your-config
 # Discover what's available
 suit list outfits
 suit list modes
+suit list accessories
 
 # Inspect the current state
 suit status
 
-# Launch a harness with a outfit + mode applied
+# Launch a harness with an outfit + mode applied
 suit claude --outfit backend --mode focused
 suit codex --outfit backend
 suit gemini --outfit frontend --mode design
+
+# Layer accessories on top of an outfit (repeatable, applied left-to-right)
+suit claude --outfit backend --accessory tracing --accessory pr-policy
 
 # Pull updates from the content repo whenever you want
 suit sync

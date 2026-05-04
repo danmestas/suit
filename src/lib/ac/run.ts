@@ -4,6 +4,13 @@ export interface ParsedAcArgs {
   harness: string;
   outfit?: string;
   mode?: string;
+  /**
+   * Names of accessories the user passed via repeated `--accessory <name>`
+   * flags. Always present (default empty array) so callers can iterate without
+   * a presence check. Order matches CLI order — the resolver applies
+   * accessories left-to-right.
+   */
+  accessories: string[];
   noFilter: boolean;
   verbose: boolean;
   harnessArgs: string[];
@@ -18,6 +25,7 @@ export function parseAcArgs(argv: string[]): ParsedAcArgs {
   }
   const out: ParsedAcArgs = {
     harness: argv[0]!,
+    accessories: [],
     noFilter: false,
     verbose: false,
     harnessArgs: [],
@@ -44,6 +52,15 @@ export function parseAcArgs(argv: string[]): ParsedAcArgs {
         throw new Error('ac: --mode requires a value');
       }
       out.mode = v;
+      i += 2;
+      continue;
+    }
+    if (tok === '--accessory') {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith('--')) {
+        throw new Error('ac: --accessory requires a value');
+      }
+      out.accessories.push(v);
       i += 2;
       continue;
     }

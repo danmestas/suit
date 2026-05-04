@@ -4,11 +4,12 @@ import matter from 'gray-matter';
 import { ManifestSchema } from './schema.js';
 import type { ComponentSource } from './types.js';
 
-const COMPONENT_DIRS = ['skills', 'plugins', 'rules', 'hooks', 'agents', 'mcp', 'outfits', 'modes'] as const;
+const COMPONENT_DIRS = ['skills', 'plugins', 'rules', 'hooks', 'agents', 'mcp', 'outfits', 'modes', 'accessories'] as const;
 
 const DIR_FILENAME: Partial<Record<string, string>> = {
   outfits: 'outfit.md',
   modes: 'mode.md',
+  accessories: 'accessory.md',
 };
 
 function getComponentFilename(dir: string): string {

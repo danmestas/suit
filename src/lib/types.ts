@@ -1,4 +1,4 @@
-export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'mode'] as const;
+export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'mode', 'accessory'] as const;
 export type ComponentType = typeof COMPONENT_TYPES[number];
 
 export const TARGETS = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'] as const;
@@ -68,6 +68,14 @@ export interface ComponentManifest {
   categories?: string[];
   skill_include?: string[];
   skill_exclude?: string[];
+  // accessory specific
+  include?: {
+    skills?: string[];
+    rules?: string[];
+    hooks?: string[];
+    agents?: string[];
+    commands?: string[];
+  };
 }
 
 export interface EmittedFile {

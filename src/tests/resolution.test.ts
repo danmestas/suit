@@ -233,6 +233,172 @@ category:
   });
 });
 
+describe('resolve with accessories', () => {
+  // Build a catalog covering several component types so the strict-include
+  // validator can find / fail on each branch.
+  const catalogWithExtras = (): ComponentSource[] => [
+    skill('a', 'tooling'),
+    skill('b', 'workflow'),
+    skill('c', 'workflow'),
+    {
+      relativeDir: 'rules/pr-policy',
+      dir: '/tmp/rules/pr-policy',
+      body: '',
+      manifest: {
+        name: 'pr-policy',
+        version: '1.0.0',
+        type: 'rules',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+    {
+      relativeDir: 'hooks/trace',
+      dir: '/tmp/hooks/trace',
+      body: '',
+      manifest: {
+        name: 'trace',
+        version: '1.0.0',
+        type: 'hook',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+    {
+      relativeDir: 'agents/code-reviewer',
+      dir: '/tmp/agents/code-reviewer',
+      body: '',
+      manifest: {
+        name: 'code-reviewer',
+        version: '1.0.0',
+        type: 'agent',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+  ];
+
+  const accessory = (name: string, include: Partial<{ skills: string[]; rules: string[]; hooks: string[]; agents: string[]; commands: string[] }>) => ({
+    name,
+    version: '1.0.0',
+    type: 'accessory' as const,
+    description: '',
+    targets: ['claude-code'],
+    include: {
+      skills: [],
+      rules: [],
+      hooks: [],
+      agents: [],
+      commands: [],
+      ...include,
+    },
+  } as any);
+
+  it('force-includes a skill the outfit would have dropped (category mismatch)', () => {
+    const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
+    const outfit = {
+      name: 'p',
+      type: 'outfit',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+    } as any;
+    const acc = accessory('extras', { skills: ['b'] });
+    const r = resolve({ catalog, outfit, accessories: [acc], harness: 'claude-code' });
+    expect(r.skillsDrop).not.toContain('b');
+    expect(r.metadata.accessories).toEqual(['extras']);
+  });
+
+  it('multiple accessories layer in CLI order, both force-includes apply', () => {
+    const catalog = [skill('a', 'tooling'), skill('b', 'workflow'), skill('c', 'workflow')];
+    const outfit = {
+      name: 'p',
+      type: 'outfit',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+    } as any;
+    const acc1 = accessory('first', { skills: ['b'] });
+    const acc2 = accessory('second', { skills: ['c'] });
+    const r = resolve({ catalog, outfit, accessories: [acc1, acc2], harness: 'claude-code' });
+    expect(r.skillsDrop).not.toContain('b');
+    expect(r.skillsDrop).not.toContain('c');
+    expect(r.metadata.accessories).toEqual(['first', 'second']);
+  });
+
+  it('exposes empty accessories array in metadata when none passed', () => {
+    const catalog = [skill('a', 'tooling')];
+    const r = resolve({ catalog, harness: 'claude-code' });
+    expect(r.metadata.accessories).toEqual([]);
+  });
+
+  it('throws on missing skill reference in include', () => {
+    const catalog = [skill('a', 'tooling')];
+    const acc = accessory('tracing', { skills: ['otel-conventions'] });
+    expect(() =>
+      resolve({ catalog, accessories: [acc], harness: 'claude-code' }),
+    ).toThrow(/accessory "tracing" includes skill "otel-conventions" not found in wardrobe/);
+  });
+
+  it('throws on missing hook reference in include', () => {
+    const catalog = catalogWithExtras();
+    const acc = accessory('tracing', { hooks: ['nonexistent-hook'] });
+    expect(() =>
+      resolve({ catalog, accessories: [acc], harness: 'claude-code' }),
+    ).toThrow(/accessory "tracing" includes hook "nonexistent-hook" not found in wardrobe/);
+  });
+
+  it('throws on missing rule reference in include', () => {
+    const catalog = catalogWithExtras();
+    const acc = accessory('tracing', { rules: ['no-such-rule'] });
+    expect(() =>
+      resolve({ catalog, accessories: [acc], harness: 'claude-code' }),
+    ).toThrow(/accessory "tracing" includes rule "no-such-rule" not found in wardrobe/);
+  });
+
+  it('throws on missing agent reference in include', () => {
+    const catalog = catalogWithExtras();
+    const acc = accessory('tracing', { agents: ['no-such-agent'] });
+    expect(() =>
+      resolve({ catalog, accessories: [acc], harness: 'claude-code' }),
+    ).toThrow(/accessory "tracing" includes agent "no-such-agent" not found in wardrobe/);
+  });
+
+  it('passes when every include reference exists in the catalog', () => {
+    const catalog = catalogWithExtras();
+    const acc = accessory('full', {
+      skills: ['a'],
+      rules: ['pr-policy'],
+      hooks: ['trace'],
+      agents: ['code-reviewer'],
+    });
+    const r = resolve({ catalog, accessories: [acc], harness: 'claude-code' });
+    expect(r.metadata.accessories).toEqual(['full']);
+  });
+
+  it('does not throw on commands references (no first-class type yet)', () => {
+    const catalog = catalogWithExtras();
+    const acc = accessory('cmds', { commands: ['anything'] });
+    expect(() =>
+      resolve({ catalog, accessories: [acc], harness: 'claude-code' }),
+    ).not.toThrow();
+  });
+
+  it('writes accessories array into the resolution metadata', () => {
+    const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
+    const outfit = {
+      name: 'p',
+      type: 'outfit',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+    } as any;
+    const acc = accessory('layer1', { skills: ['b'] });
+    const r = resolve({ catalog, outfit, accessories: [acc], harness: 'claude-code' });
+    expect(r.metadata.accessories).toEqual(['layer1']);
+  });
+});
+
 describe('skillsKeepFromResolution', () => {
   it('returns catalog skill names that are NOT in drop list', () => {
     const catalog = [

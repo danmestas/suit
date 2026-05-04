@@ -36,6 +36,22 @@ function fixture(type: 'outfit' | 'mode'): ComponentSource {
   };
 }
 
+function accessoryFixture(): ComponentSource {
+  return {
+    relativeDir: `accessories/test`,
+    dir: `/tmp/accessories/test`,
+    body: '',
+    manifest: {
+      name: 'test',
+      version: '1.0.0',
+      type: 'accessory',
+      description: '',
+      targets: ['claude-code', 'apm', 'codex', 'copilot', 'gemini', 'pi'],
+      include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
+    } as any,
+  };
+}
+
 describe('adapters: outfit/mode are no-ops', () => {
   for (const [name, adapter] of adapters) {
     it(`${name}: outfit returns []`, async () => {
@@ -44,6 +60,15 @@ describe('adapters: outfit/mode are no-ops', () => {
     });
     it(`${name}: mode returns []`, async () => {
       const out = await adapter.emit(fixture('mode'), ctx);
+      expect(out).toEqual([]);
+    });
+  }
+});
+
+describe('adapters: accessory is a no-op', () => {
+  for (const [name, adapter] of adapters) {
+    it(`${name}: accessory returns []`, async () => {
+      const out = await adapter.emit(accessoryFixture(), ctx);
       expect(out).toEqual([]);
     });
   }
