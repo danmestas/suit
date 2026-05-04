@@ -1,0 +1,50 @@
+name: ci
+
+# PR-time and merge-to-main quality gate. Mirrors what release.yml runs on a
+# tag, minus the publish step. The release workflow stays the one route to
+# production; this workflow protects flow.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel any in-flight CI run for the same PR/branch when a new push lands.
+# Saves runner minutes and surfaces only the latest result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Link bins onto PATH
+        # Tests that exercise the prelaunch chain shell out to suit-build via
+        # PATH (Codex / Copilot adapters). Match release.yml so PR CI is a
+        # faithful preview of release CI.
+        run: npm link
+
+      - name: Test
+        run: npm test
