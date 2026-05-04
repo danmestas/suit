@@ -13,7 +13,7 @@ Two complementary modes live in this directory:
 > **NOTE:** The matrix is not currently exercised by `npm test`. It needs
 > a separate fixture content repo to run end-to-end. Realtime mode reads
 > from any local content repo via `--content=` (default
-> `~/projects/agent-config`).
+> `~/projects/wardrobe`).
 
 ---
 
@@ -47,7 +47,7 @@ src/tests/integration/docker/run-realtime.sh
 src/tests/integration/docker/run-realtime.sh --no-build
 
 # different content repo
-src/tests/integration/docker/run-realtime.sh --content=/path/to/your/agent-config
+src/tests/integration/docker/run-realtime.sh --content=/path/to/your/wardrobe
 
 # bind-mount /workspace from host so source edits show up immediately
 # (requires host node_modules + dist to be built)

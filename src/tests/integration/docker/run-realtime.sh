@@ -11,7 +11,7 @@
 # Mounts:
 #   - /workspace/...   ← suit source (so npm link in the image points at HEAD)
 #   - /host-auth/      ← ephemeral tempdir holding copied credentials
-#   - /content         ← your local agent-config (SUIT_CONTENT_PATH)
+#   - /content         ← your local wardrobe (SUIT_CONTENT_PATH)
 #
 # Usage:
 #   run-realtime.sh                        # interactive bash, default content
@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../../.." &>/dev/null && pwd)"
 
 # --- args ------------------------------------------------------------------
-CONTENT_DIR="${SUIT_CONTENT_PATH_HOST:-$HOME/projects/agent-config}"
+CONTENT_DIR="${SUIT_CONTENT_PATH_HOST:-$HOME/projects/wardrobe}"
 DO_BUILD=1
 LIVE_SOURCE=0
 DOPPLER_PROJECT="${DOPPLER_PROJECT:-global}"
@@ -67,7 +67,7 @@ command -v doppler >/dev/null || { red "doppler not found"; exit 1; }
 
 if [[ ! -d "$CONTENT_DIR" ]]; then
   red "content dir not found: $CONTENT_DIR"
-  red "pass --content=/path/to/your/agent-config or set SUIT_CONTENT_PATH_HOST"
+  red "pass --content=/path/to/your/wardrobe or set SUIT_CONTENT_PATH_HOST"
   exit 1
 fi
 
