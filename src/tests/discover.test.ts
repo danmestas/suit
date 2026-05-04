@@ -36,15 +36,15 @@ describe('discoverComponents', () => {
     await expect(discoverComponents(BAD_ROOT)).rejects.toThrow(/skills\/bad\/SKILL\.md/);
   });
 
-  it('finds personas under personas/', async () => {
+  it('finds outfits under outfits/', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
-    await fs.mkdir(path.join(tmp, 'personas', 'test-persona'), { recursive: true });
+    await fs.mkdir(path.join(tmp, 'outfits', 'test-outfit'), { recursive: true });
     await fs.writeFile(
-      path.join(tmp, 'personas', 'test-persona', 'persona.md'),
+      path.join(tmp, 'outfits', 'test-outfit', 'outfit.md'),
       `---
-name: test-persona
+name: test-outfit
 version: 1.0.0
-type: persona
+type: outfit
 description: t
 targets: [claude-code]
 categories: [tooling]
@@ -54,7 +54,7 @@ body
 `,
     );
     const result = await discoverComponents(tmp);
-    expect(result.find((c) => c.manifest.type === 'persona' && c.manifest.name === 'test-persona')).toBeDefined();
+    expect(result.find((c) => c.manifest.type === 'outfit' && c.manifest.name === 'test-outfit')).toBeDefined();
   });
 
   it('finds modes under modes/', async () => {

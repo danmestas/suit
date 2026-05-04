@@ -74,15 +74,15 @@ $(auth_status "pi      (OPENROUTER_API_KEY | ANTHROPIC_API_KEY)"                
 
 $(cyan 'try:')
   suit status
-  suit list personas
+  suit list outfits
   suit list modes
-  suit show persona backend
+  suit show outfit backend
   suit doctor
 
   # apply suits — these spawn the real harness against a prelaunch tempdir
-  suit claude --persona backend --mode focused -- --print "say hi"
-  suit codex  --persona backend --mode code    -- exec --skip-git-repo-check "say hi"
-  suit pi     --persona personal --mode design -- --provider openrouter --print "say hi"
+  suit claude --outfit backend --mode focused -- --print "say hi"
+  suit codex  --outfit backend --mode code    -- exec --skip-git-repo-check "say hi"
+  suit pi     --outfit personal --mode design -- --provider openrouter --print "say hi"
 
   # codex requires --skip-git-repo-check because the suit prelaunch tempdir
   # is not a git repo. pi needs --provider openrouter to use the Doppler key.

@@ -26,28 +26,28 @@ describe('ac integration with stub harness', () => {
     expect(captured.args).toEqual(['foo', 'bar']);
     expect(captured.env.AC_WRAPPED).toBe('1');
     expect(captured.env.AC_HARNESS).toBe('claude-code');
-    expect(captured.env.AC_RESOLUTION_PATH).toBeUndefined(); // no persona/mode
+    expect(captured.env.AC_RESOLUTION_PATH).toBeUndefined(); // no outfit/mode
   });
 
-  it('with --persona, sets AC_RESOLUTION_PATH to a readable JSON file', async () => {
+  it('with --outfit, sets AC_RESOLUTION_PATH to a readable JSON file', async () => {
     const captured: { env: NodeJS.ProcessEnv } = { env: {} };
-    // Provide a built-in dir with a fake persona & catalog.
+    // Provide a built-in dir with a fake outfit & catalog.
     const tmp = path.join('/tmp', `ac-builtin-${Date.now()}`);
     const fs = await import('node:fs/promises');
-    await fs.mkdir(path.join(tmp, 'personas', 'tester'), { recursive: true });
+    await fs.mkdir(path.join(tmp, 'outfits', 'tester'), { recursive: true });
     await fs.writeFile(
-      path.join(tmp, 'personas', 'tester', 'persona.md'),
+      path.join(tmp, 'outfits', 'tester', 'outfit.md'),
       `---
 name: tester
 version: 1.0.0
-type: persona
+type: outfit
 description: t
 targets: [claude-code]
 categories: [tooling]
 ---
 `,
     );
-    await runAc(['claude', '--persona', 'tester'], {
+    await runAc(['claude', '--outfit', 'tester'], {
       builtinDir: tmp,
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
@@ -61,6 +61,6 @@ categories: [tooling]
     expect(captured.env.AC_RESOLUTION_PATH).toBeDefined();
     const content = await fs.readFile(captured.env.AC_RESOLUTION_PATH!, 'utf8');
     const parsed = JSON.parse(content);
-    expect(parsed.metadata.persona).toBe('tester');
+    expect(parsed.metadata.outfit).toBe('tester');
   });
 });

@@ -48,9 +48,9 @@ export const geminiAdapter: Adapter = {
         return emitHook(component);
       case 'mcp':
         return emitMcp(component);
-      case 'persona':
+      case 'outfit':
       case 'mode':
-        // Personas and modes are harness-agnostic, consumed by `ac` at resolution
+        // Outfits and modes are harness-agnostic, consumed by `ac` at resolution
         // time. Not emitted per-target. See spec §5.2.
         return [];
       // agent and plugin are schema-rejected by validate.ts (compatibility matrix).

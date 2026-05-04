@@ -149,16 +149,16 @@ describe('validateComponents — Gemini-specific rejections', () => {
   });
 });
 
-describe('persona/mode validation', () => {
-  it('rejects persona with category not in TAXONOMY', async () => {
+describe('outfit/mode validation', () => {
+  it('rejects outfit with category not in TAXONOMY', async () => {
     const errors = await validateAll(
       [
         {
-          relativeDir: 'personas/bad',
+          relativeDir: 'outfits/bad',
           manifest: {
             name: 'bad',
             version: '1.0.0',
-            type: 'persona',
+            type: 'outfit',
             description: 'bad',
             targets: ['claude-code'],
             categories: ['notARealCategory'],
@@ -174,15 +174,15 @@ describe('persona/mode validation', () => {
     expect(errors.some((e) => e.message.includes('notARealCategory'))).toBe(true);
   });
 
-  it('rejects persona referencing nonexistent skill in skill_include', async () => {
+  it('rejects outfit referencing nonexistent skill in skill_include', async () => {
     const errors = await validateAll(
       [
         {
-          relativeDir: 'personas/bad',
+          relativeDir: 'outfits/bad',
           manifest: {
             name: 'bad',
             version: '1.0.0',
-            type: 'persona',
+            type: 'outfit',
             description: 'bad',
             targets: ['claude-code'],
             categories: ['tooling'],

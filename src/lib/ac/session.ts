@@ -2,7 +2,7 @@
  * AC session orchestrator.
  *
  * An AC session is the lifecycle of a single `ac <harness> ...` invocation:
- * it composes the persona/mode-filtered environment a downstream harness
+ * it composes the outfit/mode-filtered environment a downstream harness
  * (claude-code, gemini, pi, apm, codex, copilot) sees, spawns the harness
  * binary, and tears the temp environment down on exit.
  *
@@ -22,12 +22,12 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
-import { findPersona } from '../persona.js';
+import { findOutfit } from '../outfit.js';
 import { findMode } from '../mode.js';
 import { resolveAndPersist } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
 import type { Target } from '../types.js';
-import type { PersonaManifest, ModeManifest } from '../schema.js';
+import type { OutfitManifest, ModeManifest } from '../schema.js';
 import {
   prelaunchComposeClaudeCode,
   prelaunchComposeGemini,
@@ -92,7 +92,7 @@ export function defaultResolveHarnessBin(harness: string): string {
 
 interface PrelaunchInputs {
   target: Target;
-  persona?: PersonaManifest;
+  outfit?: OutfitManifest;
   mode?: ModeManifest;
   modeBody?: string;
   resolutionArtifactPath?: string;
@@ -113,8 +113,8 @@ interface PrelaunchEffects {
  * in `runAc`.
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
-  const { target, persona, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir } = opts;
-  const filtered = persona !== undefined || mode !== undefined;
+  const { target, outfit, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir } = opts;
+  const filtered = outfit !== undefined || mode !== undefined;
 
   switch (target) {
     case 'claude-code':
@@ -127,12 +127,12 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
           : target === 'gemini'
             ? prelaunchComposeGemini
             : prelaunchComposePi;
-      const r = await composer({ realHome, persona, mode, modeBody });
+      const r = await composer({ realHome, outfit, mode, modeBody });
       return { envOverrides: { HOME: r.tempHome }, cleanup: r.cleanup };
     }
     case 'apm': {
       if (!filtered) return { envOverrides: {} };
-      const r = await prelaunchComposeApm({ packageDir: apmPackageDir, persona, mode, modeBody });
+      const r = await prelaunchComposeApm({ packageDir: apmPackageDir, outfit, mode, modeBody });
       return { envOverrides: { APM_PACKAGE_DIR: r.tempPackageDir }, cleanup: r.cleanup };
     }
     case 'codex': {
@@ -176,20 +176,20 @@ export async function runAcSession(
   const projectDir = deps.projectDir ?? process.cwd();
   const userDir = deps.userDir ?? path.join(os.homedir(), '.config', 'agent-config');
   // session.ts lives at <repo>/src/lib/ac/session.ts — walk up to the repo
-  // root where personas/ and modes/ live.
+  // root where outfits/ and modes/ live.
   const builtinDir = deps.builtinDir ?? findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
   const dirs = { projectDir, userDir, builtinDir };
 
   const env: NodeJS.ProcessEnv = { ...process.env, AC_WRAPPED: '1', AC_HARNESS: target };
 
-  // Stage 2: load persona/mode and persist a resolution artifact when filter is requested.
-  const filtered = !args.noFilter && (args.persona !== undefined || args.mode !== undefined);
-  let persona: PersonaManifest | undefined;
+  // Stage 2: load outfit/mode and persist a resolution artifact when filter is requested.
+  const filtered = !args.noFilter && (args.outfit !== undefined || args.mode !== undefined);
+  let outfit: OutfitManifest | undefined;
   let modeManifest: ModeManifest | undefined;
   let modeBody: string | undefined;
   let resolutionArtifactPath: string | undefined;
   if (filtered) {
-    if (args.persona) persona = (await findPersona(args.persona, dirs)).manifest;
+    if (args.outfit) outfit = (await findOutfit(args.outfit, dirs)).manifest;
     if (args.mode) {
       const found = await findMode(args.mode, dirs);
       modeManifest = found?.manifest;
@@ -198,7 +198,7 @@ export async function runAcSession(
     const catalog = await (deps.loadCatalog ?? (async () => discoverComponents(builtinDir)))();
     const { artifactPath } = await resolveAndPersist({
       catalog,
-      persona,
+      outfit,
       mode: modeManifest,
       modeBody,
       harness: target,
@@ -210,7 +210,7 @@ export async function runAcSession(
   // Stage 3: harness-specific prelaunch composition.
   const effects = await prelaunchForTarget({
     target,
-    persona,
+    outfit,
     mode: modeManifest,
     modeBody,
     resolutionArtifactPath,

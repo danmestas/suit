@@ -35,7 +35,7 @@ describe('ModeSchema', () => {
     const result = ModeSchema.safeParse({
       name: 'focused',
       version: '1.0.0',
-      type: 'persona',
+      type: 'outfit',
       description: 'x',
       targets: ['claude-code'],
       categories: ['tooling'],

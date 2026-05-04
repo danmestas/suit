@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ComponentSource, ComponentType, Target } from './types.js';
-import type { DiscoveryDirs } from './persona.js';
+import type { DiscoveryDirs } from './outfit.js';
 
 export interface ValidationError {
   severity: 'error' | 'warning';
@@ -17,7 +17,7 @@ const MATRIX: Record<ComponentType, Record<Target, Cell>> = {
   agent:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'error', copilot: 'error', pi: 'ok' },
   rules:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
   mcp:     { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'error', pi: 'warn' },
-  persona: { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
+  outfit:  { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
   mode:    { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
 };
 
@@ -166,8 +166,8 @@ async function loadValidCategories(repoRoot: string): Promise<Set<string>> {
 /**
  * Async extension of validateComponents.
  * Runs the synchronous checks first, then adds:
- *   1. persona/mode categories cross-ref against TAXONOMY.md
- *   2. persona/mode skill_include/skill_exclude cross-ref against known skills
+ *   1. outfit/mode categories cross-ref against TAXONOMY.md
+ *   2. outfit/mode skill_include/skill_exclude cross-ref against known skills
  *   3. mode body size limit (error >4096 bytes, warning >1024 bytes)
  *
  * @param components  Discovered component sources.
@@ -193,7 +193,7 @@ export async function validateAll(
 
   for (const component of components) {
     const { manifest } = component;
-    if (manifest.type !== 'persona' && manifest.type !== 'mode') continue;
+    if (manifest.type !== 'outfit' && manifest.type !== 'mode') continue;
 
     const cats: Set<string> = await getValidCats();
 

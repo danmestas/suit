@@ -2,7 +2,7 @@ import { runAcSession, type AcSessionDeps } from './session.js';
 
 export interface ParsedAcArgs {
   harness: string;
-  persona?: string;
+  outfit?: string;
   mode?: string;
   noFilter: boolean;
   verbose: boolean;
@@ -29,12 +29,12 @@ export function parseAcArgs(argv: string[]): ParsedAcArgs {
       out.harnessArgs = argv.slice(i + 1);
       return out;
     }
-    if (tok === '--persona') {
+    if (tok === '--outfit') {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) {
-        throw new Error('ac: --persona requires a value');
+        throw new Error('ac: --outfit requires a value');
       }
-      out.persona = v;
+      out.outfit = v;
       i += 2;
       continue;
     }

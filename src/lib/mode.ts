@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import { ModeSchema, type ModeManifest } from './schema.js';
-import type { DiscoveryDirs } from './persona.js';
+import type { DiscoveryDirs } from './outfit.js';
 
 export interface FoundMode {
   manifest: ModeManifest;

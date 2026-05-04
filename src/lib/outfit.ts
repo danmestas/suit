@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { PersonaSchema, type PersonaManifest } from './schema.js';
+import { OutfitSchema, type OutfitManifest } from './schema.js';
 
 export interface DiscoveryDirs {
-  /** Project-scoped: <cwd>/.suit/personas/ (or modes/). */
+  /** Project-scoped: <cwd>/.suit/outfits/ (or modes/). */
   projectDir: string;
   /** User-scoped: ~/.config/suit/. */
   userDir: string;
@@ -12,27 +12,27 @@ export interface DiscoveryDirs {
   builtinDir: string;
 }
 
-export interface FoundPersona {
-  manifest: PersonaManifest;
+export interface FoundOutfit {
+  manifest: OutfitManifest;
   body: string;
   source: 'project' | 'user' | 'builtin';
   filepath: string;
 }
 
 const TIERS: Array<keyof DiscoveryDirs> = ['projectDir', 'userDir', 'builtinDir'];
-const TIER_NAMES: Record<keyof DiscoveryDirs, FoundPersona['source']> = {
+const TIER_NAMES: Record<keyof DiscoveryDirs, FoundOutfit['source']> = {
   projectDir: 'project',
   userDir: 'user',
   builtinDir: 'builtin',
 };
 
-async function listPersonaFilenames(dir: string): Promise<string[]> {
-  // The 3 tiers each store personas slightly differently:
-  //   projectDir: <projectDir>/.suit/personas/<name>.md
-  //   userDir:    <userDir>/personas/<name>.md
-  //   builtinDir: <builtinDir>/personas/<name>/persona.md
+async function listOutfitFilenames(dir: string): Promise<string[]> {
+  // The 3 tiers each store outfits slightly differently:
+  //   projectDir: <projectDir>/.suit/outfits/<name>.md
+  //   userDir:    <userDir>/outfits/<name>.md
+  //   builtinDir: <builtinDir>/outfits/<name>/outfit.md
   // The caller ensures each `dir` is rooted appropriately before invoking.
-  // For listing, we just glob *.md and *.{persona,mode}.md and dirs containing persona.md.
+  // For listing, we just glob *.md and *.{outfit,mode}.md and dirs containing outfit.md.
   // This helper is shared with mode.ts in pattern.
   const out: string[] = [];
   try {
@@ -40,12 +40,12 @@ async function listPersonaFilenames(dir: string): Promise<string[]> {
     for (const e of entries) {
       if (e.isFile() && e.name.endsWith('.md')) out.push(path.join(dir, e.name));
       else if (e.isDirectory()) {
-        const candidate = path.join(dir, e.name, 'persona.md');
+        const candidate = path.join(dir, e.name, 'outfit.md');
         try {
           await fs.access(candidate);
           out.push(candidate);
         } catch {
-          // not a persona dir
+          // not an outfit dir
         }
       }
     }
@@ -58,26 +58,26 @@ async function listPersonaFilenames(dir: string): Promise<string[]> {
 function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return [path.join(dirs.projectDir, '.suit', 'personas')];
+      return [path.join(dirs.projectDir, '.suit', 'outfits')];
     case 'userDir':
-      return [path.join(dirs.userDir, 'personas')];
+      return [path.join(dirs.userDir, 'outfits')];
     case 'builtinDir':
-      return [path.join(dirs.builtinDir, 'personas')];
+      return [path.join(dirs.builtinDir, 'outfits')];
   }
 }
 
-export async function findPersona(
+export async function findOutfit(
   name: string,
   dirs: DiscoveryDirs,
-): Promise<FoundPersona> {
+): Promise<FoundOutfit> {
   const seen: string[] = [];
   for (const tier of TIERS) {
     for (const root of resolveTierRoots(tier, dirs)) {
-      const files = await listPersonaFilenames(root);
+      const files = await listOutfitFilenames(root);
       for (const filepath of files) {
         const raw = await fs.readFile(filepath, 'utf8');
         const parsed = matter(raw);
-        const result = PersonaSchema.safeParse(parsed.data);
+        const result = OutfitSchema.safeParse(parsed.data);
         if (!result.success) continue; // skip invalid; validate.ts catches them at build
         seen.push(result.data.name);
         if (result.data.name === name) {
@@ -92,19 +92,19 @@ export async function findPersona(
     }
   }
   throw new Error(
-    `persona not found: "${name}". Available: ${seen.length === 0 ? '(none)' : seen.join(', ')}`,
+    `outfit not found: "${name}". Available: ${seen.length === 0 ? '(none)' : seen.join(', ')}`,
   );
 }
 
-export async function listAllPersonas(dirs: DiscoveryDirs): Promise<FoundPersona[]> {
-  const found = new Map<string, FoundPersona>();
+export async function listAllOutfits(dirs: DiscoveryDirs): Promise<FoundOutfit[]> {
+  const found = new Map<string, FoundOutfit>();
   for (const tier of TIERS) {
     for (const root of resolveTierRoots(tier, dirs)) {
-      const files = await listPersonaFilenames(root);
+      const files = await listOutfitFilenames(root);
       for (const filepath of files) {
         const raw = await fs.readFile(filepath, 'utf8');
         const parsed = matter(raw);
-        const result = PersonaSchema.safeParse(parsed.data);
+        const result = OutfitSchema.safeParse(parsed.data);
         if (!result.success) continue;
         // Higher-priority tier (and earlier path within tier) already won; don't overwrite.
         if (!found.has(result.data.name)) {

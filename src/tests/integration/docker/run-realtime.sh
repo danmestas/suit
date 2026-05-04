@@ -20,7 +20,7 @@
 #   run-realtime.sh --live-source          # bind-mount host /workspace
 #                                          #   (faster iteration, but requires
 #                                          #    dist/ + node_modules built locally)
-#   run-realtime.sh -- bash -c "suit status && suit list personas"
+#   run-realtime.sh -- bash -c "suit status && suit list outfits"
 #
 # Anything after `--` is passed through as the container CMD.
 

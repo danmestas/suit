@@ -47,7 +47,7 @@ B body
       skillsDrop: ['b'],
       skillsKeep: null,
       modePrompt: '',
-      metadata: { persona: 'p', mode: null, categories: ['tooling'] },
+      metadata: { outfit: 'p', mode: null, categories: ['tooling'] },
     }));
 
     const outPath = path.join(repo, 'AGENTS.md');

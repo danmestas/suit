@@ -1,4 +1,4 @@
-import { listAllPersonas, findPersona, type DiscoveryDirs } from '../persona.js';
+import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
 import { listAllModes, findMode } from '../mode.js';
 import { getHarnessPresence } from './harness-presence.js';
 
@@ -7,13 +7,13 @@ export interface IntrospectDeps extends DiscoveryDirs {
 }
 
 export async function listCommand(
-  what: 'personas' | 'modes',
+  what: 'outfits' | 'modes',
   deps: IntrospectDeps,
 ): Promise<void> {
-  if (what === 'personas') {
-    const all = await listAllPersonas(deps);
+  if (what === 'outfits') {
+    const all = await listAllOutfits(deps);
     if (all.length === 0) {
-      deps.print('(no personas found)');
+      deps.print('(no outfits found)');
       return;
     }
     for (const p of all) {
@@ -32,9 +32,9 @@ export async function listCommand(
 }
 
 export interface ShowOptions {
-  kind: 'persona' | 'mode' | 'effective';
+  kind: 'outfit' | 'mode' | 'effective';
   name?: string;
-  persona?: string;
+  outfit?: string;
   mode?: string;
 }
 
@@ -42,9 +42,9 @@ export async function showCommand(
   opts: ShowOptions,
   deps: IntrospectDeps,
 ): Promise<void> {
-  if (opts.kind === 'persona') {
-    if (!opts.name) throw new Error('ac show persona <name>: name required');
-    const f = await findPersona(opts.name, deps);
+  if (opts.kind === 'outfit') {
+    if (!opts.name) throw new Error('ac show outfit <name>: name required');
+    const f = await findOutfit(opts.name, deps);
     deps.print(`name: ${f.manifest.name}`);
     deps.print(`version: ${f.manifest.version}`);
     deps.print(`source: ${f.source} (${f.filepath})`);

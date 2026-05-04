@@ -19,16 +19,16 @@ describe('dist/ runnable as Node ESM', () => {
     expect(existsSync(DIST_AC)).toBe(true);
   });
 
-  it('runs `suit list personas` against a fixture content dir', () => {
+  it('runs `suit list outfits` against a fixture content dir', () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), 'suit-distrun-'));
     try {
-      mkdirSync(path.join(tmp, 'personas', 'demo'), { recursive: true });
+      mkdirSync(path.join(tmp, 'outfits', 'demo'), { recursive: true });
       writeFileSync(
-        path.join(tmp, 'personas', 'demo', 'persona.md'),
-        '---\nname: demo\nversion: 1.0.0\ntype: persona\ndescription: d\ntargets: [claude-code]\ncategories: [tooling]\n---\nbody',
+        path.join(tmp, 'outfits', 'demo', 'outfit.md'),
+        '---\nname: demo\nversion: 1.0.0\ntype: outfit\ndescription: d\ntargets: [claude-code]\ncategories: [tooling]\n---\nbody',
       );
 
-      const result = spawnSync('node', [DIST_AC, 'list', 'personas'], {
+      const result = spawnSync('node', [DIST_AC, 'list', 'outfits'], {
         env: { ...process.env, SUIT_CONTENT_PATH: tmp },
         encoding: 'utf8',
         timeout: 10_000,

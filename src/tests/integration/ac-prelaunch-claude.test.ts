@@ -36,16 +36,16 @@ category:
 describe('prelaunchComposeClaudeCode', () => {
   it('composes a HOME-override tempdir with filtered skills', async () => {
     const realHome = await makeFakeUserHome();
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
     const result = await prelaunchComposeClaudeCode({
       realHome,
-      persona,
+      outfit,
     });
     expect(result.tempHome).toMatch(/ac-home-/);
     const filteredSkills = await fs.readdir(path.join(result.tempHome, '.claude', 'skills'));
@@ -63,7 +63,7 @@ describe('prelaunchComposeClaudeCode', () => {
     await expect(fs.access(result.tempHome)).rejects.toThrow();
   });
 
-  it('with no persona/mode, all skills pass through', async () => {
+  it('with no outfit/mode, all skills pass through', async () => {
     const realHome = await makeFakeUserHome();
     const result = await prelaunchComposeClaudeCode({ realHome });
     const filtered = await fs.readdir(path.join(result.tempHome, '.claude', 'skills'));
@@ -73,7 +73,7 @@ describe('prelaunchComposeClaudeCode', () => {
 });
 
 describe('ac claude integration with prelaunch', () => {
-  it('end-to-end: ac claude --persona X writes filtered HOME tempdir and sets env.HOME', async () => {
+  it('end-to-end: ac claude --outfit X writes filtered HOME tempdir and sets env.HOME', async () => {
     // Set up fake user home with two skills (different categories)
     const realHome = await fs.mkdtemp(path.join(os.tmpdir(), 'real-home-'));
     await fs.mkdir(path.join(realHome, '.claude', 'skills', 'tooling-skill'), { recursive: true });
@@ -99,15 +99,15 @@ category:
 `,
     );
 
-    // Set up a fake builtinDir with a persona definition
+    // Set up a fake builtinDir with a outfit definition
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'builtin-'));
-    await fs.mkdir(path.join(builtinDir, 'personas', 'backend'), { recursive: true });
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'backend'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'personas', 'backend', 'persona.md'),
+      path.join(builtinDir, 'outfits', 'backend', 'outfit.md'),
       `---
 name: backend
 version: 1.0.0
-type: persona
+type: outfit
 description: backend dev
 targets: [claude-code]
 categories: [tooling]
@@ -120,7 +120,7 @@ skill_exclude: []
     // Capture env passed to exec
     const captured: { env: NodeJS.ProcessEnv } = { env: {} };
 
-    await runAc(['claude', '--persona', 'backend'], {
+    await runAc(['claude', '--outfit', 'backend'], {
       builtinDir,
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
