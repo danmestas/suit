@@ -3,6 +3,8 @@ export function helpText(): string {
 
 USAGE
   suit <harness> [--outfit X] [--mode Y] [--accessory A]... [--no-filter] [-- <harness args>]
+  suit up --outfit <name> [--mode <name>] [--accessory <name>]... [--force]
+  suit current
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
@@ -15,6 +17,8 @@ ENVIRONMENT
 
 EXAMPLES
   suit init https://github.com/user/their-config
+  suit up --outfit backend --mode focused
+  suit current
   suit claude --outfit backend --mode focused
   suit claude --outfit backend --accessory tracing --accessory pr-policy
   suit codex --outfit frontend -- --resume sess-123

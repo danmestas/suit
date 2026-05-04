@@ -7,6 +7,8 @@ import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect.js'
 import { runInit } from './lib/ac/init.js';
 import { runSync } from './lib/ac/sync.js';
 import { runStatus } from './lib/ac/status.js';
+import { runUp } from './lib/ac/up.js';
+import { runCurrent } from './lib/ac/current.js';
 import { helpText } from './lib/ac/help.js';
 import { resolveSuitPaths } from './lib/paths.js';
 import { KNOWN_HARNESSES } from './lib/ac/harness-presence.js';
@@ -56,6 +58,82 @@ function parseInitArgs(rest: string[]): { url: string | null; force: boolean } {
     else if (!a.startsWith('-') && url === null) url = a;
   }
   return { url, force };
+}
+
+interface UpArgs {
+  outfit: string | null;
+  mode: string | null;
+  accessories: string[];
+  force: boolean;
+  err: string | null;
+}
+
+/**
+ * Parse `suit up` args. Surface the first parse error via `err` so the caller
+ * can print it consistently with the rest of the CLI rather than throwing.
+ *
+ * Recognized flags: `--outfit X`, `--mode Y`, `--accessory A` (repeatable), `--force`.
+ * The `=` form (`--outfit=X`) is also accepted for muscle-memory parity with
+ * other CLIs.
+ */
+function parseUpArgs(rest: string[]): UpArgs {
+  let outfit: string | null = null;
+  let mode: string | null = null;
+  const accessories: string[] = [];
+  let force = false;
+  let err: string | null = null;
+
+  function takeValue(flag: string, i: number, eqValue: string | undefined): { value: string | null; next: number } {
+    if (eqValue !== undefined) return { value: eqValue, next: i };
+    const next = rest[i + 1];
+    if (next === undefined || next.startsWith('-')) {
+      return { value: null, next: i };
+    }
+    return { value: next, next: i + 1 };
+  }
+
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === '--force') {
+      force = true;
+      continue;
+    }
+    let flag = arg;
+    let eqValue: string | undefined;
+    const eq = arg.indexOf('=');
+    if (arg.startsWith('--') && eq !== -1) {
+      flag = arg.slice(0, eq);
+      eqValue = arg.slice(eq + 1);
+    }
+    if (flag === '--outfit') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) {
+        err = err ?? 'suit up: --outfit requires a value';
+        continue;
+      }
+      outfit = r.value;
+      i = r.next;
+    } else if (flag === '--mode') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) {
+        err = err ?? 'suit up: --mode requires a value';
+        continue;
+      }
+      mode = r.value;
+      i = r.next;
+    } else if (flag === '--accessory') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) {
+        err = err ?? 'suit up: --accessory requires a value';
+        continue;
+      }
+      accessories.push(r.value);
+      i = r.next;
+    } else {
+      err = err ?? `suit up: unrecognized argument "${arg}"`;
+    }
+  }
+  return { outfit, mode, accessories, force, err };
 }
 
 async function main(): Promise<number> {
@@ -132,6 +210,40 @@ async function main(): Promise<number> {
       harnesses: KNOWN_HARNESSES,
       print: (l) => process.stdout.write(l + '\n'),
     });
+  }
+
+  if (cmd === 'up') {
+    const parsed = parseUpArgs(argv.slice(1));
+    if (parsed.err) {
+      process.stderr.write(`${parsed.err}\n`);
+      return 2;
+    }
+    return runUp(
+      {
+        outfit: parsed.outfit,
+        mode: parsed.mode,
+        accessories: parsed.accessories,
+        force: parsed.force,
+        projectDir: dirs.projectDir,
+        contentDir: paths.contentDir,
+        userDir: paths.userOverlayDir,
+        isTTY: process.stdin.isTTY === true,
+      },
+      {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      },
+    );
+  }
+
+  if (cmd === 'current') {
+    return runCurrent(
+      { projectDir: dirs.projectDir },
+      {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      },
+    );
   }
 
   // Default: suit <harness> ...
