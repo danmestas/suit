@@ -157,8 +157,27 @@ export function validateComponents(components: ComponentSource[]): ValidationErr
 // ---------------------------------------------------------------------------
 
 async function loadValidCategories(repoRoot: string): Promise<Set<string>> {
-  const taxonomyPath = path.join(repoRoot, 'TAXONOMY.md');
-  const text = await fs.readFile(taxonomyPath, 'utf8');
+  // Try root first (legacy), then docs/ (wardrobe layout v2 puts narrative
+  // docs there but configuration files at root — TAXONOMY.md has been seen
+  // in both locations during the v0.3 → v0.4 transition, so accept either).
+  const candidates = [
+    path.join(repoRoot, 'TAXONOMY.md'),
+    path.join(repoRoot, 'docs', 'TAXONOMY.md'),
+  ];
+  let text: string | undefined;
+  for (const p of candidates) {
+    try {
+      text = await fs.readFile(p, 'utf8');
+      break;
+    } catch {
+      // try next
+    }
+  }
+  if (text === undefined) {
+    throw new Error(
+      `TAXONOMY.md not found (looked in ${candidates.map((c) => path.relative(repoRoot, c)).join(', ')})`,
+    );
+  }
   // Categories appear as ### headings: "### 1. Economy", "### 2. Workflow", ...
   const matches = text.matchAll(/^### \d+\.\s+(\w[\w-]*)/gm);
   return new Set(Array.from(matches, (m) => m[1]!.toLowerCase()));

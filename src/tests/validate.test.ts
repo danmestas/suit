@@ -149,6 +149,58 @@ describe('validateComponents — Gemini-specific rejections', () => {
   });
 });
 
+describe('TAXONOMY.md path resolution', () => {
+  it('finds TAXONOMY.md at docs/ subdir when not at root', async () => {
+    const fs = await import('node:fs/promises');
+    const os = await import('node:os');
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'taxonomy-'));
+    await fs.mkdir(path.join(tmp, 'docs'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'docs', 'TAXONOMY.md'),
+      '### 1. Tooling\n### 2. Workflow\n',
+    );
+    const errors = await validateAll(
+      [
+        {
+          relativeDir: 'outfits/x',
+          manifest: {
+            name: 'x', version: '1.0.0', type: 'outfit', description: 'd',
+            targets: ['claude-code'], categories: ['tooling'],
+            skill_include: [], skill_exclude: [],
+          },
+          body: '',
+          dir: path.join(tmp, 'outfits', 'x'),
+        } as any,
+      ],
+      { projectDir: tmp, userDir: tmp, builtinDir: tmp },
+    );
+    expect(errors.some((e) => e.message.includes('TAXONOMY'))).toBe(false);
+  });
+
+  it('throws with helpful message when TAXONOMY.md absent from both locations', async () => {
+    const fs = await import('node:fs/promises');
+    const os = await import('node:os');
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'taxonomy-'));
+    await expect(
+      validateAll(
+        [
+          {
+            relativeDir: 'outfits/x',
+            manifest: {
+              name: 'x', version: '1.0.0', type: 'outfit', description: 'd',
+              targets: ['claude-code'], categories: ['tooling'],
+              skill_include: [], skill_exclude: [],
+            },
+            body: '',
+            dir: path.join(tmp, 'outfits', 'x'),
+          } as any,
+        ],
+        { projectDir: tmp, userDir: tmp, builtinDir: tmp },
+      ),
+    ).rejects.toThrow(/TAXONOMY\.md not found/);
+  });
+});
+
 describe('outfit/mode validation', () => {
   it('rejects outfit with category not in TAXONOMY', async () => {
     const errors = await validateAll(

@@ -81,6 +81,87 @@ body
     ).toBeDefined();
   });
 
+  it('finds AGENT.md under agents/', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
+    await fs.mkdir(path.join(tmp, 'agents', 'test-agent'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'agents', 'test-agent', 'AGENT.md'),
+      `---
+name: test-agent
+version: 1.0.0
+type: agent
+description: t
+targets: [claude-code]
+---
+
+body
+`,
+    );
+    const result = await discoverComponents(tmp);
+    expect(result.find((c) => c.manifest.type === 'agent' && c.manifest.name === 'test-agent')).toBeDefined();
+  });
+
+  it('finds HOOK.md under hooks/', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
+    await fs.mkdir(path.join(tmp, 'hooks', 'test-hook'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'hooks', 'test-hook', 'HOOK.md'),
+      `---
+name: test-hook
+version: 1.0.0
+type: hook
+description: t
+targets: [claude-code]
+---
+
+body
+`,
+    );
+    const result = await discoverComponents(tmp);
+    expect(result.find((c) => c.manifest.type === 'hook' && c.manifest.name === 'test-hook')).toBeDefined();
+  });
+
+  it('finds RULES.md under rules/', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
+    await fs.mkdir(path.join(tmp, 'rules', 'test-rules'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'rules', 'test-rules', 'RULES.md'),
+      `---
+name: test-rules
+version: 1.0.0
+type: rules
+description: t
+targets: [claude-code]
+---
+
+body
+`,
+    );
+    const result = await discoverComponents(tmp);
+    expect(result.find((c) => c.manifest.type === 'rules' && c.manifest.name === 'test-rules')).toBeDefined();
+  });
+
+  it('falls back to SKILL.md inside agents/hooks/commands/rules for back-compat', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
+    // Use the legacy SKILL.md filename inside an agents/ entry
+    await fs.mkdir(path.join(tmp, 'agents', 'legacy-agent'), { recursive: true });
+    await fs.writeFile(
+      path.join(tmp, 'agents', 'legacy-agent', 'SKILL.md'),
+      `---
+name: legacy-agent
+version: 1.0.0
+type: agent
+description: t
+targets: [claude-code]
+---
+
+body
+`,
+    );
+    const result = await discoverComponents(tmp);
+    expect(result.find((c) => c.manifest.name === 'legacy-agent')).toBeDefined();
+  });
+
   it('finds modes under modes/', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
     await fs.mkdir(path.join(tmp, 'modes', 'test-mode'), { recursive: true });
