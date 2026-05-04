@@ -8,6 +8,7 @@ import { runInit } from './lib/ac/init.js';
 import { runSync } from './lib/ac/sync.js';
 import { runStatus } from './lib/ac/status.js';
 import { runUp } from './lib/ac/up.js';
+import { runOff } from './lib/ac/off.js';
 import { runCurrent } from './lib/ac/current.js';
 import { helpText } from './lib/ac/help.js';
 import { resolveSuitPaths } from './lib/paths.js';
@@ -239,6 +240,30 @@ async function main(): Promise<number> {
   if (cmd === 'current') {
     return runCurrent(
       { projectDir: dirs.projectDir },
+      {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      },
+    );
+  }
+
+  if (cmd === 'off') {
+    const rest = argv.slice(1);
+    let force = false;
+    let err: string | null = null;
+    for (const a of rest) {
+      if (a === '--force') {
+        force = true;
+      } else {
+        err = err ?? `suit off: unrecognized argument "${a}"`;
+      }
+    }
+    if (err) {
+      process.stderr.write(`${err}\n`);
+      return 2;
+    }
+    return runOff(
+      { projectDir: dirs.projectDir, force },
       {
         stdout: (s) => process.stdout.write(s),
         stderr: (s) => process.stderr.write(s),
