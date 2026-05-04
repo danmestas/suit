@@ -453,27 +453,6 @@ broken body
     expect(cap.err.join('')).toMatch(/--outfit is required/);
   });
 
-  it('TTY missing --outfit prints the picker-not-implemented stub and exits 2', async () => {
-    const wardrobe = await mkWardrobe();
-    const proj = await mkProject();
-    const userDir = await mkdirT('suit-up-user-');
-
-    const cap = capture();
-    const code = await runUp(
-      {
-        outfit: null,
-        mode: null,
-        accessories: [],
-        force: false,
-        projectDir: proj,
-        contentDir: wardrobe,
-        userDir,
-        isTTY: true,
-      },
-      { stdout: cap.push, stderr: cap.pushE },
-    );
-
-    expect(code).toBe(2);
-    expect(cap.err.join('')).toMatch(/picker not yet implemented/);
-  });
+  // Note: TTY-with-no-outfit dispatches to the interactive picker (Phase D).
+  // Picker behavior is exercised in picker.test.ts; runUp just calls runPicker.
 });

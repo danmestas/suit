@@ -34,6 +34,7 @@ import {
   type Lockfile,
   type LockEntry,
 } from '../lockfile.js';
+import { runPicker } from './picker.js';
 
 export interface RunUpArgs {
   outfit: string | null;
@@ -222,25 +223,38 @@ function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; m
 }
 
 export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
-  // TTY guard: missing outfit on a TTY → Phase D picker (not yet implemented).
-  // Non-TTY missing outfit → CLI usage error.
-  if (!args.outfit) {
-    if (args.isTTY) {
-      deps.stderr('suit up: interactive picker not yet implemented; pass --outfit explicitly\n');
-    } else {
-      deps.stderr('suit up: --outfit is required (use a TTY for the interactive picker)\n');
-    }
-    return 2;
-  }
-
   const dirs = {
     projectDir: args.projectDir,
     userDir: args.userDir,
     builtinDir: args.contentDir,
   };
 
+  // TTY guard: missing outfit on a TTY → Phase D interactive picker.
+  // Non-TTY missing outfit → CLI usage error.
+  if (!args.outfit) {
+    if (!args.isTTY) {
+      deps.stderr('suit up: --outfit is required (use a TTY for the interactive picker)\n');
+      return 2;
+    }
+    try {
+      const picked = await runPicker(dirs, deps);
+      args = { ...args, outfit: picked.outfit, mode: picked.mode, accessories: picked.accessories };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      deps.stderr(`suit up: ${msg}\n`);
+      return 1;
+    }
+  }
+
+  // After TTY-picker dispatch, outfit is guaranteed non-null. Narrow for TS.
+  if (!args.outfit) {
+    deps.stderr('suit up: --outfit is required\n');
+    return 2;
+  }
+  const outfitName = args.outfit;
+
   // Stage 1: load outfit, mode, accessories using the standard discovery chain.
-  const foundOutfit = await findOutfit(args.outfit, dirs);
+  const foundOutfit = await findOutfit(outfitName, dirs);
   const outfitManifest = foundOutfit.manifest;
 
   let modeManifest;
