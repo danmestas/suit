@@ -180,6 +180,73 @@ extra context body for accessory
   });
 });
 
+describe('ac show mode (Phase 3 include block)', () => {
+  it('prints the include: block when the mode declares one', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-mode-inc-'));
+    await fs.mkdir(path.join(builtinDir, 'modes'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'modes', 'ticket-writing.md'),
+      `---
+name: ticket-writing
+version: 1.0.0
+type: mode
+description: Ticket writing focus
+targets: [claude-code]
+categories: [workflow]
+include:
+  skills: [linear-method]
+  hooks: [ticket-validator]
+---
+
+Body.
+`,
+    );
+    const out: string[] = [];
+    await showCommand({ kind: 'mode', name: 'ticket-writing' }, {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+      print: (l) => out.push(l),
+    });
+    const text = out.join('\n');
+    expect(text).toMatch(/include:/);
+    expect(text).toMatch(/skills: linear-method/);
+    expect(text).toMatch(/hooks: ticket-validator/);
+  });
+
+  it('omits the include: block when the mode is body-only (back-compat)', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-mode-empty-'));
+    await fs.mkdir(path.join(builtinDir, 'modes'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'modes', 'focused.md'),
+      `---
+name: focused
+version: 1.0.0
+type: mode
+description: Single-task focus
+targets: [claude-code]
+categories: [tooling]
+---
+
+Body framing focused mode.
+`,
+    );
+    const out: string[] = [];
+    await showCommand({ kind: 'mode', name: 'focused' }, {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+      print: (l) => out.push(l),
+    });
+    const text = out.join('\n');
+    // No `include:` header for body-only modes — keep v0.3 output stable.
+    expect(text).not.toMatch(/^include:/m);
+    // The mode prompt body section is still emitted.
+    expect(text).toMatch(/--- mode prompt body/);
+    expect(text).toMatch(/Body framing focused mode/);
+  });
+});
+
 describe('ac doctor', () => {
   it('reports binary missing for unknown bin names (now falls back to harness as bin)', async () => {
     const out: string[] = [];

@@ -42,6 +42,59 @@ describe('ModeSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('defaults all 5 include sub-arrays to empty when no include block is declared (back-compat)', () => {
+    const result = ModeSchema.parse({
+      name: 'focused',
+      version: '1.0.0',
+      type: 'mode',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+    });
+    expect(result.include.skills).toEqual([]);
+    expect(result.include.rules).toEqual([]);
+    expect(result.include.hooks).toEqual([]);
+    expect(result.include.agents).toEqual([]);
+    expect(result.include.commands).toEqual([]);
+  });
+
+  it('accepts a populated include block on a mode', () => {
+    const result = ModeSchema.safeParse({
+      name: 'ticket-writing',
+      version: '1.0.0',
+      type: 'mode',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['workflow'],
+      include: {
+        skills: ['linear-method'],
+        hooks: ['ticket-validator'],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.include.skills).toEqual(['linear-method']);
+      expect(result.data.include.hooks).toEqual(['ticket-validator']);
+      expect(result.data.include.rules).toEqual([]);
+    }
+  });
+
+  it('rejects unknown keys inside mode include (strict)', () => {
+    const result = ModeSchema.safeParse({
+      name: 'focused',
+      version: '1.0.0',
+      type: 'mode',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+      include: {
+        skills: ['idiomatic-go'],
+        bogus: ['nope'],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('findMode', () => {

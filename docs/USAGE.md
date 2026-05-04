@@ -144,7 +144,30 @@ skill_include: idiomatic-go
 skill_exclude: datastar-tao, datastar-patterns, datastar
 ```
 
-For modes, `suit show mode <name>` also prints the prompt body that gets injected.
+For modes, `suit show mode <name>` also prints the prompt body that gets injected. If the mode declares a structured `include:` block (Phase 3 feature — see §4.2 below), that block is printed above the body the same way it is for accessories:
+
+```bash
+$ suit show mode ticket-writing
+name: ticket-writing
+version: 1.0.0
+source: builtin (/Users/you/.local/share/suit/content/modes/ticket-writing/mode.md)
+description: Ticket writing focus — strict scope, single bullet per ticket
+targets: claude-code
+categories: workflow
+skill_include:
+skill_exclude:
+include:
+  skills: linear-method
+  rules:
+  hooks: ticket-validator
+  agents:
+  commands:
+
+--- mode prompt body (injected as additional context when active) ---
+You are writing tickets...
+```
+
+Body-only modes (the default v0.3 shape) omit the `include:` section entirely — their `show` output is unchanged.
 
 For accessories, `suit show accessory <name>` prints the same header plus the `include:` block:
 
@@ -281,6 +304,28 @@ Body: a few hundred words framing the mode. Capped at 4096 bytes.
 
 Modes compose with outfits: `--outfit backend --mode focused` applies both.
 
+**Optional `include:` block (Phase 3).** A mode can also carry a structured `include:` block — same shape as an accessory's — to bundle a small named set of components alongside its prompt overlay. This is useful for modes whose stance only makes sense when a specific skill/hook/rule is in scope (e.g., a `ticket-writing` mode that wants `linear-method` force-included even if the outfit's category filter would normally drop it):
+
+```yaml
+---
+name: ticket-writing
+version: 1.0.0
+type: mode
+description: Ticket writing focus
+targets: [claude-code]
+categories: [workflow]
+include:
+  skills: [linear-method]
+  hooks: [ticket-validator]
+---
+
+Body framing the ticket-writing stance.
+```
+
+Each name in `include.skills`, `include.rules`, `include.hooks`, and `include.agents` is validated against the discovered catalog at resolve time — a missing reference fails the launch with `mode "<name>" includes <kind> "<ref>" not found in wardrobe`. Body-only modes (no `include:` key) continue to work unchanged: every sub-array defaults to `[]` and the resolver's force-include phase becomes a no-op for that mode.
+
+When both an outfit-level filter and a mode `include:` agree on a skill, the mode's force-include wins (just like accessory force-includes override the outfit's category-based drops).
+
 ### 4.3 Accessory
 
 An **accessory** is a piecemeal overlay layered after outfit + mode at invocation time. Where an outfit defines a complete role and a mode flavors the workflow, an accessory adds (typically) a single extra component or a small named bundle. Pass `--accessory <name>` once per accessory you want layered in, in any order — accessories compose left-to-right after the outfit's category-based filtering.
@@ -326,7 +371,7 @@ accessory "tracing" includes hook "trace" not found in wardrobe
 
 This catches typos at prelaunch instead of letting the session start with a silently-dropped component. Accessories cannot reference unknown components.
 
-**Composition order.** The resolver applies outfit → mode → each accessory in CLI order. Accessory force-includes override the outfit's category-based drops: a skill the outfit would normally filter out is brought back in if any active accessory names it.
+**Composition order.** The resolver applies outfit → mode → each accessory in CLI order. Force-includes layer in the same order: mode's `include:` (if present) runs first, then each accessory's `include:`. Both override the outfit's category-based drops — a skill the outfit would normally filter out is brought back in if any active mode include or accessory include names it. Force-include is set-deletion, so when both a mode and an accessory list the same skill the resulting kept-set is identical regardless of order.
 
 ### 4.4 Skill
 

@@ -84,6 +84,26 @@ export async function showCommand(
     deps.print(`categories: ${f.manifest.categories.join(', ')}`);
     deps.print(`skill_include: ${(f.manifest.skill_include ?? []).join(', ')}`);
     deps.print(`skill_exclude: ${(f.manifest.skill_exclude ?? []).join(', ')}`);
+    // Phase 3: print the structured `include:` block when the mode declares one
+    // (any non-empty sub-array). Body-only modes — the v0.3 default — have all
+    // five sub-arrays empty and we omit the section entirely so their `show`
+    // output is unchanged.
+    const inc = f.manifest.include;
+    const hasIncludes =
+      inc.skills.length +
+        inc.rules.length +
+        inc.hooks.length +
+        inc.agents.length +
+        inc.commands.length >
+      0;
+    if (hasIncludes) {
+      deps.print('include:');
+      deps.print(`  skills: ${inc.skills.join(', ')}`);
+      deps.print(`  rules: ${inc.rules.join(', ')}`);
+      deps.print(`  hooks: ${inc.hooks.join(', ')}`);
+      deps.print(`  agents: ${inc.agents.join(', ')}`);
+      deps.print(`  commands: ${inc.commands.join(', ')}`);
+    }
     deps.print('');
     deps.print('--- mode prompt body (injected as additional context when active) ---');
     deps.print(f.body.trim());
