@@ -77,23 +77,36 @@ describe('runStatus', () => {
   });
 
   // ─── v0.5.3: staleness check ─────────────────────────────────────────────
-  it('reports "N commits behind" when the cache is behind its upstream', async () => {
-    // Simulate a wardrobe + remote both locally so no network is involved.
-    // 1. Create a "remote" bare repo, push an initial commit into it.
-    // 2. Clone it as the cache target.
-    // 3. Add another commit to the remote so the cache is now behind by 1.
-    // 4. runStatus should detect the divergence after its internal `git fetch`.
-    const remote = path.join(tmp, 'remote.git');
-    const work = path.join(tmp, 'work');
-    const cache = path.join(tmp, 'cache');
 
+  // Helper: bootstrap a bare repo + a clone tracking origin/main. Robust
+  // across environments where `init.defaultBranch` defaults to `master`
+  // (older git, container distros without a system gitconfig). We force the
+  // bare repo's HEAD to `main` after init so the eventual `git clone`
+  // doesn't see a missing default branch.
+  const bootstrapWardrobe = (
+    remote: string,
+    work: string,
+    cache: string,
+  ): void => {
     execSync(`git init -q --bare "${remote}"`);
+    execSync(`git -C "${remote}" symbolic-ref HEAD refs/heads/main`);
     mkdirSync(work);
     execSync('git init -q -b main', { cwd: work });
     execSync('git config user.email t@t.t && git config user.name t', { cwd: work });
     execSync('echo a > a.txt && git add . && git commit -q -m a', { cwd: work });
     execSync(`git remote add origin "${remote}" && git push -q origin main`, { cwd: work });
     execSync(`git clone -q "${remote}" "${cache}"`);
+  };
+
+  it('reports "N commits behind" when the cache is behind its upstream', async () => {
+    // Simulate a wardrobe + remote both locally so no network is involved.
+    // 1. Bootstrap bare-remote + work + clone (cache).
+    // 2. Add another commit to the remote so the cache is now behind by 1.
+    // 3. runStatus should detect the divergence after its internal `git fetch`.
+    const remote = path.join(tmp, 'remote.git');
+    const work = path.join(tmp, 'work');
+    const cache = path.join(tmp, 'cache');
+    bootstrapWardrobe(remote, work, cache);
     // Add a commit upstream so cache is now 1 behind.
     execSync('echo b > b.txt && git add . && git commit -q -m b && git push -q origin main', { cwd: work });
 
@@ -110,14 +123,7 @@ describe('runStatus', () => {
     const remote = path.join(tmp, 'remote.git');
     const work = path.join(tmp, 'work');
     const cache = path.join(tmp, 'cache');
-
-    execSync(`git init -q --bare "${remote}"`);
-    mkdirSync(work);
-    execSync('git init -q -b main', { cwd: work });
-    execSync('git config user.email t@t.t && git config user.name t', { cwd: work });
-    execSync('echo a > a.txt && git add . && git commit -q -m a', { cwd: work });
-    execSync(`git remote add origin "${remote}" && git push -q origin main`, { cwd: work });
-    execSync(`git clone -q "${remote}" "${cache}"`);
+    bootstrapWardrobe(remote, work, cache);
 
     const code = await runStatus(
       { contentDir: cache, version: '0.5.3', harnesses: [] },
