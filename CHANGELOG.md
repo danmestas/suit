@@ -4,6 +4,16 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] — 2026-05-04
+
+### Added
+
+- **`suit status` reports wardrobe staleness.** Best-effort `git fetch` against the cached wardrobe; when it's behind origin, prints `Wardrobe: N commits behind <upstream> (run \`suit sync\` to update)`. Happy path stays quiet — line is omitted when the cache is current. Offline / network failure is silently tolerated (status still works without complaint). Bounded by `GIT_HTTP_LOW_SPEED_*` so a slow/dead remote can't make `suit status` hang.
+
+### Implementation notes
+
+- `ContentStore.status()` takes an optional `{ checkRemote?: boolean }`; when true, populates the `SyncState` slot with `{ ahead, behind, upstream, lastFetchAt }` (the type was already declared but unwired in v0.5.x).
+
 ## [0.5.2] — 2026-05-04
 
 Tiny follow-up to v0.5.1.
