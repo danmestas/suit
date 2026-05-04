@@ -4,16 +4,33 @@ import matter from 'gray-matter';
 import { ManifestSchema } from './schema.js';
 import type { ComponentSource } from './types.js';
 
-const COMPONENT_DIRS = ['skills', 'plugins', 'rules', 'hooks', 'agents', 'mcp', 'outfits', 'modes', 'accessories'] as const;
+const COMPONENT_DIRS = [
+  'skills',
+  'plugins',
+  'rules',
+  'hooks',
+  'agents',
+  'mcp',
+  'outfits',
+  'modes',
+  'accessories',
+  // Note: 'commands' is intentionally not walked yet — there is no
+  // CommandSchema in the discriminated union. Wardrobe v2 layout
+  // includes a commands/ dir, but those manifests will be picked up
+  // once a follow-up PR adds the schema type.
+] as const;
 
-const DIR_FILENAME: Partial<Record<string, string>> = {
-  outfits: 'outfit.md',
-  modes: 'mode.md',
-  accessories: 'accessory.md',
+const DIR_FILENAMES: Partial<Record<string, string[]>> = {
+  outfits: ['outfit.md'],
+  modes: ['mode.md'],
+  accessories: ['accessory.md'],
+  agents: ['AGENT.md', 'SKILL.md'],
+  hooks: ['HOOK.md', 'SKILL.md'],
+  rules: ['RULES.md', 'SKILL.md'],
 };
 
-function getComponentFilename(dir: string): string {
-  return DIR_FILENAME[dir] ?? 'SKILL.md';
+function getComponentFilenames(dir: string): string[] {
+  return DIR_FILENAMES[dir] ?? ['SKILL.md'];
 }
 
 export async function discoverComponents(repoRoot: string): Promise<ComponentSource[]> {
@@ -29,9 +46,17 @@ export async function discoverComponents(repoRoot: string): Promise<ComponentSou
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const componentDir = path.join(dir, entry.name);
-      const skillPath = path.join(componentDir, getComponentFilename(top));
-      const skillExists = await fs.stat(skillPath).then(() => true).catch(() => false);
-      if (!skillExists) continue;
+      const candidates = getComponentFilenames(top);
+      let skillPath: string | undefined;
+      for (const name of candidates) {
+        const candidate = path.join(componentDir, name);
+        const exists = await fs.stat(candidate).then(() => true).catch(() => false);
+        if (exists) {
+          skillPath = candidate;
+          break;
+        }
+      }
+      if (!skillPath) continue;
       const raw = await fs.readFile(skillPath, 'utf8');
       const parsed = matter(raw);
       let manifest;
