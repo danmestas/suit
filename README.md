@@ -22,58 +22,52 @@ This puts two binaries on your PATH:
 
 ## Quick start
 
+The standard workflow: `suit up` to dress the project, work with native harness CLIs, `suit off` when you're done.
+
 ```bash
-# Install
+# Install once
 npm install -g @agent-ops/suit
 
-# Point at any suit-compatible content repo
+# Point at any suit-compatible content repo (one-time setup per machine)
 suit init https://github.com/your-username/your-config
 
-# Discover what's available
+# In any project, dress it with an outfit + mode (+ optional accessories):
+cd ~/projects/foo
+suit up --outfit backend --mode focused
+# or, on a TTY, just `suit up` and pick from a numbered list
+
+# Now use your harnesses normally — they pick up the dressed config:
+claude                          # native invocation; inherits .claude/CLAUDE.md, skills, hooks
+codex --skip-git-repo-check
+pi --provider openrouter
+
+# Inspect or remove when you're done:
+suit current                    # shows applied resolution + file count + drift
+suit off                        # cleanly removes everything suit applied
+
+# Switch outfits in the same project: undress first, then redress.
+suit off && suit up --outfit frontend --mode design
+```
+
+That's the daily-driver flow. For one-off "try this outfit for a single query without dressing the project" cases, the stateless launcher still works:
+
+```bash
+suit claude --outfit backend --mode focused -- --print "say hi"
+suit codex --outfit backend --accessory tracing -- exec --skip-git-repo-check "say hi"
+suit claude --no-filter                   # bypass filtering for one session
+```
+
+Discover what's available:
+
+```bash
 suit list outfits
 suit list modes
 suit list accessories
-
-# Inspect the current state
 suit status
-
-# Two ways of working — pick the one that fits your session:
-
-# 1. Stateless launcher — wraps the harness for one session, then cleans up.
-#    Right answer for: "try this outfit for one query."
-suit claude --outfit backend --mode focused
-suit codex --outfit backend --accessory tracing --accessory pr-policy
-
-# 2. Project-state mutator — dresses the project so native invocations
-#    (claude, codex, pi from your shell or IDE) inherit the suit.
-#    Right answer for: "wear this for the next few hours of work."
-suit up --outfit backend --mode focused      # writes .claude/, .codex/, .pi/, .suit/lock.json
-claude                                       # native; picks up the dressed config
-codex --skip-git-repo-check
-pi --provider openrouter
-suit current                                 # inspect what's applied
-suit off                                     # remove everything suit applied
-
-# suit up without flags (on a TTY) drops into an interactive picker.
-suit up
-
-# Pull updates from the content repo whenever you want
-suit sync
+suit sync                       # pull latest from your content repo
 ```
 
-Pass-through arguments work after `--`:
-
-```bash
-suit claude --outfit backend -- --resume sess-123
-```
-
-To bypass filtering for one invocation:
-
-```bash
-suit claude --no-filter
-```
-
-For a more detailed walkthrough — including content tier resolution, authoring, and troubleshooting — see [USAGE.md](docs/USAGE.md).
+For the deeper walkthrough — content tier resolution, authoring, refuse-when-dirty semantics, drift detection — see [USAGE.md](docs/USAGE.md).
 
 ## Dev mode (point at a local content repo)
 

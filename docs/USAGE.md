@@ -76,55 +76,17 @@ suit show <outfit|mode|accessory> <name>
 
 `suit` has **two modes of working** (v0.5+):
 
-- **`suit <harness>` — stateless launcher** (default; per-session). Spawns the harness binary against an ephemeral prelaunch tempdir, deletes the tempdir on exit. Right answer for "try this outfit for one query."
-- **`suit up` — project-state mutator**. Writes the resolved components into the project's `.claude/`, `.codex/`, `.pi/` etc. directly, backed by `.suit/lock.json`. Native invocations of `claude`, `codex`, `pi` from inside the dressed project pick up the suit automatically — no need to go through `suit <harness>`. Right answer for "wear this for the next few hours of work in this project." `suit off` cleanly removes everything suit applied.
+- **`suit up` / `suit off` — project-state mutator** (the standard daily-driver flow). `suit up` writes resolved components into the project's `.claude/`, `.codex/`, `.pi/` etc. directly, backed by `.suit/lock.json`. Native invocations of `claude`, `codex`, `pi` from inside the dressed project pick up the suit automatically — no wrapper needed. Right for "wear this for the next few hours of work in this project."
+- **`suit <harness>` — stateless launcher**. Spawns the harness binary against an ephemeral prelaunch tempdir, deletes the tempdir on exit. Right for "try this outfit for one query without dressing the project."
 
-Both modes use the same outfit/mode/accessory composition model. Pick whichever fits your session shape.
+Both modes use the same outfit/mode/accessory composition model. The mutator is the default — reach for the launcher when you specifically want one-off behavior.
 
-### 3.1 `suit <harness>` — the stateless launcher
+### 3.1 `suit up` — dress the project (the standard flow)
 
-The most-used command. Spawns a harness binary against a tempdir that has outfits, modes, and filtered skills applied.
-
-| Element | Meaning |
-|---|---|
-| `<harness>` | One of `claude-code`, `codex`, `gemini`, `copilot`, `apm`, `pi`. (`claude` is an accepted shorthand for `claude-code`.) |
-| `--outfit <name>` | Apply the named outfit. Skills are filtered by its `categories`, `skill_include`, `skill_exclude`. |
-| `--mode <name>` | Apply the named mode. The mode's body is injected as additional context. |
-| `--accessory <name>` | Apply the named accessory as a piecemeal overlay on top of the outfit + mode. **Repeatable** — pass `--accessory` multiple times to layer in multiple. Layered left-to-right in CLI order. |
-| `--no-filter` | Skip outfit, mode, **and accessory** loading — launch the harness as-is for one session. Useful when you suspect filtering is hiding something. |
-| `--verbose` | Extra logging from `suit`'s prelaunch step. |
-| `-- <args>` | Everything after `--` is passed verbatim to the harness binary. |
-
-`--accessory` is **repeatable**: every occurrence pushes a name onto an
-ordered list, and accessories are applied left-to-right after outfit + mode.
-A reference to a missing component inside an accessory's `include:` block is
-a hard error — the resolver fails fast with `accessory "X" includes <kind>
-"Y" not found in wardrobe` rather than silently emitting a partial session.
-
-Examples:
+Writes the resolved components directly into the project's harness directories (`.claude/`, `.codex/`, `.pi/`, etc.) backed by `.suit/lock.json`. Native invocations of the harness CLIs from inside the project then pick up the suit automatically — no `suit <harness>` wrapper required.
 
 ```bash
-suit claude --outfit backend --mode focused
-suit claude --outfit backend --accessory tracing --accessory pr-policy
-suit codex --outfit frontend -- --resume sess-123
-suit gemini --outfit personal --mode focused
-suit claude --no-filter      # launch with no outfit/mode/accessory applied
-```
-
-Exit codes:
-
-| Code | Meaning |
-|---|---|
-| 0 | Harness exited cleanly |
-| 1 | Runtime error in `suit` itself |
-| 2 | Usage error (bad flag, unknown harness, missing arg) |
-| (other) | Whatever the harness binary returned |
-
-### 3.1.1 `suit up` — dress the project
-
-Writes the resolved components directly into the project's harness directories (`.claude/`, `.codex/`, `.pi/`, etc.) backed by `.suit/lock.json`. Native invocations of the harness CLIs from inside the project then pick up the suit automatically — no `suit <harness>` wrapper required. Use when you're settling in for a long session in a project.
-
-```bash
+cd ~/projects/foo
 suit up --outfit backend --mode focused
 suit up --outfit frontend --accessory tracing --accessory pr-policy
 suit up                          # interactive picker on a TTY
@@ -134,7 +96,7 @@ suit up                          # interactive picker on a TTY
 |---|---|
 | `--outfit <name>` | Required (or use the interactive picker on a TTY). |
 | `--mode <name>` | Optional. |
-| `--accessory <name>` | Optional, repeatable. |
+| `--accessory <name>` | Optional, repeatable. Each occurrence layers another small bundle. |
 | `--force` | Override the refuse-when-dirty checks (see below). |
 
 **Refuse-when-dirty** (per [ADR-0012](./adr/0012-suit-up-and-suit-off.md)):
@@ -147,7 +109,7 @@ suit up                          # interactive picker on a TTY
 
 JSON fragment files emitted by multiple components (e.g. `.claude/settings.fragment.json` from each hook) are deep-merged so all contributions land in one file. Markdown emits don't merge — they're already composed at the adapter layer.
 
-### 3.1.2 `suit off` — undress the project
+### 3.2 `suit off` — undress the project
 
 Reads `.suit/lock.json`, removes every tracked file (verifying sha256), removes empty parent dirs, deletes the lockfile. Idempotent — running on an undressed project is a no-op.
 
@@ -158,7 +120,9 @@ suit off --force  # remove anyway
 
 If multiple files were hand-edited, `suit off` reports them ALL before exiting non-zero (one pass; not fail-fast on the first hit).
 
-### 3.1.3 `suit current` — inspect the dressed state
+To switch outfits in the same project: `suit off && suit up --outfit <new>`.
+
+### 3.3 `suit current` — inspect the dressed state
 
 Read-only. Reports what's currently applied: resolution, applied-at timestamp, file count, sample paths. Detects drift (tracked files that have been hand-edited since `suit up`) and reports them as informational — drift is not an error.
 
@@ -177,7 +141,43 @@ files:        54
 lockfile:     /Users/foo/projects/bar/.suit/lock.json
 ```
 
-### 3.2 `suit list <outfits|modes|accessories>`
+### 3.4 `suit <harness>` — the stateless launcher (for one-offs)
+
+Wraps a single harness invocation against an ephemeral prelaunch tempdir, then cleans up on exit. Use when you specifically *don't* want to dress the project — for example, to try an outfit for one query, or to run a harness with `--no-filter` while a project is suited up.
+
+```bash
+suit claude --outfit backend --mode focused -- --print "say hi"
+suit codex  --outfit backend --accessory tracing -- exec --skip-git-repo-check "say hi"
+suit gemini --outfit personal --mode focused
+suit claude --no-filter      # no outfit/mode/accessory applied for this one session
+```
+
+| Element | Meaning |
+|---|---|
+| `<harness>` | One of `claude-code`, `codex`, `gemini`, `copilot`, `apm`, `pi`. (`claude` is an accepted shorthand for `claude-code`.) |
+| `--outfit <name>` | Apply the named outfit. Skills are filtered by its `categories`, `skill_include`, `skill_exclude`. |
+| `--mode <name>` | Apply the named mode. The mode's body is injected as additional context. |
+| `--accessory <name>` | Apply the named accessory as a piecemeal overlay. **Repeatable.** |
+| `--no-filter` | Skip outfit, mode, and accessory loading. |
+| `--verbose` | Extra logging from `suit`'s prelaunch step. |
+| `-- <args>` | Everything after `--` is passed verbatim to the harness binary. |
+
+The launcher creates a tempdir under `/tmp/ac-prelaunch-<rand>/`, mirrors pieces of `~/.<harness>/` into it, applies the resolution, then `exec`s the harness. The tempdir is `fs.rm`'d on exit. The user's real `~/.<harness>/` and the project tree are never touched.
+
+Strict-include applies here too: a missing referenced component fails fast with `accessory "X" includes <kind> "Y" not found in wardrobe`.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Harness exited cleanly |
+| 1 | Runtime error in `suit` itself |
+| 2 | Usage error (bad flag, unknown harness, missing arg) |
+| (other) | Whatever the harness binary returned |
+
+> **When in doubt, use `suit up`.** The launcher exists for situations where you specifically need ephemeral, single-invocation behavior — debugging an outfit, running a one-off query without changing project state, or temporarily bypassing filtering with `--no-filter`. Most day-to-day work belongs in `suit up`.
+
+### 3.5 `suit list <outfits|modes|accessories>`
 
 Lists every outfit, mode, or accessory discovered across the 3 tiers. The output is `name version [tier] description`:
 
@@ -195,7 +195,7 @@ tracing       v1.0.0    [builtin]  Add OpenTelemetry tracing context
 
 The `[tier]` column is `project` / `user` / `builtin` — useful for confirming an overlay actually wins. When no accessories exist anywhere, the command prints `(no accessories found)`.
 
-### 3.3 `suit show <outfit|mode|accessory> <name>`
+### 3.6 `suit show <outfit|mode|accessory> <name>`
 
 Pretty-prints the resolved manifest plus body. Resolution honors the 3-tier chain (project beats user beats builtin):
 
@@ -255,7 +255,7 @@ include:
 
 If the accessory has body content, it's printed beneath a `--- body ---` section the same way outfits do.
 
-### 3.4 `suit status` (and bare `suit`)
+### 3.7 `suit status` (and bare `suit`)
 
 A one-shot summary. Bare `suit` (no args) is an alias for `suit status`:
 
@@ -267,7 +267,7 @@ Harness: claude-code OK  apm OK  codex OK  gemini OK  copilot MISSING  pi OK
 
 If the content directory doesn't exist, the second line says `(none — run \`suit init <url>\`)`. If it exists but isn't a git repo, you'll see `(not a git repo)`. If git config is corrupted, you'll see `(error: ...)` rather than a thrown exception.
 
-### 3.5 `suit doctor`
+### 3.8 `suit doctor`
 
 Verifies each known harness binary is on PATH. Prints checkmarks (or X marks) and exits 0 if all are found, 1 otherwise:
 
@@ -283,7 +283,7 @@ OK  pi (/Users/you/.local/share/mise/installs/node/lts/bin/pi)
 
 `MISSING` here is informational. `suit` works fine for the harnesses you have.
 
-### 3.6 `suit sync`
+### 3.9 `suit sync`
 
 Pulls the content repo. Refuses if there are uncommitted changes or if the directory isn't a git repo:
 
@@ -300,7 +300,7 @@ Already up to date
 | Already up to date | Prints "Already up to date" — exit 0 |
 | New commits | Pulls and reports count — exit 0 |
 
-### 3.7 `suit init [<url>] [--force]`
+### 3.10 `suit init [<url>] [--force]`
 
 Clones a content repo. Without `<url>`, reads `suit.templateUrl` from the installed package's `package.json`. Forks of `suit` itself can change that field to point at their own template.
 

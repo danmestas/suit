@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.5.0] — 2026-05-04
 
-Adds a second mode of working: project-state mutator alongside the existing stateless launcher.
+Adds a second mode of working — project-state mutator (`suit up` / `suit off` / `suit current`) — and **promotes it to the standard daily-driver flow**. The original stateless launcher (`suit <harness>`) remains, repositioned as the one-off escape hatch for sessions where you specifically don't want to dress the project.
 
 ### Added
 
