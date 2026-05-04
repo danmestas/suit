@@ -19,7 +19,11 @@ export async function runStatus(args: RunStatusArgs, deps: RunStatusDeps): Promi
   // status() can throw on corrupted git config / fs errors; degrade gracefully.
   const store = openContentStore(args.contentDir);
   try {
-    const status = await store.status();
+    // checkRemote=true does a best-effort `git fetch` to compute upstream
+    // divergence. Bounded by GIT_HTTP_LOW_SPEED_TIME inside the store; if
+    // offline or anything goes wrong, sync is undefined and we skip the
+    // staleness line.
+    const status = await store.status({ checkRemote: true });
     if (!status.exists) {
       lines.push(`Content: (none — run \`suit init <url>\`)`);
     } else if (!status.isGitRepo) {
@@ -27,6 +31,15 @@ export async function runStatus(args: RunStatusArgs, deps: RunStatusDeps): Promi
     } else {
       const remote = status.remote ?? '(no origin)';
       lines.push(`Content: ${args.contentDir} (clone of ${remote})`);
+
+      // Surface staleness when behind the upstream — happy path stays quiet.
+      if (status.sync && status.sync.behind > 0) {
+        const upstream = status.sync.upstream ?? 'origin';
+        const n = status.sync.behind;
+        lines.push(
+          `Wardrobe: ${n} commit${n === 1 ? '' : 's'} behind ${upstream} (run \`suit sync\` to update)`,
+        );
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

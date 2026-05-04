@@ -31,7 +31,12 @@ export interface SyncResult {
 }
 
 export interface ContentStore {
-  status(): Promise<StoreStatus>;
+  /**
+   * Inspect the cache. With `checkRemote: true` we fetch origin and populate
+   * `StoreStatus.sync` (best-effort: offline / network failure leaves sync
+   * undefined rather than throwing).
+   */
+  status(opts?: { checkRemote?: boolean }): Promise<StoreStatus>;
   init(url: string, force: boolean): Promise<InitResult>;
   sync(): Promise<SyncResult>;
 }
@@ -43,7 +48,7 @@ export function openContentStore(targetPath: string): ContentStore {
 class ContentStoreImpl implements ContentStore {
   constructor(private readonly target: string) {}
 
-  async status(): Promise<StoreStatus> {
+  async status(opts?: { checkRemote?: boolean }): Promise<StoreStatus> {
     if (!existsSync(this.target)) {
       return { path: this.target, exists: false, isGitRepo: false };
     }
@@ -53,12 +58,66 @@ class ContentStoreImpl implements ContentStore {
     const git = simpleGit(this.target);
     const remotes = await git.getRemotes(true);
     const origin = remotes.find((r) => r.name === 'origin');
+
+    let sync: SyncState | undefined;
+    if (opts?.checkRemote && origin) {
+      sync = await this.computeSyncState(git);
+    }
+
     return {
       path: this.target,
       exists: true,
       isGitRepo: true,
       remote: origin?.refs.fetch,
+      sync,
     };
+  }
+
+  /**
+   * Best-effort upstream divergence check. Fetches origin (refs only — no
+   * objects pulled into the working tree), then asks git for the
+   * left/right count between HEAD and the upstream branch.
+   *
+   * Returns `undefined` (not an error) if anything goes wrong: offline,
+   * detached HEAD, no upstream tracking, network timeout, repository
+   * corruption. `suit status` should still print a useful summary even when
+   * we can't reach the remote.
+   */
+  private async computeSyncState(git: ReturnType<typeof simpleGit>): Promise<SyncState | undefined> {
+    try {
+      // Bound the fetch — offline / slow networks shouldn't make `suit status`
+      // hang. We export GIT_HTTP_LOW_SPEED_* via process.env (rather than
+      // simple-git's .env() chain, which replaces the entire env and breaks
+      // PATH lookups).
+      process.env.GIT_HTTP_LOW_SPEED_LIMIT = process.env.GIT_HTTP_LOW_SPEED_LIMIT ?? '1000';
+      process.env.GIT_HTTP_LOW_SPEED_TIME = process.env.GIT_HTTP_LOW_SPEED_TIME ?? '5';
+      await git.fetch(['--quiet', '--no-tags', 'origin']);
+
+      // What does HEAD track? `@{u}` resolves to the upstream branch (e.g.
+      // origin/main) — fails if no tracking, in which case there's nothing to
+      // compare against. Catch and bail.
+      const upstream = (await git.revparse(['--abbrev-ref', '@{u}'])).trim();
+      if (!upstream) return undefined;
+
+      // `git rev-list --left-right --count HEAD...@{u}` returns "behind\tahead"
+      // (the file-format quirk: HEAD is the LEFT side, so the LEFT count is
+      // commits we have that the upstream doesn't = ahead, and RIGHT is commits
+      // upstream has that we don't = behind). We use HEAD...@{u} so that the
+      // first number is "ahead" (HEAD-only commits) and second is "behind"
+      // (upstream-only commits).
+      const raw = (await git.raw(['rev-list', '--left-right', '--count', `HEAD...${upstream}`])).trim();
+      const parts = raw.split(/\s+/);
+      const ahead = Number.parseInt(parts[0] ?? '0', 10);
+      const behind = Number.parseInt(parts[1] ?? '0', 10);
+      return {
+        ahead: Number.isFinite(ahead) ? ahead : 0,
+        behind: Number.isFinite(behind) ? behind : 0,
+        upstream,
+        lastFetchAt: new Date(),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   async init(url: string, force: boolean): Promise<InitResult> {
