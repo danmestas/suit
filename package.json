@@ -1,7 +1,7 @@
 {
   "name": "@agent-ops/suit",
-  "version": "0.3.0",
-  "description": "Multi-harness AI agent configurator. Suit up your harness with personas and modes.",
+  "version": "0.4.0",
+  "description": "Multi-harness AI agent configurator. Compose outfits, modes, and accessories across Claude Code, Codex, Gemini, Copilot, APM, and Pi.",
   "type": "module",
   "bin": {
     "suit": "./dist/ac.js",
@@ -62,7 +62,7 @@
     "gemini",
     "copilot",
     "agent",
-    "persona",
+    "outfit",
     "harness",
     "cli"
   ],
