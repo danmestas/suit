@@ -4,6 +4,14 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] — 2026-05-04
+
+Tiny follow-up to v0.5.1.
+
+### Fixed
+
+- `suit off` now restores `CLAUDE.md` to its **byte-exact** pre-`suit up` state. Previously, stripping the marker block left an extra trailing newline when the block had been at end-of-file. Logically the user content was preserved, but the file's sha256 differed from the original — noisy in `git diff` for projects committing `CLAUDE.md`. One-character fix in `stripSuitBlocks` (replace match with `''` instead of `'\n'`; the regex already captures the leading newline).
+
 ## [0.5.1] — 2026-05-04
 
 Fixes two real problems surfaced by the v0.5.0 e2e battery: hooks didn't fire under `suit up` (the settings fragment landed at a path Claude doesn't read), and `suit up` would clobber any user-authored project `CLAUDE.md`.

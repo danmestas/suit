@@ -151,9 +151,15 @@ export function isAdditivePath(relPath: string): boolean {
  * Strip any suit-emitted marker blocks from `content`. Used by both
  * ProjectWriter (before appending the new block on `suit up`) and `suit off`
  * (to remove the block while leaving user content in place). Idempotent.
+ *
+ * The regex captures the leading `\n` (or start-of-file) AND the optional
+ * trailing `\n`, so replacing with an empty string restores the byte sequence
+ * that existed before the block was inserted — preserving any blank-line
+ * separators the user authored around the block, and avoiding an extra
+ * trailing newline when the block was at end-of-file.
  */
 export function stripSuitBlocks(content: string): string {
-  return content.replace(SUIT_BLOCK_RE, '\n').replace(/\n{3,}/g, '\n\n').trimStart();
+  return content.replace(SUIT_BLOCK_RE, '').replace(/\n{3,}/g, '\n\n').trimStart();
 }
 
 export class ProjectWriter implements Writer {
