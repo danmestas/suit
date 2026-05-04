@@ -4,6 +4,24 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] — 2026-05-04
+
+Fixes two real problems surfaced by the v0.5.0 e2e battery: hooks didn't fire under `suit up` (the settings fragment landed at a path Claude doesn't read), and `suit up` would clobber any user-authored project `CLAUDE.md`.
+
+### Fixed
+
+- **Settings fragment path** under `suit up`: `.claude/settings.fragment.json` is now redirected on disk to `.claude/settings.local.json`, which Claude Code reads natively. Hooks defined in outfits/accessories now fire when you invoke `claude` natively in a `suit up`-dressed project. Same redirect for `.gemini/settings.fragment.json` → `.gemini/settings.json`. The launcher (`suit <harness>`) keeps the fragment-path emit because `suit-build` merges it explicitly during prelaunch.
+- **`CLAUDE.md` is additive, not replace.** `suit up` now wraps the active outfit body (and the active mode body, if any) in a `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->` marker block and appends it to whatever `.claude/CLAUDE.md` already exists. Pre-existing user content is preserved verbatim. `suit off` strips just the marker block, leaving user content in place. If only the marker block existed, the file is removed; if user content remains, the file stays. The block sha256 is what the lockfile records (not whole-file hash) — drift detection refuses on hand-edited blocks unless `--force`.
+
+### Added
+
+- `LockEntry.mode: 'replace' | 'additive'` — schema-supported (optional; absent means `'replace'` for back-compat with v0.5.0 lockfiles).
+- `ProjectWriter.writeAdditive` for marker-block append semantics, exported `isAdditivePath` and `stripSuitBlocks` helpers used by `suit off`.
+
+### Reused
+
+- The outfit's existing markdown body is what goes inside the marker block — no wardrobe content changes needed. Authors who want richer per-outfit rules can edit `outfits/<name>/outfit.md` body directly.
+
 ## [0.5.0] — 2026-05-04
 
 Adds a second mode of working — project-state mutator (`suit up` / `suit off` / `suit current`) — and **promotes it to the standard daily-driver flow**. The original stateless launcher (`suit <harness>`) remains, repositioned as the one-off escape hatch for sessions where you specifically don't want to dress the project.

@@ -20,13 +20,32 @@ import { z } from 'zod';
 export const LOCKFILE_PATH = '.suit/lock.json';
 const LOCKFILE_DIR = '.suit';
 
+/**
+ * How `suit up` wrote this entry, and how `suit off` should remove it:
+ *
+ * - `replace` (default): suit owns the whole file. `suit off` deletes the file
+ *   if its current sha256 matches the recorded one.
+ * - `additive`: suit appended a marker-wrapped block (e.g.
+ *   `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->`) into a possibly
+ *   user-authored file. The recorded sha256 is the BLOCK content's hash, not
+ *   the whole-file hash. `suit off` reads the file, strips the marker block,
+ *   and writes back; non-empty user content is preserved. If the block was
+ *   hand-edited (block sha256 mismatch) `suit off` refuses unless `--force`.
+ */
+export type LockEntryMode = 'replace' | 'additive';
+
 export interface LockEntry {
   /** Path relative to project root. Forward-slash separated for portability. */
   path: string;
-  /** Hex sha256 of the emitted file contents at apply-time. */
+  /**
+   * Hex sha256. For `mode: 'replace'`, this is the file's full content hash.
+   * For `mode: 'additive'`, this is the marker-block content hash.
+   */
   sha256: string;
   /** Source component identifier, e.g., "outfits/backend". Informational. */
   sourceComponent: string;
+  /** Removal strategy. Optional for back-compat; absent means 'replace'. */
+  mode?: LockEntryMode;
 }
 
 export interface Lockfile {
@@ -45,6 +64,7 @@ const lockEntrySchema = z.object({
   path: z.string().min(1),
   sha256: z.string().regex(/^[0-9a-f]{64}$/i, 'sha256 must be 64 hex chars'),
   sourceComponent: z.string().min(1),
+  mode: z.enum(['replace', 'additive']).optional(),
 });
 
 const lockfileSchema = z.object({

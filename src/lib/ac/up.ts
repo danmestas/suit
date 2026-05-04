@@ -24,7 +24,7 @@ import { findAccessory } from '../accessory.js';
 import { resolve, skillsKeepFromResolution } from '../resolution.js';
 import { getAdapter } from '../../adapters/index.js';
 import { loadRepoConfig } from '../config.js';
-import { ProjectWriter } from '../writer.js';
+import { ProjectWriter, isAdditivePath } from '../writer.js';
 import {
   LOCKFILE_PATH,
   readLockfile,
@@ -112,12 +112,64 @@ function applyTargetPrefix(target: Target, emittedPath: string): string {
   return `${prefix}/${emittedPath}`;
 }
 
+/**
+ * Map an emit-time path (what an adapter produced) to the on-disk path the
+ * project filesystem should hold. Today's only redirect is the Claude Code
+ * settings fragment → `settings.local.json` so Claude reads it natively
+ * (the launcher's TempdirWriter keeps the fragment name; suit-build merges
+ * it into a real settings.json before exec'ing the harness).
+ *
+ * Mirror of writer.ts's `PROJECT_PATH_REDIRECTS`. Kept here so up.ts's
+ * preflight + lockfile use the same on-disk paths the writer will produce.
+ */
+function projectPathRedirect(emitPath: string): string {
+  if (emitPath === '.claude/settings.fragment.json') return '.claude/settings.local.json';
+  if (emitPath === '.gemini/settings.fragment.json') return '.gemini/settings.json';
+  return emitPath;
+}
+
+/**
+ * Render the outfit's body (and any active mode body) into the marker block
+ * that goes into CLAUDE.md. The block is what `suit off` strips back out.
+ *
+ * Format:
+ *   <!-- suit:outfit:NAME -->
+ *   <outfit body>
+ *   ## Mode: <mode-name>     ← only when --mode active and modeBody non-empty
+ *   <mode body>
+ *   <!-- /suit:outfit:NAME -->
+ *
+ * Accessory bodies aren't included today — accessories are usually small
+ * configurations (a hook, a rule), not narrative content. If accessory bodies
+ * matter in practice, append them here behind a similar header.
+ */
+function renderOutfitBlock(
+  outfitName: string,
+  outfitBody: string,
+  modeBody: string | undefined,
+  _accessoryCount: number,
+): string {
+  const parts = [outfitBody.trim()];
+  if (modeBody && modeBody.trim().length > 0) {
+    parts.push('', modeBody.trim());
+  }
+  return `<!-- suit:outfit:${outfitName} -->\n${parts.join('\n')}\n<!-- /suit:outfit:${outfitName} -->`;
+}
+
 interface PendingFile {
   path: string;
   content: string | Buffer;
+  /** Unix file permission mode (octal). */
   mode?: number;
   sha256: string;
   sourceComponent: string;
+  /**
+   * Lockfile removal strategy. Defaults to 'replace' (suit owns the whole
+   * file). 'additive' means the content is a marker-wrapped block that gets
+   * appended into possibly-user-authored files (CLAUDE.md), and the recorded
+   * sha256 is the BLOCK hash, not the whole-file hash.
+   */
+  lockMode?: 'replace' | 'additive';
 }
 
 /**
@@ -329,6 +381,34 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
 
   const pending = dedupeByPath(allFiles);
 
+  // Apply path redirects so preflight + lockfile + writer all agree on the
+  // on-disk path. Today's only redirect is settings.fragment.json →
+  // settings.local.json so Claude reads the hooks block natively (the launcher
+  // path keeps the fragment name because suit-build's prelaunch handles it).
+  for (const f of pending) {
+    f.path = projectPathRedirect(f.path);
+  }
+
+  // Inject the outfit's body as an additive CLAUDE.md block. This is the
+  // user-facing rules surface — the outfit body becomes the content inside
+  // a `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->` marker block
+  // that ProjectWriter appends into any existing CLAUDE.md, and `suit off`
+  // strips back out without touching surrounding user content.
+  //
+  // We only do this when the outfit body has non-trivial content, and only
+  // when claude-code is one of the resolved targets (otherwise the block
+  // would be irrelevant — Claude is the one harness that reads CLAUDE.md).
+  if (targets.includes('claude-code') && foundOutfit.body.trim().length > 0) {
+    const blockContent = renderOutfitBlock(outfitName, foundOutfit.body, modeBody, accessoryManifests.length);
+    pending.push({
+      path: '.claude/CLAUDE.md',
+      content: blockContent,
+      sha256: sha256OfBuffer(blockContent),
+      sourceComponent: `outfits/${outfitName}`,
+      lockMode: 'additive',
+    });
+  }
+
   // Stage 6: refuse-when-dirty preflight.
   const priorLock = await readLockfile(args.projectDir);
   const newResolution = {
@@ -354,6 +434,12 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
 
   if (!args.force) {
     for (const f of pending) {
+      // Additive entries are designed to share the file with user content —
+      // they don't refuse-when-dirty against the whole-file hash. The block
+      // sha is what matters; ProjectWriter strips any prior block before
+      // appending, so an existing CLAUDE.md the user authored is fine.
+      if (f.lockMode === 'additive') continue;
+
       const fullPath = path.join(args.projectDir, f.path);
       let exists = false;
       try {
@@ -388,7 +474,11 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
 
   // Stage 8: persist the lockfile.
   const lockEntries: LockEntry[] = pending
-    .map((f) => ({ path: f.path, sha256: f.sha256, sourceComponent: f.sourceComponent }))
+    .map((f) => {
+      const entry: LockEntry = { path: f.path, sha256: f.sha256, sourceComponent: f.sourceComponent };
+      if (f.lockMode && f.lockMode !== 'replace') entry.mode = f.lockMode;
+      return entry;
+    })
     .sort((a, b) => a.path.localeCompare(b.path));
 
   const lock: Lockfile = {

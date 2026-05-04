@@ -122,8 +122,10 @@ describe('ProjectWriter', () => {
     const w = new ProjectWriter(proj);
     expect(w.destination).toBe(path.resolve(proj));
     expect(w.cleanup).toBeUndefined();
-    await w.write({ path: '.claude/CLAUDE.md', content: '# project' });
-    expect(await fs.readFile(path.join(proj, '.claude/CLAUDE.md'), 'utf8')).toBe('# project');
+    // .claude/agents/<name>.md is a non-additive path, so basic write applies.
+    // (CLAUDE.md is additive — see the additive-write tests further down.)
+    await w.write({ path: '.claude/agents/sample.md', content: '# project' });
+    expect(await fs.readFile(path.join(proj, '.claude/agents/sample.md'), 'utf8')).toBe('# project');
   });
 
   it('overwrites existing project content', async () => {
@@ -164,5 +166,60 @@ describe('ProjectWriter', () => {
     const w = new ProjectWriter(proj);
     await w.write({ path: 'empty', content: '' });
     expect(await fs.readFile(path.join(proj, 'empty'), 'utf8')).toBe('');
+  });
+
+  // ─── v0.5.1: settings.fragment.json redirect ─────────────────────────────
+  it('redirects .claude/settings.fragment.json → .claude/settings.local.json', async () => {
+    const proj = await mkProjectMock();
+    const w = new ProjectWriter(proj);
+    await w.write({ path: '.claude/settings.fragment.json', content: '{"hooks":{}}' });
+    // The fragment path does NOT exist on disk; the local.json path does.
+    await expect(fs.stat(path.join(proj, '.claude/settings.fragment.json'))).rejects.toThrow();
+    expect(await fs.readFile(path.join(proj, '.claude/settings.local.json'), 'utf8')).toBe('{"hooks":{}}');
+  });
+
+  it('redirects .gemini/settings.fragment.json → .gemini/settings.json', async () => {
+    const proj = await mkProjectMock();
+    const w = new ProjectWriter(proj);
+    await w.write({ path: '.gemini/settings.fragment.json', content: '{"x":1}' });
+    expect(await fs.readFile(path.join(proj, '.gemini/settings.json'), 'utf8')).toBe('{"x":1}');
+  });
+
+  // ─── v0.5.1: CLAUDE.md additive merge ────────────────────────────────────
+  it('CLAUDE.md additive write creates a fresh file when none exists', async () => {
+    const proj = await mkProjectMock();
+    const w = new ProjectWriter(proj);
+    const block = '<!-- suit:outfit:backend -->\nbackend rules\n<!-- /suit:outfit:backend -->';
+    await w.write({ path: '.claude/CLAUDE.md', content: block });
+    const out = await fs.readFile(path.join(proj, '.claude/CLAUDE.md'), 'utf8');
+    expect(out).toContain(block);
+  });
+
+  it('CLAUDE.md additive write appends to existing user content', async () => {
+    const proj = await mkProjectMock();
+    await fs.mkdir(path.join(proj, '.claude'), { recursive: true });
+    await fs.writeFile(path.join(proj, '.claude/CLAUDE.md'), '# Project Rules\n\nAlways speak in haiku.\n');
+    const w = new ProjectWriter(proj);
+    const block = '<!-- suit:outfit:backend -->\nbackend rules\n<!-- /suit:outfit:backend -->';
+    await w.write({ path: '.claude/CLAUDE.md', content: block });
+    const out = await fs.readFile(path.join(proj, '.claude/CLAUDE.md'), 'utf8');
+    expect(out).toContain('Always speak in haiku.');
+    expect(out).toContain('backend rules');
+    // User content comes BEFORE the suit block
+    expect(out.indexOf('haiku')).toBeLessThan(out.indexOf('backend rules'));
+  });
+
+  it('CLAUDE.md additive write strips a prior suit block before appending', async () => {
+    const proj = await mkProjectMock();
+    await fs.mkdir(path.join(proj, '.claude'), { recursive: true });
+    const oldBlock = '<!-- suit:outfit:backend -->\nold content\n<!-- /suit:outfit:backend -->';
+    await fs.writeFile(path.join(proj, '.claude/CLAUDE.md'), `# User\n\n${oldBlock}\n`);
+    const w = new ProjectWriter(proj);
+    const newBlock = '<!-- suit:outfit:frontend -->\nnew content\n<!-- /suit:outfit:frontend -->';
+    await w.write({ path: '.claude/CLAUDE.md', content: newBlock });
+    const out = await fs.readFile(path.join(proj, '.claude/CLAUDE.md'), 'utf8');
+    expect(out).not.toContain('old content');
+    expect(out).toContain('new content');
+    expect(out).toContain('# User');
   });
 });

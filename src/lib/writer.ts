@@ -107,6 +107,55 @@ export class TempdirWriter implements Writer {
   };
 }
 
+/**
+ * Files emitted at this path get redirected to a different on-disk location
+ * by `ProjectWriter` so the harness reads them natively. The launcher path
+ * (TempdirWriter) keeps the original path because suit-build's prelaunch step
+ * has its own merge logic.
+ *
+ * `.claude/settings.fragment.json` → `.claude/settings.local.json`
+ *   Claude Code reads `.claude/settings.local.json` natively (and merges it
+ *   over the user's `~/.claude/settings.json`). Writing the fragment as-is
+ *   means hooks defined in outfits/accessories don't fire when `claude` is
+ *   invoked natively in a `suit up`-dressed project.
+ *
+ * `.gemini/settings.fragment.json` → `.gemini/settings.json`
+ *   Gemini reads `.gemini/settings.json` natively at the project level.
+ */
+const PROJECT_PATH_REDIRECTS: Record<string, string> = {
+  '.claude/settings.fragment.json': '.claude/settings.local.json',
+  '.gemini/settings.fragment.json': '.gemini/settings.json',
+};
+
+/**
+ * Files at this path get treated as additive: ProjectWriter strips any prior
+ * `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->` block from any
+ * existing on-disk content, then appends the new block. `suit off` strips the
+ * marked block back out and preserves any user-authored content around it.
+ *
+ * Used for CLAUDE.md and analogous harness rules files where the user may
+ * have hand-authored content suit must not clobber.
+ */
+const ADDITIVE_PATHS = new Set<string>([
+  '.claude/CLAUDE.md',
+  'CLAUDE.md',
+]);
+
+const SUIT_BLOCK_RE = /(?:^|\n)<!-- suit:outfit:[^>]+ -->\n[\s\S]*?\n<!-- \/suit:outfit:[^>]+ -->\n?/g;
+
+export function isAdditivePath(relPath: string): boolean {
+  return ADDITIVE_PATHS.has(relPath);
+}
+
+/**
+ * Strip any suit-emitted marker blocks from `content`. Used by both
+ * ProjectWriter (before appending the new block on `suit up`) and `suit off`
+ * (to remove the block while leaving user content in place). Idempotent.
+ */
+export function stripSuitBlocks(content: string): string {
+  return content.replace(SUIT_BLOCK_RE, '\n').replace(/\n{3,}/g, '\n\n').trimStart();
+}
+
 export class ProjectWriter implements Writer {
   destination: string;
 
@@ -120,7 +169,37 @@ export class ProjectWriter implements Writer {
   }
 
   async write(file: EmittedFile): Promise<void> {
-    await writeFileAt(this.destination, file);
+    const redirected = PROJECT_PATH_REDIRECTS[file.path];
+    const effectivePath = redirected ?? file.path;
+
+    if (isAdditivePath(effectivePath)) {
+      await this.writeAdditive({ ...file, path: effectivePath });
+      return;
+    }
+
+    await writeFileAt(this.destination, { ...file, path: effectivePath });
+  }
+
+  /**
+   * Append `file.content` (already wrapped by the caller in
+   * `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->` markers) into the
+   * existing target file, after stripping any prior suit-emitted block. If the
+   * target doesn't exist yet, create it with just the new block.
+   */
+  private async writeAdditive(file: EmittedFile): Promise<void> {
+    const target = resolveInside(this.destination, file.path);
+    let existing = '';
+    try {
+      existing = await fs.readFile(target, 'utf8');
+    } catch {
+      // file doesn't exist — fine, will create
+    }
+    const stripped = stripSuitBlocks(existing);
+    const block = typeof file.content === 'string' ? file.content : file.content.toString('utf8');
+    const sep = stripped.length > 0 && !stripped.endsWith('\n') ? '\n\n' : (stripped.length > 0 ? '\n' : '');
+    const final = `${stripped}${sep}${block}\n`;
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, final, { mode: file.mode ?? 0o644 });
   }
 
   async symlink(source: string, relativeDest: string): Promise<void> {
