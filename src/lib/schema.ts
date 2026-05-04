@@ -60,6 +60,8 @@ const ManifestBaseSchema = z
     description: z.string().min(1),
     category: CategoryBlock.optional(),
     type: z.enum(['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp'] as const),
+    // (outfit / mode / accessory carry their own narrowed `type` literal in
+    // their respective extended schemas — they are not in the base list.)
     targets: z.array(z.enum(TARGETS as unknown as [Target, ...Target[]])).min(1),
     author: z.string().optional(),
     license: LicenseField.optional(),
@@ -98,10 +100,29 @@ export const ModeSchema = ManifestBaseSchema.extend({
 
 export type ModeManifest = z.infer<typeof ModeSchema>;
 
+const AccessoryIncludeBlock = z
+  .object({
+    skills: z.array(z.string()).default([]),
+    rules: z.array(z.string()).default([]),
+    hooks: z.array(z.string()).default([]),
+    agents: z.array(z.string()).default([]),
+    commands: z.array(z.string()).default([]),
+  })
+  .strict()
+  .default({ skills: [], rules: [], hooks: [], agents: [], commands: [] });
+
+export const AccessorySchema = ManifestBaseSchema.extend({
+  type: z.literal('accessory'),
+  include: AccessoryIncludeBlock,
+}).strict();
+
+export type AccessoryManifest = z.infer<typeof AccessorySchema>;
+
 export const ManifestSchema = z.discriminatedUnion('type', [
   ManifestBaseSchema,
   OutfitSchema,
   ModeSchema,
+  AccessorySchema,
 ]);
 
 export type Manifest = z.infer<typeof ManifestSchema>;

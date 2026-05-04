@@ -24,10 +24,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { findOutfit } from '../outfit.js';
 import { findMode } from '../mode.js';
+import { findAccessory } from '../accessory.js';
 import { resolveAndPersist } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
 import type { Target } from '../types.js';
-import type { OutfitManifest, ModeManifest } from '../schema.js';
+import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
 import {
   prelaunchComposeClaudeCode,
   prelaunchComposeGemini,
@@ -94,6 +95,7 @@ interface PrelaunchInputs {
   target: Target;
   outfit?: OutfitManifest;
   mode?: ModeManifest;
+  accessories: AccessoryManifest[];
   modeBody?: string;
   resolutionArtifactPath?: string;
   realHome: string;
@@ -114,7 +116,7 @@ interface PrelaunchEffects {
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
   const { target, outfit, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir } = opts;
-  const filtered = outfit !== undefined || mode !== undefined;
+  const filtered = outfit !== undefined || mode !== undefined || opts.accessories.length > 0;
 
   switch (target) {
     case 'claude-code':
@@ -182,11 +184,16 @@ export async function runAcSession(
 
   const env: NodeJS.ProcessEnv = { ...process.env, AC_WRAPPED: '1', AC_HARNESS: target };
 
-  // Stage 2: load outfit/mode and persist a resolution artifact when filter is requested.
-  const filtered = !args.noFilter && (args.outfit !== undefined || args.mode !== undefined);
+  // Stage 2: load outfit/mode/accessories and persist a resolution artifact
+  // when filter is requested. `--no-filter` skips loading any of them per
+  // ADR-0010 (treat the harness as if `suit` were not in the loop).
+  const filtered =
+    !args.noFilter &&
+    (args.outfit !== undefined || args.mode !== undefined || args.accessories.length > 0);
   let outfit: OutfitManifest | undefined;
   let modeManifest: ModeManifest | undefined;
   let modeBody: string | undefined;
+  let accessoryManifests: AccessoryManifest[] = [];
   let resolutionArtifactPath: string | undefined;
   if (filtered) {
     if (args.outfit) outfit = (await findOutfit(args.outfit, dirs)).manifest;
@@ -195,11 +202,17 @@ export async function runAcSession(
       modeManifest = found?.manifest;
       modeBody = found?.body;
     }
+    // Load accessories in CLI order — order is significant per ADR-0010 §3.
+    for (const accName of args.accessories) {
+      const found = await findAccessory(accName, dirs);
+      accessoryManifests.push(found.manifest);
+    }
     const catalog = await (deps.loadCatalog ?? (async () => discoverComponents(builtinDir)))();
     const { artifactPath } = await resolveAndPersist({
       catalog,
       outfit,
       mode: modeManifest,
+      accessories: accessoryManifests,
       modeBody,
       harness: target,
     });
@@ -212,6 +225,7 @@ export async function runAcSession(
     target,
     outfit,
     mode: modeManifest,
+    accessories: accessoryManifests,
     modeBody,
     resolutionArtifactPath,
     realHome: deps.homeDir ?? os.homedir(),

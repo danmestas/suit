@@ -65,6 +65,121 @@ readme body
   });
 });
 
+describe('ac list accessories', () => {
+  it('lists all accessories', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-builtin-acc-'));
+    await fs.mkdir(path.join(builtinDir, 'accessories', 'tracing'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'accessories', 'tracing', 'accessory.md'),
+      `---
+name: tracing
+version: 1.0.0
+type: accessory
+description: Add OpenTelemetry tracing
+targets: [claude-code]
+include:
+  skills: [otel-conventions]
+---
+`,
+    );
+    const out: string[] = [];
+    await listCommand('accessories', {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+      print: (line) => out.push(line),
+    });
+    const text = out.join('\n');
+    expect(text).toMatch(/tracing/);
+    expect(text).toMatch(/builtin/);
+  });
+
+  it('prints "(no accessories found)" when none are discoverable', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-none-'));
+    const out: string[] = [];
+    await listCommand('accessories', {
+      projectDir: tmp,
+      userDir: tmp,
+      builtinDir: tmp,
+      print: (line) => out.push(line),
+    });
+    expect(out).toEqual(['(no accessories found)']);
+  });
+});
+
+describe('ac show accessory', () => {
+  it('prints accessory details including the include block', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-acc-'));
+    await fs.mkdir(path.join(builtinDir, 'accessories', 'tracing'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'accessories', 'tracing', 'accessory.md'),
+      `---
+name: tracing
+version: 1.0.0
+type: accessory
+description: Add OpenTelemetry tracing context
+targets: [claude-code, codex]
+include:
+  skills: [otel-conventions]
+  hooks: [trace]
+---
+`,
+    );
+    const out: string[] = [];
+    await showCommand({ kind: 'accessory', name: 'tracing' }, {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+      print: (l) => out.push(l),
+    });
+    const text = out.join('\n');
+    expect(text).toMatch(/name: tracing/);
+    expect(text).toMatch(/version: 1\.0\.0/);
+    expect(text).toMatch(/include:/);
+    expect(text).toMatch(/skills: otel-conventions/);
+    expect(text).toMatch(/hooks: trace/);
+  });
+
+  it('prints body section when accessory has body content', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-acc-body-'));
+    await fs.mkdir(path.join(builtinDir, 'accessories', 'tracing'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'accessories', 'tracing', 'accessory.md'),
+      `---
+name: tracing
+version: 1.0.0
+type: accessory
+description: t
+targets: [claude-code]
+---
+
+extra context body for accessory
+`,
+    );
+    const out: string[] = [];
+    await showCommand({ kind: 'accessory', name: 'tracing' }, {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+      print: (l) => out.push(l),
+    });
+    const text = out.join('\n');
+    expect(text).toMatch(/--- body ---/);
+    expect(text).toMatch(/extra context body for accessory/);
+  });
+
+  it('throws when name is missing', async () => {
+    await expect(
+      showCommand({ kind: 'accessory' }, {
+        projectDir: '/nonexistent',
+        userDir: '/nonexistent',
+        builtinDir: '/nonexistent',
+        print: () => {},
+      }),
+    ).rejects.toThrow(/name required/);
+  });
+});
+
 describe('ac doctor', () => {
   it('reports binary missing for unknown bin names (now falls back to harness as bin)', async () => {
     const out: string[] = [];

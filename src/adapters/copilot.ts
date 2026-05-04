@@ -24,8 +24,9 @@ export const copilotAdapter: Adapter = {
         );
       case 'outfit':
       case 'mode':
-        // Outfits and modes are harness-agnostic, consumed by `ac` at resolution
-        // time. Not emitted per-target. See spec §5.2.
+      case 'accessory':
+        // Outfits, modes, and accessories are harness-agnostic, consumed by
+        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
         return [];
       default:
         throw new Error(

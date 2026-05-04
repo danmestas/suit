@@ -87,8 +87,9 @@ export const apmAdapter: Adapter = {
         return emitPlugin(component, ctx);
       case 'outfit':
       case 'mode':
-        // Outfits and modes are harness-agnostic, consumed by `ac` at resolution
-        // time. Not emitted per-target. See spec §5.2.
+      case 'accessory':
+        // Outfits, modes, and accessories are harness-agnostic, consumed by
+        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
         return [];
       default:
         throw new Error(`apm adapter: type "${component.manifest.type}" not yet implemented`);

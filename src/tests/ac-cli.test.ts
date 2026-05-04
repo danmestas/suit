@@ -29,6 +29,35 @@ describe('parseAcArgs', () => {
   it('throws on --outfit without value', () => {
     expect(() => parseAcArgs(['claude', '--outfit'])).toThrow(/--outfit/);
   });
+
+  it('defaults accessories to an empty array when none are passed', () => {
+    const r = parseAcArgs(['claude', '--outfit', 'backend']);
+    expect(r.accessories).toEqual([]);
+  });
+
+  it('parses a single --accessory flag', () => {
+    const r = parseAcArgs(['claude', '--accessory', 'tracing']);
+    expect(r.accessories).toEqual(['tracing']);
+  });
+
+  it('parses multiple --accessory flags in CLI order', () => {
+    const r = parseAcArgs([
+      'claude',
+      '--outfit', 'backend',
+      '--accessory', 'tracing',
+      '--accessory', 'pr-policy',
+    ]);
+    expect(r.accessories).toEqual(['tracing', 'pr-policy']);
+    expect(r.outfit).toBe('backend');
+  });
+
+  it('throws on --accessory without a value', () => {
+    expect(() => parseAcArgs(['claude', '--accessory'])).toThrow(/--accessory/);
+  });
+
+  it('throws when --accessory is followed by another flag instead of a value', () => {
+    expect(() => parseAcArgs(['claude', '--accessory', '--mode', 'focused'])).toThrow(/--accessory/);
+  });
 });
 
 describe('findRepoRoot (via runAc builtinDir)', () => {
