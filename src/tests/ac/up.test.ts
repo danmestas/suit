@@ -163,11 +163,16 @@ describe('runUp — basic apply', () => {
     });
     expect(lock!.files.length).toBeGreaterThan(0);
 
-    // Each tracked file exists on disk and its sha256 matches the lockfile.
+    // Each tracked file exists on disk. For 'replace' entries the recorded
+    // sha256 matches the whole-file sha256; for 'additive' entries (CLAUDE.md
+    // marker block) the recorded sha is the block content's hash and won't
+    // equal the on-disk file's full sha — the file may also contain user
+    // content alongside our block.
     for (const f of lock!.files) {
       const full = path.join(proj, f.path);
       const stat = await fs.stat(full);
       expect(stat.isFile()).toBe(true);
+      if (f.mode === 'additive') continue;
       const sha = await sha256OfFile(full);
       expect(sha).toBe(f.sha256);
     }

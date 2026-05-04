@@ -12,7 +12,28 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { LOCKFILE_PATH, deleteLockfile, readLockfile, sha256OfFile } from '../lockfile.js';
+import { LOCKFILE_PATH, deleteLockfile, readLockfile, sha256OfBuffer, sha256OfFile } from '../lockfile.js';
+import { stripSuitBlocks } from '../writer.js';
+
+/**
+ * Find the suit-outfit marker block in `content` and return its body
+ * (the text between the open and close markers, exclusive). Returns null if
+ * no block is present.
+ */
+function extractSuitBlockBody(content: string): string | null {
+  const m = content.match(/<!-- suit:outfit:[^>]+ -->\n([\s\S]*?)\n<!-- \/suit:outfit:[^>]+ -->/);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Reconstruct the full marker-wrapped block string for sha verification — the
+ * lockfile records the hash of `content`, which is the full
+ * `<!-- ... -->\nbody\n<!-- ... -->` string (matches what up.ts wrote).
+ */
+function extractSuitBlockFull(content: string): string | null {
+  const m = content.match(/<!-- suit:outfit:[^>]+ -->\n[\s\S]*?\n<!-- \/suit:outfit:[^>]+ -->/);
+  return m ? m[0]! : null;
+}
 
 export interface RunOffArgs {
   projectDir: string;
@@ -84,8 +105,19 @@ export async function runOff(args: RunOffArgs, deps: RunOffDeps): Promise<number
         exists = false;
       }
       if (!exists) continue; // already gone, no drift to detect
-      const currentSha = await sha256OfFile(full);
-      if (currentSha !== f.sha256) drifted.push(f.path);
+
+      if (f.mode === 'additive') {
+        // For additive entries the recorded sha is the marker-block hash, not
+        // the whole-file hash. Find the block; absent or mutated → drift.
+        const fileContent = await fs.readFile(full, 'utf8');
+        const blockFull = extractSuitBlockFull(fileContent);
+        if (blockFull === null) continue; // already stripped — nothing to do
+        const blockSha = sha256OfBuffer(blockFull);
+        if (blockSha !== f.sha256) drifted.push(f.path);
+      } else {
+        const currentSha = await sha256OfFile(full);
+        if (currentSha !== f.sha256) drifted.push(f.path);
+      }
     }
     if (drifted.length > 0) {
       for (const p of drifted) {
@@ -117,6 +149,31 @@ export async function runOff(args: RunOffArgs, deps: RunOffDeps): Promise<number
     }
     if (!exists) {
       skippedMissing++;
+      continue;
+    }
+
+    if (f.mode === 'additive') {
+      // Strip just the marker block from the file. If the file becomes empty
+      // (only whitespace) after the strip, delete it; otherwise write the
+      // remaining user content back. Drift report happens above; under
+      // --force we strip regardless.
+      const before = await fs.readFile(full, 'utf8');
+      const blockFull = extractSuitBlockFull(before);
+      if (args.force && blockFull !== null) {
+        const blockSha = sha256OfBuffer(blockFull);
+        if (blockSha !== f.sha256) forcedDrift.push(f.path);
+      }
+      const after = stripSuitBlocks(before);
+      if (after.trim().length === 0) {
+        await fs.unlink(full);
+        const parentRel = path.posix.dirname(f.path);
+        if (parentRel && parentRel !== '.' && parentRel !== '/') {
+          removedDirs.add(parentRel);
+        }
+      } else {
+        await fs.writeFile(full, after);
+      }
+      removed++;
       continue;
     }
 
