@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 01-no-flags.sh <harness>
-# Verifies: ac sets AC_WRAPPED=1, AC_RESOLUTION_PATH is unset (no persona/mode).
+# Verifies: ac sets AC_WRAPPED=1, AC_RESOLUTION_PATH is unset (no outfit/mode).
 # Strategy: use a stub harness wrapper that echoes env vars and exits 0,
 #           bypassing the real LLM call.
 set -uo pipefail
@@ -69,7 +69,7 @@ fi
 # Install stub on PATH only for the non-real stub test
 export PATH="$SHIM_DIR:$PATH"
 
-# Run ac with no persona/mode flags
+# Run ac with no outfit/mode flags
 output=$(node "$TSX" "$AC" "$harness" -- ping 2>&1)
 exit_code=$?
 
@@ -86,7 +86,7 @@ if ! echo "$output" | grep -q "AC_WRAPPED=1"; then
 fi
 
 if echo "$output" | grep -qE "AC_RESOLUTION_PATH=.+"; then
-  echo "FAIL: AC_RESOLUTION_PATH should be unset with no persona/mode"
+  echo "FAIL: AC_RESOLUTION_PATH should be unset with no outfit/mode"
   echo "$output"
   exit 1
 fi

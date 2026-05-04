@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ComponentSource, Target } from './types.js';
-import type { PersonaManifest, ModeManifest } from './schema.js';
+import type { OutfitManifest, ModeManifest } from './schema.js';
 import { loadHarnessCatalog } from './ac/harness-catalog.js';
 
 export interface Resolution {
@@ -12,7 +12,7 @@ export interface Resolution {
   skillsKeep: string[] | null;
   modePrompt: string;
   metadata: {
-    persona: string | null;
+    outfit: string | null;
     mode: string | null;
     categories: string[];
   };
@@ -20,7 +20,7 @@ export interface Resolution {
 
 export interface ResolveOptions {
   catalog: ComponentSource[];
-  persona?: PersonaManifest;
+  outfit?: OutfitManifest;
   mode?: ModeManifest;
   /** Mode body string (the markdown body of the mode component, used as prompt scaffolding). */
   modeBody?: string;
@@ -28,37 +28,37 @@ export interface ResolveOptions {
 }
 
 export function resolve(opts: ResolveOptions): Resolution {
-  const { catalog, persona, mode, modeBody, harness } = opts;
+  const { catalog, outfit, mode, modeBody, harness } = opts;
 
-  // No persona, no mode → identity (no filter).
-  if (!persona && !mode) {
+  // No outfit, no mode → identity (no filter).
+  if (!outfit && !mode) {
     return {
       schemaVersion: 1,
       harness,
       skillsDrop: [],
       skillsKeep: null,
       modePrompt: '',
-      metadata: { persona: null, mode: null, categories: [] },
+      metadata: { outfit: null, mode: null, categories: [] },
     };
   }
 
   // Effective categories: intersection if both, single if one.
   let effectiveCategories: Set<string> | null = null;
-  if (persona && mode) {
-    const p = new Set(persona.categories);
+  if (outfit && mode) {
+    const p = new Set(outfit.categories);
     effectiveCategories = new Set(mode.categories.filter((c) => p.has(c)));
-  } else if (persona) {
-    effectiveCategories = new Set(persona.categories);
+  } else if (outfit) {
+    effectiveCategories = new Set(outfit.categories);
   } else if (mode) {
     effectiveCategories = new Set(mode.categories);
   }
 
   const includeNames = new Set([
-    ...(persona?.skill_include ?? []),
+    ...(outfit?.skill_include ?? []),
     ...(mode?.skill_include ?? []),
   ]);
   const excludeNames = new Set([
-    ...(persona?.skill_exclude ?? []),
+    ...(outfit?.skill_exclude ?? []),
     ...(mode?.skill_exclude ?? []),
   ]);
 
@@ -89,7 +89,7 @@ export function resolve(opts: ResolveOptions): Resolution {
     skillsKeep: null,
     modePrompt: modeBody ?? '',
     metadata: {
-      persona: persona?.name ?? null,
+      outfit: outfit?.name ?? null,
       mode: mode?.name ?? null,
       categories: effectiveCategories ? Array.from(effectiveCategories) : [],
     },
@@ -121,7 +121,7 @@ export async function resolveAndPersist(
 export interface ResolveAgainstHarnessOptions {
   target: Target;
   harnessHome: string;
-  persona?: PersonaManifest;
+  outfit?: OutfitManifest;
   mode?: ModeManifest;
   modeBody?: string;
 }
@@ -132,7 +132,7 @@ export async function resolveAgainstHarness(
   const catalog = await loadHarnessCatalog(opts.target, opts.harnessHome);
   return resolve({
     catalog,
-    persona: opts.persona,
+    outfit: opts.outfit,
     mode: opts.mode,
     modeBody: opts.modeBody,
     harness: opts.target,

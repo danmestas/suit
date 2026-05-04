@@ -103,8 +103,8 @@ async function main(): Promise<number> {
 
   if (cmd === 'list') {
     const what = argv[1];
-    if (what !== 'personas' && what !== 'modes') {
-      process.stderr.write('suit list: expected "personas" or "modes"\n');
+    if (what !== 'outfits' && what !== 'modes') {
+      process.stderr.write('suit list: expected "outfits" or "modes"\n');
       return 2;
     }
     await listCommand(what, { ...dirs, print: (l) => process.stdout.write(l + '\n') });
@@ -113,13 +113,13 @@ async function main(): Promise<number> {
 
   if (cmd === 'show') {
     const kind = argv[1];
-    if (kind !== 'persona' && kind !== 'mode' && kind !== 'effective') {
-      process.stderr.write('suit show: expected "persona <name>" | "mode <name>" | "effective ..."\n');
+    if (kind !== 'outfit' && kind !== 'mode' && kind !== 'effective') {
+      process.stderr.write('suit show: expected "outfit <name>" | "mode <name>" | "effective ..."\n');
       return 2;
     }
     const name = argv[2];
     await showCommand(
-      { kind: kind as 'persona' | 'mode' | 'effective', name },
+      { kind: kind as 'outfit' | 'mode' | 'effective', name },
       { ...dirs, print: (l) => process.stdout.write(l + '\n') },
     );
     return 0;

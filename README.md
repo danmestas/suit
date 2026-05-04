@@ -1,6 +1,6 @@
 # suit
 
-Multi-harness AI agent configurator. Suit up your harness with personas and modes — one tool for Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, and Pi.
+Multi-harness AI agent configurator. Suit up your harness with outfits and modes — one tool for Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, and Pi.
 
 ## Status
 
@@ -26,16 +26,16 @@ npm install -g @agent-ops/suit
 suit init https://github.com/your-username/your-config
 
 # Discover what's available
-suit list personas
+suit list outfits
 suit list modes
 
 # Inspect the current state
 suit status
 
-# Launch a harness with a persona + mode applied
-suit claude --persona backend --mode focused
-suit codex --persona backend
-suit gemini --persona frontend --mode design
+# Launch a harness with a outfit + mode applied
+suit claude --outfit backend --mode focused
+suit codex --outfit backend
+suit gemini --outfit frontend --mode design
 
 # Pull updates from the content repo whenever you want
 suit sync
@@ -44,7 +44,7 @@ suit sync
 Pass-through arguments work after `--`:
 
 ```bash
-suit claude --persona backend -- --resume sess-123
+suit claude --outfit backend -- --resume sess-123
 ```
 
 To bypass filtering for one invocation:
@@ -61,15 +61,15 @@ If you're maintaining a content repo locally and want suit to read from it witho
 
 ```bash
 export SUIT_CONTENT_PATH=~/projects/your-config
-suit list personas
-suit claude --persona backend
+suit list outfits
+suit claude --outfit backend
 ```
 
 `SUIT_CONTENT_PATH` overrides the default cloned-content location for the current shell.
 
 ## How it works
 
-`suit` reads YAML-frontmatter persona and mode definitions, computes a per-session resolution (which skills to keep, which to drop, what mode prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
+`suit` reads YAML-frontmatter outfit and mode definitions, computes a per-session resolution (which skills to keep, which to drop, what mode prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
 
 For Codex and Copilot (which read `AGENTS.md` and `copilot-instructions.md` from the project root), `suit` invokes `suit-build docs` to generate filtered markdown into a tempdir and runs the harness with that as the working directory.
 
@@ -84,7 +84,7 @@ npm link            # exposes `suit` and `suit-build` globally
 npm test            # vitest
 
 # Dogfood against an external content repo:
-SUIT_CONTENT_PATH=~/projects/agent-config suit list personas
+SUIT_CONTENT_PATH=~/projects/agent-config suit list outfits
 ```
 
 `npm link` is required to use `suit` and `suit-build` together — the runtime invokes `suit-build` via PATH for Codex/Copilot prelaunch. Without `npm link` (or `npm install -g`), those subcommands will fail with `ENOENT: spawn suit-build`.

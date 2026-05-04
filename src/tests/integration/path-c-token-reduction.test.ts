@@ -5,7 +5,7 @@ import path from 'node:path';
 import { prelaunchComposeClaudeCode } from '../../lib/ac/prelaunch.ts';
 
 describe('Path C token reduction', () => {
-  it('filters Claude skills based on persona — fewer entries in tempdir than real home', async () => {
+  it('filters Claude skills based on outfit — fewer entries in tempdir than real home', async () => {
     // Set up a real-home with 5 skills across 3 categories
     const realHome = await fs.mkdtemp(path.join(os.tmpdir(), 'big-home-'));
     const skills = [
@@ -31,15 +31,15 @@ category:
     const realCount = (await fs.readdir(path.join(realHome, '.claude', 'skills'))).length;
     expect(realCount).toBe(5);
 
-    // Run prelaunch with persona that allows ONLY 'tooling' category
-    const persona = {
+    // Run prelaunch with outfit that allows ONLY 'tooling' category
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const result = await prelaunchComposeClaudeCode({ realHome, persona });
+    const result = await prelaunchComposeClaudeCode({ realHome, outfit });
 
     // Filtered tempdir has fewer skills
     const filteredCount = (await fs.readdir(path.join(result.tempHome, '.claude', 'skills'))).length;
@@ -56,7 +56,7 @@ category:
     await result.cleanup();
   });
 
-  it('with no persona, all skills pass through (baseline)', async () => {
+  it('with no outfit, all skills pass through (baseline)', async () => {
     const realHome = await fs.mkdtemp(path.join(os.tmpdir(), 'baseline-home-'));
     for (const name of ['x', 'y', 'z']) {
       await fs.mkdir(path.join(realHome, '.claude', 'skills', name), { recursive: true });

@@ -20,7 +20,7 @@ const skill = (name: string, category: string | undefined): ComponentSource => (
 });
 
 describe('resolve', () => {
-  it('returns full catalog when no persona or mode is given', () => {
+  it('returns full catalog when no outfit or mode is given', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
     const r = resolve({ catalog, harness: 'claude-code' });
     expect(r.skillsKeep).toBeNull();
@@ -28,64 +28,64 @@ describe('resolve', () => {
     expect(r.modePrompt).toBe('');
   });
 
-  it('drops skills outside persona categories', () => {
+  it('drops skills outside outfit categories', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, persona, harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
     expect(r.skillsDrop).toContain('b');
     expect(r.skillsDrop).not.toContain('a');
   });
 
   it('keeps uncategorized skills (universal default)', () => {
     const catalog = [skill('a', 'tooling'), skill('b', undefined)];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, persona, harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
     expect(r.skillsDrop).not.toContain('b');
   });
 
   it('skill_include forces inclusion across categories', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: ['b'],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, persona, harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
     expect(r.skillsDrop).not.toContain('b');
   });
 
   it('skill_exclude wins over category match', () => {
     const catalog = [skill('a', 'tooling')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: ['a'],
     } as any;
-    const r = resolve({ catalog, persona, harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
     expect(r.skillsDrop).toContain('a');
   });
 
-  it('persona ∩ mode categories', () => {
+  it('outfit ∩ mode categories', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow'), skill('c', 'philosophy')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling', 'workflow'],
       skill_include: [],
       skill_exclude: [],
@@ -97,8 +97,8 @@ describe('resolve', () => {
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, persona, mode, harness: 'claude-code' });
-    expect(r.skillsDrop).toContain('b'); // in persona but not in mode
+    const r = resolve({ catalog, outfit, mode, harness: 'claude-code' });
+    expect(r.skillsDrop).toContain('b'); // in outfit but not in mode
     expect(r.skillsDrop).toContain('c'); // in neither
     expect(r.skillsDrop).not.toContain('a'); // in both
   });
@@ -123,15 +123,15 @@ describe('resolve', () => {
 
   it('emits resolved metadata', () => {
     const catalog = [skill('a', 'tooling')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, persona, harness: 'claude-code' });
-    expect(r.metadata.persona).toBe('p');
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('p');
     expect(r.metadata.categories).toContain('tooling');
   });
 });
@@ -144,7 +144,7 @@ describe('writeResolutionArtifact', () => {
       skillsDrop: ['a'],
       skillsKeep: null,
       modePrompt: '',
-      metadata: { persona: null, mode: null, categories: [] },
+      metadata: { outfit: null, mode: null, categories: [] },
     };
     const filepath = await writeResolutionArtifact(r);
     expect(filepath).toMatch(/resolution\.json$/);
@@ -161,7 +161,7 @@ describe('writeResolutionArtifact', () => {
       skillsDrop: [],
       skillsKeep: null,
       modePrompt: '',
-      metadata: { persona: null, mode: null, categories: [] },
+      metadata: { outfit: null, mode: null, categories: [] },
     };
     const filepath = await writeResolutionArtifact(r);
     expect(filepath.startsWith(os.tmpdir())).toBe(true);
@@ -172,16 +172,16 @@ describe('writeResolutionArtifact', () => {
 describe('resolveAndPersist', () => {
   it('returns both the in-memory resolution and a path to its on-disk artifact', async () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
     const { resolution, artifactPath } = await resolveAndPersist({
       catalog,
-      persona,
+      outfit,
       harness: 'claude-code',
     });
     expect(resolution.skillsDrop).toContain('b');
@@ -216,9 +216,9 @@ category:
 ---
 `,
     );
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
@@ -226,7 +226,7 @@ category:
     const r = await resolveAgainstHarness({
       target: 'claude-code',
       harnessHome: home,
-      persona,
+      outfit,
     });
     expect(r.skillsDrop).toContain('b');
     expect(r.skillsDrop).not.toContain('a');

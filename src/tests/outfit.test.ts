@@ -2,15 +2,15 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { PersonaSchema } from '../lib/schema.ts';
-import { findPersona } from '../lib/persona.ts';
+import { OutfitSchema } from '../lib/schema.ts';
+import { findOutfit } from '../lib/outfit.ts';
 
-describe('PersonaSchema', () => {
-  it('accepts a minimal valid persona', () => {
-    const result = PersonaSchema.safeParse({
+describe('OutfitSchema', () => {
+  it('accepts a minimal valid outfit', () => {
+    const result = OutfitSchema.safeParse({
       name: 'backend',
       version: '1.0.0',
-      type: 'persona',
+      type: 'outfit',
       description: 'Backend dev work',
       targets: ['claude-code'],
       categories: ['tooling'],
@@ -19,10 +19,10 @@ describe('PersonaSchema', () => {
   });
 
   it('defaults skill_include and skill_exclude to empty arrays', () => {
-    const result = PersonaSchema.parse({
+    const result = OutfitSchema.parse({
       name: 'backend',
       version: '1.0.0',
-      type: 'persona',
+      type: 'outfit',
       description: 'Backend dev work',
       targets: ['claude-code'],
       categories: ['tooling'],
@@ -32,18 +32,18 @@ describe('PersonaSchema', () => {
   });
 
   it('rejects missing categories field', () => {
-    const result = PersonaSchema.safeParse({
+    const result = OutfitSchema.safeParse({
       name: 'backend',
       version: '1.0.0',
-      type: 'persona',
+      type: 'outfit',
       description: 'Backend dev work',
       targets: ['claude-code'],
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects type other than "persona"', () => {
-    const result = PersonaSchema.safeParse({
+  it('rejects type other than "outfit"', () => {
+    const result = OutfitSchema.safeParse({
       name: 'backend',
       version: '1.0.0',
       type: 'skill',
@@ -55,23 +55,23 @@ describe('PersonaSchema', () => {
   });
 });
 
-describe('findPersona (3-tier discovery)', () => {
-  it('finds a persona in user-scope dir', async () => {
+describe('findOutfit (3-tier discovery)', () => {
+  it('finds a outfit in user-scope dir', async () => {
     const userDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-user-'));
-    await fs.mkdir(path.join(userDir, 'personas'));
+    await fs.mkdir(path.join(userDir, 'outfits'));
     await fs.writeFile(
-      path.join(userDir, 'personas', 'mine.md'),
+      path.join(userDir, 'outfits', 'mine.md'),
       `---
 name: mine
 version: 1.0.0
-type: persona
+type: outfit
 description: t
 targets: [claude-code]
 categories: [tooling]
 ---
 `,
     );
-    const result = await findPersona('mine', {
+    const result = await findOutfit('mine', {
       projectDir: '/nonexistent',
       userDir,
       builtinDir: '/nonexistent',
@@ -83,14 +83,14 @@ categories: [tooling]
   it('project-scope wins over user-scope', async () => {
     const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-proj-'));
     const userDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-user-'));
-    await fs.mkdir(path.join(projectDir, '.suit', 'personas'), { recursive: true });
-    await fs.mkdir(path.join(userDir, 'personas'));
+    await fs.mkdir(path.join(projectDir, '.suit', 'outfits'), { recursive: true });
+    await fs.mkdir(path.join(userDir, 'outfits'));
     await fs.writeFile(
-      path.join(projectDir, '.suit', 'personas', 'mine.md'),
+      path.join(projectDir, '.suit', 'outfits', 'mine.md'),
       `---
 name: mine
 version: 1.0.0
-type: persona
+type: outfit
 description: project
 targets: [claude-code]
 categories: [tooling]
@@ -98,18 +98,18 @@ categories: [tooling]
 `,
     );
     await fs.writeFile(
-      path.join(userDir, 'personas', 'mine.md'),
+      path.join(userDir, 'outfits', 'mine.md'),
       `---
 name: mine
 version: 1.0.0
-type: persona
+type: outfit
 description: user
 targets: [claude-code]
 categories: [tooling]
 ---
 `,
     );
-    const result = await findPersona('mine', {
+    const result = await findOutfit('mine', {
       projectDir,
       userDir,
       builtinDir: '/nonexistent',
@@ -120,13 +120,13 @@ categories: [tooling]
 
   it('throws with a list of available names when not found', async () => {
     const userDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-user-'));
-    await fs.mkdir(path.join(userDir, 'personas'));
+    await fs.mkdir(path.join(userDir, 'outfits'));
     await fs.writeFile(
-      path.join(userDir, 'personas', 'one.md'),
+      path.join(userDir, 'outfits', 'one.md'),
       `---
 name: one
 version: 1.0.0
-type: persona
+type: outfit
 description: t
 targets: [claude-code]
 categories: [tooling]
@@ -134,7 +134,7 @@ categories: [tooling]
 `,
     );
     await expect(
-      findPersona('nope', { projectDir: '/nonexistent', userDir, builtinDir: '/nonexistent' }),
+      findOutfit('nope', { projectDir: '/nonexistent', userDir, builtinDir: '/nonexistent' }),
     ).rejects.toThrow(/one/);
   });
 });

@@ -35,16 +35,16 @@ category:
 describe('prelaunchComposePi', () => {
   it('composes a HOME-override tempdir with filtered skills', async () => {
     const realHome = await makeFakeUserHome();
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
     const result = await prelaunchComposePi({
       realHome,
-      persona,
+      outfit,
     });
     expect(result.tempHome).toMatch(/ac-home-/);
     const filteredSkills = await fs.readdir(path.join(result.tempHome, '.pi', 'skills'));
@@ -59,7 +59,7 @@ describe('prelaunchComposePi', () => {
     await expect(fs.access(result.tempHome)).rejects.toThrow();
   });
 
-  it('with no persona/mode, all skills pass through', async () => {
+  it('with no outfit/mode, all skills pass through', async () => {
     const realHome = await makeFakeUserHome();
     const result = await prelaunchComposePi({ realHome });
     const filtered = await fs.readdir(path.join(result.tempHome, '.pi', 'skills'));
@@ -69,7 +69,7 @@ describe('prelaunchComposePi', () => {
 });
 
 describe('ac pi integration with prelaunch', () => {
-  it('end-to-end: ac pi --persona X writes filtered HOME tempdir and sets env.HOME', async () => {
+  it('end-to-end: ac pi --outfit X writes filtered HOME tempdir and sets env.HOME', async () => {
     const realHome = await fs.mkdtemp(path.join(os.tmpdir(), 'real-home-'));
     await fs.mkdir(path.join(realHome, '.pi', 'skills', 'tooling-skill'), { recursive: true });
     await fs.writeFile(
@@ -95,13 +95,13 @@ category:
     );
 
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'builtin-'));
-    await fs.mkdir(path.join(builtinDir, 'personas', 'backend'), { recursive: true });
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'backend'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'personas', 'backend', 'persona.md'),
+      path.join(builtinDir, 'outfits', 'backend', 'outfit.md'),
       `---
 name: backend
 version: 1.0.0
-type: persona
+type: outfit
 description: backend dev
 targets: [pi]
 categories: [tooling]
@@ -113,7 +113,7 @@ skill_exclude: []
 
     const captured: { env: NodeJS.ProcessEnv } = { env: {} };
 
-    await runAc(['pi', '--persona', 'backend'], {
+    await runAc(['pi', '--outfit', 'backend'], {
       builtinDir,
       projectDir: '/nonexistent',
       userDir: '/nonexistent',

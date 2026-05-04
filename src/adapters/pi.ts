@@ -28,9 +28,9 @@ export const piAdapter: Adapter = {
         return emitHookExtension(component);
       case 'mcp':
         return emitMcpStub(component);
-      case 'persona':
+      case 'outfit':
       case 'mode':
-        // Personas and modes are harness-agnostic, consumed by `ac` at resolution
+        // Outfits and modes are harness-agnostic, consumed by `ac` at resolution
         // time. Not emitted per-target. See spec §5.2.
         return [];
       default:

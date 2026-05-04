@@ -18,7 +18,7 @@ const adapters = [
 
 const ctx: AdapterContext = { allComponents: [], config: {}, repoRoot: '/tmp' };
 
-function fixture(type: 'persona' | 'mode'): ComponentSource {
+function fixture(type: 'outfit' | 'mode'): ComponentSource {
   return {
     relativeDir: `${type}s/test`,
     dir: `/tmp/${type}s/test`,
@@ -36,10 +36,10 @@ function fixture(type: 'persona' | 'mode'): ComponentSource {
   };
 }
 
-describe('adapters: persona/mode are no-ops', () => {
+describe('adapters: outfit/mode are no-ops', () => {
   for (const [name, adapter] of adapters) {
-    it(`${name}: persona returns []`, async () => {
-      const out = await adapter.emit(fixture('persona'), ctx);
+    it(`${name}: outfit returns []`, async () => {
+      const out = await adapter.emit(fixture('outfit'), ctx);
       expect(out).toEqual([]);
     });
     it(`${name}: mode returns []`, async () => {

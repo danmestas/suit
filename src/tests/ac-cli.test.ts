@@ -6,14 +6,14 @@ import { parseAcArgs, runAc } from '../lib/ac/run.ts';
 
 describe('parseAcArgs', () => {
   it('splits ac flags from harness flags at --', () => {
-    const r = parseAcArgs(['claude', '--persona', 'backend', '--', '--resume', 'sess']);
+    const r = parseAcArgs(['claude', '--outfit', 'backend', '--', '--resume', 'sess']);
     expect(r.harness).toBe('claude');
-    expect(r.persona).toBe('backend');
+    expect(r.outfit).toBe('backend');
     expect(r.harnessArgs).toEqual(['--resume', 'sess']);
   });
 
   it('treats trailing args as harness args when no -- present', () => {
-    const r = parseAcArgs(['claude', '--persona', 'backend']);
+    const r = parseAcArgs(['claude', '--outfit', 'backend']);
     expect(r.harnessArgs).toEqual([]);
   });
 
@@ -23,11 +23,11 @@ describe('parseAcArgs', () => {
   });
 
   it('throws on missing harness name', () => {
-    expect(() => parseAcArgs(['--persona', 'backend'])).toThrow(/harness/i);
+    expect(() => parseAcArgs(['--outfit', 'backend'])).toThrow(/harness/i);
   });
 
-  it('throws on --persona without value', () => {
-    expect(() => parseAcArgs(['claude', '--persona'])).toThrow(/--persona/);
+  it('throws on --outfit without value', () => {
+    expect(() => parseAcArgs(['claude', '--outfit'])).toThrow(/--outfit/);
   });
 });
 

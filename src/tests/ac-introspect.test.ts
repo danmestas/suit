@@ -5,15 +5,15 @@ import path from 'node:path';
 import { listCommand, showCommand, doctorCommand } from '../lib/ac/introspect.ts';
 
 describe('ac list', () => {
-  it('lists all personas', async () => {
+  it('lists all outfits', async () => {
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-builtin-'));
-    await fs.mkdir(path.join(builtinDir, 'personas', 'one'), { recursive: true });
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'one'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'personas', 'one', 'persona.md'),
+      path.join(builtinDir, 'outfits', 'one', 'outfit.md'),
       `---
 name: one
 version: 1.0.0
-type: persona
+type: outfit
 description: t
 targets: [claude-code]
 categories: [tooling]
@@ -21,7 +21,7 @@ categories: [tooling]
 `,
     );
     const out: string[] = [];
-    await listCommand('personas', {
+    await listCommand('outfits', {
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
       builtinDir,
@@ -33,15 +33,15 @@ categories: [tooling]
 });
 
 describe('ac show', () => {
-  it('prints persona details', async () => {
+  it('prints outfit details', async () => {
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-'));
-    await fs.mkdir(path.join(builtinDir, 'personas', 'one'), { recursive: true });
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'one'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'personas', 'one', 'persona.md'),
+      path.join(builtinDir, 'outfits', 'one', 'outfit.md'),
       `---
 name: one
 version: 1.0.0
-type: persona
+type: outfit
 description: backend
 targets: [claude-code]
 categories: [tooling, workflow]
@@ -53,7 +53,7 @@ readme body
 `,
     );
     const out: string[] = [];
-    await showCommand({ kind: 'persona', name: 'one' }, {
+    await showCommand({ kind: 'outfit', name: 'one' }, {
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
       builtinDir,

@@ -80,14 +80,14 @@ const ManifestBaseSchema = z
   })
   .strict();
 
-export const PersonaSchema = ManifestBaseSchema.extend({
-  type: z.literal('persona'),
+export const OutfitSchema = ManifestBaseSchema.extend({
+  type: z.literal('outfit'),
   categories: z.array(z.string()).min(0),
   skill_include: z.array(z.string()).default([]),
   skill_exclude: z.array(z.string()).default([]),
 }).strict();
 
-export type PersonaManifest = z.infer<typeof PersonaSchema>;
+export type OutfitManifest = z.infer<typeof OutfitSchema>;
 
 export const ModeSchema = ManifestBaseSchema.extend({
   type: z.literal('mode'),
@@ -100,7 +100,7 @@ export type ModeManifest = z.infer<typeof ModeSchema>;
 
 export const ManifestSchema = z.discriminatedUnion('type', [
   ManifestBaseSchema,
-  PersonaSchema,
+  OutfitSchema,
   ModeSchema,
 ]);
 

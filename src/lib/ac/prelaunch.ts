@@ -80,11 +80,11 @@ export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<P
 import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { composeHarnessHome } from './symlink-farm.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
-import type { PersonaManifest, ModeManifest } from '../schema.js';
+import type { OutfitManifest, ModeManifest } from '../schema.js';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;
-  persona?: PersonaManifest;
+  outfit?: OutfitManifest;
   mode?: ModeManifest;
   modeBody?: string;
 }
@@ -100,11 +100,11 @@ async function composeWithHomeOverride(
   const resolution = await resolveAgainstHarness({
     target,
     harnessHome: opts.realHome,
-    persona: opts.persona,
+    outfit: opts.outfit,
     mode: opts.mode,
     modeBody: opts.modeBody,
   });
-  const skillsKeep = opts.persona || opts.mode
+  const skillsKeep = opts.outfit || opts.mode
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name); // no filter → keep all
   return composeHarnessHome({ target, realHome: opts.realHome, skillsKeep });
@@ -131,7 +131,7 @@ export async function prelaunchComposePi(
 export interface ApmPrelaunchOptions {
   /** APM package root, typically process.cwd() of the user's invocation. */
   packageDir: string;
-  persona?: PersonaManifest;
+  outfit?: OutfitManifest;
   mode?: ModeManifest;
   modeBody?: string;
 }
@@ -139,7 +139,7 @@ export interface ApmPrelaunchOptions {
 /**
  * Build a filtered tempdir mirroring the APM package at `packageDir`.
  * All files/dirs except `.apm/skills/` are symlinked through.
- * Only persona-allowed skills are symlinked into `.apm/skills/`.
+ * Only outfit-allowed skills are symlinked into `.apm/skills/`.
  * Returns `tempPackageDir` — set `APM_PACKAGE_DIR=tempPackageDir` before launching apm.
  */
 export async function prelaunchComposeApm(opts: ApmPrelaunchOptions): Promise<{
@@ -150,11 +150,11 @@ export async function prelaunchComposeApm(opts: ApmPrelaunchOptions): Promise<{
   const resolution = await resolveAgainstHarness({
     target: 'apm',
     harnessHome: opts.packageDir,
-    persona: opts.persona,
+    outfit: opts.outfit,
     mode: opts.mode,
     modeBody: opts.modeBody,
   });
-  const skillsKeep = opts.persona || opts.mode
+  const skillsKeep = opts.outfit || opts.mode
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name);
 

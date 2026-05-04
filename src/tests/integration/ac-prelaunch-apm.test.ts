@@ -35,16 +35,16 @@ category:
 describe('prelaunchComposeApm', () => {
   it('composes a tempPackageDir with filtered .apm/skills/', async () => {
     const packageDir = await makeFakePackageDir();
-    const persona = {
+    const outfit = {
       name: 'p',
-      type: 'persona',
+      type: 'outfit',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
     const result = await prelaunchComposeApm({
       packageDir,
-      persona,
+      outfit,
     });
     expect(result.tempPackageDir).toMatch(/ac-apm-/);
     const filteredSkills = await fs.readdir(
@@ -62,7 +62,7 @@ describe('prelaunchComposeApm', () => {
     await expect(fs.access(result.tempPackageDir)).rejects.toThrow();
   });
 
-  it('with no persona/mode, all skills pass through', async () => {
+  it('with no outfit/mode, all skills pass through', async () => {
     const packageDir = await makeFakePackageDir();
     const result = await prelaunchComposeApm({ packageDir });
     const filtered = await fs.readdir(
@@ -84,7 +84,7 @@ describe('prelaunchComposeApm', () => {
 });
 
 describe('ac apm integration with prelaunch', () => {
-  it('end-to-end: ac apm --persona X sets APM_PACKAGE_DIR (not HOME)', async () => {
+  it('end-to-end: ac apm --outfit X sets APM_PACKAGE_DIR (not HOME)', async () => {
     const packageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'apm-pkg-'));
     await fs.mkdir(path.join(packageDir, '.apm', 'skills', 'tooling-skill'), { recursive: true });
     await fs.writeFile(
@@ -110,13 +110,13 @@ category:
     );
 
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'builtin-'));
-    await fs.mkdir(path.join(builtinDir, 'personas', 'backend'), { recursive: true });
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'backend'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'personas', 'backend', 'persona.md'),
+      path.join(builtinDir, 'outfits', 'backend', 'outfit.md'),
       `---
 name: backend
 version: 1.0.0
-type: persona
+type: outfit
 description: backend dev
 targets: [apm]
 categories: [tooling]
@@ -128,7 +128,7 @@ skill_exclude: []
 
     const captured: { env: NodeJS.ProcessEnv } = { env: {} };
 
-    await runAc(['apm', '--persona', 'backend'], {
+    await runAc(['apm', '--outfit', 'backend'], {
       builtinDir,
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
