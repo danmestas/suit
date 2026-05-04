@@ -35,6 +35,7 @@ import {
   type LockEntry,
 } from '../lockfile.js';
 import { runPicker } from './picker.js';
+import { isJsonMergeable, mergeJsonBuffers } from '../merge.js';
 
 export interface RunUpArgs {
   outfit: string | null;
@@ -198,19 +199,34 @@ function dedupeByPath(files: PendingFile[]): PendingFile[] {
       byPath.set(f.path, f);
       continue;
     }
-    // Same path emitted twice — accept the second only if content matches.
-    // Mismatched duplicates are an authoring bug (two adapters claiming the
-    // same project file with different bytes); refuse rather than silently
-    // overwrite.
-    if (prior.sha256 !== f.sha256) {
-      throw new Error(
-        `suit up: two emitted files collide at "${f.path}" with different contents ` +
-          `(sources: "${prior.sourceComponent}" vs "${f.sourceComponent}")`,
-      );
+    // Same content from two emits → identity, take either.
+    if (prior.sha256 === f.sha256) continue;
+
+    // Different content. Fragment files (e.g. .claude/settings.fragment.json,
+    // codex hooks.json) are designed to be merged: each component contributes
+    // its own slice (a hook event, an mcp server, etc.). Deep-merge the JSON.
+    if (isJsonMergeable(f.path)) {
+      const merged = mergeJsonBuffers(prior.content, f.content);
+      byPath.set(f.path, {
+        path: f.path,
+        content: merged,
+        sha256: sha256OfBuffer(merged),
+        sourceComponent: `${prior.sourceComponent} + ${f.sourceComponent}`,
+        mode: prior.mode ?? f.mode,
+      });
+      continue;
     }
+
+    // Non-mergeable file emitted twice with different bytes → real authoring
+    // bug. Refuse.
+    throw new Error(
+      `suit up: two emitted files collide at "${f.path}" with different contents ` +
+        `(sources: "${prior.sourceComponent}" vs "${f.sourceComponent}")`,
+    );
   }
   return Array.from(byPath.values());
 }
+
 
 function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; mode: string | null; accessories: string[] }): boolean {
   if (a.outfit !== b.outfit) return false;
