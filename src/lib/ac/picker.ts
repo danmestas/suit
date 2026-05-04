@@ -18,6 +18,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { listAllOutfits } from '../outfit.js';
 import { listAllModes } from '../mode.js';
 import { listAllAccessories } from '../accessory.js';
+import { extractBlurb } from '../blurb.js';
 
 export interface PickerDirs {
   projectDir: string;
@@ -63,6 +64,10 @@ export async function runPicker(
     for (let i = 0; i < outfits.length; i++) {
       const o = outfits[i]!;
       deps.stdout(`  ${i + 1}. ${o.manifest.name.padEnd(14)} ${o.manifest.description}\n`);
+      const blurb = extractBlurb(o.body, o.manifest.description);
+      if (blurb !== o.manifest.description) {
+        deps.stdout(`     ${' '.repeat(14)} ${blurb}\n`);
+      }
     }
     const outfitChoice = await prompt(rl, '> ');
     const outfitIdx = parseChoice(outfitChoice, outfits.length);
@@ -78,6 +83,10 @@ export async function runPicker(
       for (let i = 0; i < modes.length; i++) {
         const m = modes[i]!;
         deps.stdout(`  ${i + 1}. ${m.manifest.name.padEnd(14)} ${m.manifest.description}\n`);
+        const blurb = extractBlurb(m.body, m.manifest.description);
+        if (blurb !== m.manifest.description) {
+          deps.stdout(`     ${' '.repeat(14)} ${blurb}\n`);
+        }
       }
       const modeChoice = (await prompt(rl, '> ')).trim();
       if (modeChoice !== '') {
@@ -98,6 +107,10 @@ export async function runPicker(
       for (let i = 0; i < accessories.length; i++) {
         const a = accessories[i]!;
         deps.stdout(`  ${i + 1}. ${a.manifest.name.padEnd(14)} ${a.manifest.description}\n`);
+        const blurb = extractBlurb(a.body, a.manifest.description);
+        if (blurb !== a.manifest.description) {
+          deps.stdout(`     ${' '.repeat(14)} ${blurb}\n`);
+        }
       }
     }
     const accChoice = (await prompt(rl, '> ')).trim();

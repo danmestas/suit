@@ -65,6 +65,69 @@ readme body
   });
 });
 
+describe('ac list -v (verbose blurb)', () => {
+  async function mkBuiltinWithOutfit(prefix: string, body: string): Promise<string> {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+    await fs.mkdir(path.join(builtinDir, 'outfits', 'one'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'outfits', 'one', 'outfit.md'),
+      `---
+name: one
+version: 1.0.0
+type: outfit
+description: short desc
+targets: [claude-code]
+categories: [tooling]
+---
+${body}`,
+    );
+    return builtinDir;
+  }
+
+  it('without -v, prints a single line per outfit (no blurb)', async () => {
+    const builtinDir = await mkBuiltinWithOutfit(
+      'ac-list-verb-off-',
+      '\n# One\n\nThis is the body paragraph that should NOT appear.\n',
+    );
+    const out: string[] = [];
+    await listCommand(
+      'outfits',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+    );
+    expect(out.length).toBe(1);
+    expect(out[0]).toMatch(/^one\b/);
+    expect(out.join('\n')).not.toMatch(/body paragraph/);
+  });
+
+  it('with -v, prints a blurb sub-line under each outfit', async () => {
+    const builtinDir = await mkBuiltinWithOutfit(
+      'ac-list-verb-on-',
+      '\n# One\n\nBlurb-paragraph-text-marker for the verbose listing.\n',
+    );
+    const out: string[] = [];
+    await listCommand(
+      'outfits',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+      { verbose: true },
+    );
+    expect(out.length).toBe(2);
+    expect(out[0]).toMatch(/^one\b/);
+    expect(out[1]).toMatch(/Blurb-paragraph-text-marker/);
+  });
+
+  it('with -v but empty body, omits the sub-line (fallback equals description)', async () => {
+    const builtinDir = await mkBuiltinWithOutfit('ac-list-verb-empty-', '\n');
+    const out: string[] = [];
+    await listCommand(
+      'outfits',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+      { verbose: true },
+    );
+    // Body was empty → blurb falls back to description → we suppress the redundant sub-line.
+    expect(out.length).toBe(1);
+  });
+});
+
 describe('ac list accessories', () => {
   it('lists all accessories', async () => {
     const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-builtin-acc-'));

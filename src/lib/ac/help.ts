@@ -13,6 +13,12 @@ USAGE
   suit list <outfits|modes|accessories>
   suit show <outfit|mode|accessory> <name>
 
+FLAGS
+  --accessory <name>   Any wardrobe component name (skill/hook/rule/agent/command),
+                       or a curated bundle authored under accessories/. When the
+                       name resolves to a non-accessory component, it's treated as
+                       a singleton role and force-included into the kept set.
+
 ENVIRONMENT
   SUIT_CONTENT_PATH    override the default content directory (overrides clone)
 
@@ -23,6 +29,7 @@ EXAMPLES
   suit off
   suit claude --outfit backend --mode focused
   suit claude --outfit backend --accessory tracing --accessory pr-policy
+  suit claude --outfit backend --accessory test-driven-development   # any skill works
   suit codex --outfit frontend -- --resume sess-123
 
 See https://github.com/danmestas/suit for full docs.
