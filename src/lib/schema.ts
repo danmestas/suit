@@ -91,16 +91,11 @@ export const OutfitSchema = ManifestBaseSchema.extend({
 
 export type OutfitManifest = z.infer<typeof OutfitSchema>;
 
-export const ModeSchema = ManifestBaseSchema.extend({
-  type: z.literal('mode'),
-  categories: z.array(z.string()).min(0),
-  skill_include: z.array(z.string()).default([]),
-  skill_exclude: z.array(z.string()).default([]),
-}).strict();
-
-export type ModeManifest = z.infer<typeof ModeSchema>;
-
-const AccessoryIncludeBlock = z
+// Reusable include-block sub-schema. Both ModeSchema and AccessorySchema embed
+// this same shape so a Phase 3 mode can declare structured component bundles
+// alongside (or instead of) its body-only prompt overlay. Defaults to all-empty
+// arrays so authors only need to declare keys they care about.
+const IncludeBlockSchema = z
   .object({
     skills: z.array(z.string()).default([]),
     rules: z.array(z.string()).default([]),
@@ -111,9 +106,22 @@ const AccessoryIncludeBlock = z
   .strict()
   .default({ skills: [], rules: [], hooks: [], agents: [], commands: [] });
 
+export const ModeSchema = ManifestBaseSchema.extend({
+  type: z.literal('mode'),
+  categories: z.array(z.string()).min(0),
+  skill_include: z.array(z.string()).default([]),
+  skill_exclude: z.array(z.string()).default([]),
+  // Optional Phase 3 structured include block. Body-only modes (the v0.3 shape)
+  // continue to work — `include` defaults to all-empty arrays, and the
+  // resolver's force-include phase becomes a no-op when every sub-array is empty.
+  include: IncludeBlockSchema,
+}).strict();
+
+export type ModeManifest = z.infer<typeof ModeSchema>;
+
 export const AccessorySchema = ManifestBaseSchema.extend({
   type: z.literal('accessory'),
-  include: AccessoryIncludeBlock,
+  include: IncludeBlockSchema,
 }).strict();
 
 export type AccessoryManifest = z.infer<typeof AccessorySchema>;

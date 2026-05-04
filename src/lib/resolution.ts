@@ -30,9 +30,23 @@ export interface ResolveOptions {
 }
 
 /**
- * Validate every component name referenced by an accessory's `include` block
- * against the discovered catalog. Throws a precise per-name error on the first
- * miss so authors know which entry needs fixing.
+ * Shape shared by mode and accessory include blocks. We accept any object that
+ * exposes the 5 sub-arrays; the strict shape is enforced by the schemas at
+ * parse time, so this internal type just gives `validateIncludes` a uniform
+ * input.
+ */
+type IncludeBlock = {
+  skills: string[];
+  rules: string[];
+  hooks: string[];
+  agents: string[];
+  commands: string[];
+};
+
+/**
+ * Validate every component name referenced by an `include` block against the
+ * discovered catalog. Throws a precise per-name error on the first miss so
+ * authors know which entry needs fixing.
  *
  * Component-type → catalog manifest type map:
  *   skills    → 'skill'
@@ -44,13 +58,18 @@ export interface ResolveOptions {
  * Validation is strict-by-default per ADR-0010: a missing reference fails
  * resolution rather than silently dropping. The exception is `commands`: there
  * is no `command` component type in the v0.3 schema, so we cannot validate
- * those names here. Phase 3 / a future commands ADR will tighten this.
+ * those names here. A future commands ADR will tighten this.
+ *
+ * `speaker` is the noun used in the error message — `mode "X" includes ...` vs
+ * `accessory "X" includes ...` — so a Phase 3 mode-include miss reads
+ * differently from an accessory-include miss without forking the validator.
  */
-function validateAccessoryIncludes(
-  accessory: AccessoryManifest,
+function validateIncludes(
+  speaker: 'mode' | 'accessory',
+  ownerName: string,
+  inc: IncludeBlock,
   catalog: ComponentSource[],
 ): void {
-  const inc = accessory.include;
   const checks: Array<{
     field: 'skills' | 'rules' | 'hooks' | 'agents';
     singular: 'skill' | 'rule' | 'hook' | 'agent';
@@ -69,7 +88,7 @@ function validateAccessoryIncludes(
       );
       if (!found) {
         throw new Error(
-          `accessory "${accessory.name}" includes ${singular} "${refName}" not found in wardrobe`,
+          `${speaker} "${ownerName}" includes ${singular} "${refName}" not found in wardrobe`,
         );
       }
     }
@@ -82,11 +101,17 @@ export function resolve(opts: ResolveOptions): Resolution {
   const { catalog, outfit, mode, modeBody, harness } = opts;
   const accessories = opts.accessories ?? [];
 
-  // Validate every accessory's include block up front. Strict-include semantics
-  // per ADR-0010: bad references fail resolution rather than silently emit a
-  // partially-applied session.
+  // Validate every include block up front. Strict-include semantics per
+  // ADR-0010: bad references fail resolution rather than silently emit a
+  // partially-applied session. Mode include is validated with speaker="mode"
+  // so its error message reads `mode "X" includes ...`; accessories use
+  // speaker="accessory". We validate mode first so a typo in the mode is
+  // surfaced before any accessory-level error.
+  if (mode && mode.include) {
+    validateIncludes('mode', mode.name, mode.include, catalog);
+  }
   for (const acc of accessories) {
-    validateAccessoryIncludes(acc, catalog);
+    validateIncludes('accessory', acc.name, acc.include, catalog);
   }
 
   // No outfit, no mode, no accessories → identity (no filter).
@@ -143,13 +168,41 @@ export function resolve(opts: ResolveOptions): Resolution {
     skillsDrop.push(c.manifest.name);
   }
 
-  // Accessory force-include phase. Accessories layer AFTER outfit + mode and
-  // override the outfit's category-based drops: any skill named in an
-  // accessory's include.skills is removed from skillsDrop (per ADR-0010 §3
-  // "Apply each --accessory <name> flag in order"). We've already validated
-  // the references above, so this loop is pure mutation.
-  if (accessories.length > 0) {
+  // Force-include phase per ADR-0010 §3: layer overlays AFTER outfit + mode
+  // category filtering and reverse the outfit's category-based drops. Order:
+  //
+  //   1. mode.include (if the active mode declares one) — runs first so a
+  //      mode-bundled component is in the kept set before any accessory layers
+  //      its own bundle on top.
+  //   2. each accessory's include in CLI order.
+  //
+  // For pure force-include semantics this ordering is purely cosmetic: every
+  // named skill is `delete`d from `dropSet`, and once it's out it stays out
+  // regardless of who runs next. The order DOES matter if both a mode and an
+  // accessory list the same skill — mode wins the "first to add" claim, the
+  // accessory becomes a no-op, but the resulting kept-set is identical. Tests
+  // assert this convergence to lock the contract.
+  // Defensive: callers may construct ModeManifest-shaped objects via `as any`
+  // (existing tests do) so `mode.include` may be undefined at runtime even
+  // though the schema fills it in for parsed manifests. Treat undefined as the
+  // empty default so back-compat callers continue to skip the force-include
+  // phase entirely.
+  const modeInclude = mode?.include;
+  const hasModeIncludes = modeInclude
+    ? modeInclude.skills.length +
+        modeInclude.rules.length +
+        modeInclude.hooks.length +
+        modeInclude.agents.length +
+        modeInclude.commands.length >
+      0
+    : false;
+  if (hasModeIncludes || accessories.length > 0) {
     const dropSet = new Set(skillsDrop);
+    if (modeInclude && hasModeIncludes) {
+      for (const skillName of modeInclude.skills) {
+        dropSet.delete(skillName);
+      }
+    }
     for (const acc of accessories) {
       for (const skillName of acc.include.skills) {
         dropSet.delete(skillName);
