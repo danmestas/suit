@@ -1,0 +1,54 @@
+FROM node:20-bookworm
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    bubblewrap \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    less \
+    procps \
+    python3 \
+    vim-tiny \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install only the three harnesses we want for realtime e2e.
+# Claude Code — try npm first, fallback to curl install script.
+RUN npm install -g @anthropic-ai/claude-code 2>/dev/null \
+  || curl -fsSL https://claude.ai/install.sh | bash
+
+RUN npm install -g @openai/codex
+RUN npm install -g @mariozechner/pi-coding-agent
+
+# Copy the suit source tree into /workspace and link it globally so `suit`
+# and `suit-build` resolve to the local checkout (not npm). This is what
+# we are testing.
+COPY package.json package-lock.json /workspace/
+COPY tsconfig.json /workspace/
+WORKDIR /workspace
+RUN npm install --no-audit --no-fund
+
+COPY src /workspace/src
+COPY scripts /workspace/scripts
+COPY README.md LICENSE /workspace/
+
+RUN npm run build && npm link
+
+# Stage realtime helpers and make them executable.
+RUN chmod +x /workspace/src/tests/integration/docker/realtime-entrypoint.sh \
+  && chmod +x /workspace/src/tests/integration/docker/test-runner.sh \
+  && chmod +x /workspace/src/tests/integration/docker/scenarios/*.sh
+
+# Workspace inside the container is a scratch project dir, not the suit
+# source. Keeps `suit <harness>` invocations grounded in a clean cwd that
+# has no .suit/ overlay unless the user adds one.
+RUN mkdir -p /work
+WORKDIR /work
+
+# No baked-in ~/.claude, ~/.codex, ~/.pi — they get copied in at start
+# from /host-auth/ by the entrypoint. That's the whole point.
+
+ENTRYPOINT ["/workspace/src/tests/integration/docker/realtime-entrypoint.sh"]
+CMD ["bash"]

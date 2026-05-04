@@ -1,6 +1,79 @@
-# Docker Test Matrix
+# Docker Test Harness
 
-> **NOTE:** This docker harness was extracted from agent-config and is not currently exercised by `npm test`. It needs a separate fixture content repo to run end-to-end. Tracked for future Phase 3+ work.
+Two complementary modes live in this directory:
+
+1. **Test matrix** (`Dockerfile` + `test-runner.sh` + `scenarios/*.sh`) —
+   automated stub-mode + real-mode regression matrix across 4 harnesses.
+2. **Realtime e2e** (`Dockerfile.realtime` + `run-realtime.sh` +
+   `realtime-entrypoint.sh`) — interactive shell in a clean container with
+   the three core harnesses (claude / codex / pi) installed, suit linked
+   from local source, and live host credentials piped in. Use this when
+   you want to *poke* at how a suit applies, not just assert it does.
+
+> **NOTE:** The matrix is not currently exercised by `npm test`. It needs
+> a separate fixture content repo to run end-to-end. Realtime mode reads
+> from any local content repo via `--content=` (default
+> `~/projects/agent-config`).
+
+---
+
+## Realtime e2e (`run-realtime.sh`)
+
+Interactive `bash` inside a container with:
+
+- Only `claude-code`, `codex`, and `pi` CLIs installed (npm-global).
+- No baked-in `~/.claude`, `~/.codex`, `~/.pi/` — fresh user dir at start.
+- `suit` and `suit-build` linked from `/workspace` at build time
+  (the local source tree, not npm).
+- Credentials piped in from host:
+  - **Claude OAuth** ← macOS Keychain (`Claude Code-credentials`).
+    Re-exported as `CLAUDE_CODE_OAUTH_TOKEN` because Claude Code's
+    `--print` mode rejects OAuth read directly from the credentials file.
+  - **Codex OAuth + config** ← `~/.codex/{auth.json,config.toml}`.
+  - **`OPENROUTER_API_KEY`** ← Doppler (`global/prd` by default).
+- Content repo bind-mounted at `/content` and exported as
+  `SUIT_CONTENT_PATH=/content`.
+
+Build + run:
+
+```bash
+# build only
+docker build -f src/tests/integration/docker/Dockerfile.realtime -t suit-realtime .
+
+# build + drop into interactive bash
+src/tests/integration/docker/run-realtime.sh
+
+# skip rebuild
+src/tests/integration/docker/run-realtime.sh --no-build
+
+# different content repo
+src/tests/integration/docker/run-realtime.sh --content=/path/to/your/agent-config
+
+# bind-mount /workspace from host so source edits show up immediately
+# (requires host node_modules + dist to be built)
+src/tests/integration/docker/run-realtime.sh --live-source
+
+# non-interactive smoke battery
+src/tests/integration/docker/run-realtime.sh --no-build -- bash -c '
+  suit status &&
+  suit claude --persona backend --mode focused -- --print "say PONG" &&
+  suit codex  --persona backend --mode code    -- exec --skip-git-repo-check "say PONG" &&
+  suit pi     --persona personal --mode design -- --provider openrouter --print "say PONG"
+'
+```
+
+Harness gotchas:
+
+- **codex** refuses to run outside a git repo by default. The suit
+  prelaunch tempdir is not a git repo, so add `--skip-git-repo-check`
+  after `exec`.
+- **pi** needs `--provider openrouter` to use `OPENROUTER_API_KEY`
+  (otherwise it tries Anthropic).
+- **claude** uses `CLAUDE_CODE_OAUTH_TOKEN` (env) for `--print` mode.
+
+---
+
+## Test matrix (`Dockerfile` + `test-runner.sh`)
 
 End-to-end test scaffold that exercises `ac` against all 4 real harness CLIs inside a clean Docker environment.
 
