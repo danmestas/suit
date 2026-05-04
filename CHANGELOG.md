@@ -4,6 +4,35 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-05-04
+
+Adds a second mode of working: project-state mutator alongside the existing stateless launcher.
+
+### Added
+
+- **`suit up`** — dresses the project filesystem with the resolved outfit + mode + accessories. Writes per-harness components into `.claude/`, `.codex/`, `.pi/`, etc. and persists `.suit/lock.json`. Native `claude` / `codex` / `pi` invocations from inside the dressed project pick the suit up automatically. ([ADR-0012](docs/adr/0012-suit-up-and-suit-off.md))
+- **`suit off`** — reads `.suit/lock.json`, removes every tracked file (verifying sha256), removes empty parent dirs, deletes the lockfile. Idempotent.
+- **`suit current`** — read-only inspector. Reports applied resolution, file count, sample paths. Detects drift (hand-edited tracked files) as informational.
+- **Interactive picker** — `suit up` invoked on a TTY without `--outfit` prompts numbered list of outfits → modes → accessories. No new dependency (uses Node's `readline/promises`).
+- **JSON fragment merge** — when multiple components emit the same JSON path (e.g. `.claude/settings.fragment.json` from each hook), suit deep-merges the contents instead of refusing on byte-mismatch. Markdown emits stay non-mergeable (a real authoring bug).
+
+### Changed
+
+- **Strict refuse-when-dirty merge** for `suit up`: refuses on (1) target file exists and isn't tracked, (2) tracked file's sha256 doesn't match what was recorded (hand-edited), or (3) prior lockfile records a different resolution. `--force` overrides each.
+- Internal: introduced a `Writer` abstraction (`src/lib/writer.ts`) so the same emit chain writes to either a tempdir (`TempdirWriter`, used by the stateless launcher) or a project root (`ProjectWriter`, used by `suit up`). Refactored `prelaunch.ts` to consume the abstraction; public contract preserved.
+- Internal: `lockfile.ts` self-contained data layer with sha256 helpers (`crypto.createHash`, no new dep).
+
+### Companion releases
+
+None — v0.5 is a suit-only release. Wardrobe and suit-template contents work unchanged against both the stateless launcher and the new mutator.
+
+### Reserved for future (not in v0.5)
+
+- `--ephemeral` flag on `suit <harness>` to force per-session even when project is dressed
+- `--target <harness>` to scope `suit up` to one adapter
+- `--refresh` on `suit up` to re-apply after wardrobe sync
+- Three-way merge (vs the current strict refuse-when-dirty)
+
 ## [0.4.0] — 2026-05-04
 
 Major composition-model overhaul. Renames the primary configuration primitive and introduces a third composition layer.
