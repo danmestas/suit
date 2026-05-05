@@ -19,6 +19,7 @@ import { runRelease } from './lib/release/release.js';
 import { computeTag } from './lib/release/git.js';
 import { renderReleaseNotes } from './lib/release/notes.js';
 import { loadRepoConfig } from './lib/config.js';
+import { buildGlobalsSnapshot, renderGlobalsYaml, openPr } from './lib/sync-globals.js';
 
 const validateCmd = defineCommand({
   meta: { name: 'validate', description: 'Validate all components' },
@@ -389,9 +390,59 @@ const releaseCmd = defineCommand({
   },
 });
 
+const syncGlobalsCmd = defineCommand({
+  meta: {
+    name: 'sync-globals',
+    description: 'Snapshot the globally-installed Claude Code plugins and MCPs into globals.yaml',
+  },
+  args: {
+    out: {
+      type: 'string',
+      default: './globals.yaml',
+      description: 'Output path for the globals.yaml snapshot (relative to cwd)',
+    },
+    pr: {
+      type: 'boolean',
+      default: false,
+      description: 'After writing, open a PR via gh (requires gh + clean git tree)',
+    },
+    'dry-run': {
+      type: 'boolean',
+      default: false,
+      description: 'Print YAML to stdout instead of writing to --out',
+    },
+  },
+  async run({ args }) {
+    const cwd = process.cwd();
+    const snapshot = await buildGlobalsSnapshot();
+    const yaml = renderGlobalsYaml(snapshot);
+    if (args['dry-run']) {
+      process.stdout.write(yaml);
+      return;
+    }
+    const outPath = path.resolve(cwd, args.out);
+    await fs.writeFile(outPath, yaml);
+    console.log(
+      pc.green(
+        `wrote ${path.relative(cwd, outPath)} (${Object.keys(snapshot.plugins).length} plugin(s), ${Object.keys(snapshot.mcps).length} MCP(s))`,
+      ),
+    );
+    if (args.pr) {
+      try {
+        const result = openPr({ cwd, outFile: args.out, machine: snapshot.machine });
+        console.log(pc.green(`opened PR: ${result.url ?? '(URL unavailable)'}`));
+        console.log(pc.cyan(`branch: ${result.branch}`));
+      } catch (err) {
+        console.log(pc.red(`pr failed: ${(err as Error).message}`));
+        process.exit(1);
+      }
+    }
+  },
+});
+
 const main = defineCommand({
   meta: { name: 'suit-build', description: 'Multi-harness skills build tool' },
-  subCommands: { validate: validateCmd, build: buildCmd, watch: watchCmd, docs: docsCmd, init: initCmd, evolve: evolveCmd, release: releaseCmd },
+  subCommands: { validate: validateCmd, build: buildCmd, watch: watchCmd, docs: docsCmd, init: initCmd, evolve: evolveCmd, release: releaseCmd, 'sync-globals': syncGlobalsCmd },
 });
 
 runMain(main);

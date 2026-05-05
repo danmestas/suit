@@ -36,6 +36,7 @@ import {
 } from '../lockfile.js';
 import { runPicker } from './picker.js';
 import { isJsonMergeable, mergeJsonBuffers } from '../merge.js';
+import { loadGlobalsRegistry } from '../globals-loader.js';
 
 export interface RunUpArgs {
   outfit: string | null;
@@ -350,7 +351,19 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     accessoryManifests.map((a) => a.targets),
   );
 
-  // Stage 4: resolve once per target (resolve() requires a single target so it
+  // Stage 4: optionally load globals.yaml from the wardrobe builtin tier.
+  // Missing file is non-fatal — the resolver receives `null` and skips
+  // globals filtering entirely (preserves v0.6 behavior pre-Phase-B-merge).
+  let globals = null;
+  try {
+    globals = await loadGlobalsRegistry(args.contentDir);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    deps.stderr(`suit up: failed to load globals.yaml: ${msg}\n`);
+    return 1;
+  }
+
+  // Stage 5: resolve once per target (resolve() requires a single target so it
   // can compute the kept-skill set deterministically; the kept set is target-
   // independent today, but the per-target call keeps the door open for future
   // target-specific resolution rules without changing this caller).
@@ -363,6 +376,8 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     accessories: accessoryManifests,
     modeBody,
     harness: targets[0],
+    globals,
+    warn: (msg) => deps.stderr(`${msg}\n`),
   });
 
   // Stage 5: load repo config and emit per target.

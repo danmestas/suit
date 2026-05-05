@@ -2,8 +2,15 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ComponentSource, Target } from './types.js';
-import type { OutfitManifest, ModeManifest, AccessoryManifest } from './schema.js';
+import type { OutfitManifest, ModeManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
+import type { GlobalsRegistry } from './globals-schema.js';
 import { loadHarnessCatalog } from './ac/harness-catalog.js';
+
+export interface GlobalsResolutionMetadata {
+  plugins: { kept: string[]; dropped: string[]; unresolved: string[] };
+  mcps: { kept: string[]; dropped: string[]; unresolved: string[] };
+  hooks: { kept: string[]; dropped: string[]; unresolved: string[] };
+}
 
 export interface Resolution {
   schemaVersion: 1;
@@ -16,6 +23,7 @@ export interface Resolution {
     mode: string | null;
     accessories: string[];
     categories: string[];
+    globals: GlobalsResolutionMetadata;
   };
 }
 
@@ -27,6 +35,15 @@ export interface ResolveOptions {
   /** Mode body string (the markdown body of the mode component, used as prompt scaffolding). */
   modeBody?: string;
   harness: Target;
+  /**
+   * v0.7+: per-machine globals registry. When provided, `enable:` / `disable:`
+   * blocks on the active outfit/mode/accessories layer over this baseline to
+   * compute kept-sets for plugins, mcps, and hooks. When `null` or omitted, no
+   * globals filtering is applied — `metadata.globals` is empty.
+   */
+  globals?: GlobalsRegistry | null;
+  /** Optional sink for warnings (e.g. unresolved enable references). */
+  warn?: (msg: string) => void;
 }
 
 /**
@@ -97,9 +114,79 @@ function validateIncludes(
   // dedicated command component type lands, fold it into the loop above.
 }
 
+/**
+ * Empty globals metadata block — emitted when no globals registry is supplied.
+ * Kept as a function (not a const) so each call site gets its own arrays and
+ * downstream mutation can't leak between resolutions.
+ */
+function emptyGlobalsMetadata(): GlobalsResolutionMetadata {
+  return {
+    plugins: { kept: [], dropped: [], unresolved: [] },
+    mcps: { kept: [], dropped: [], unresolved: [] },
+    hooks: { kept: [], dropped: [], unresolved: [] },
+  };
+}
+
+/**
+ * Layer per-kind enable/disable directives over a baseline kept-set.
+ *
+ * Semantics (ADR-0014 Phase D):
+ *   1. Baseline = full set of registered names from globals.<kind>.
+ *   2. For each layer in CLI declaration order (outfit, mode, then accessories
+ *      in array order), apply `disable` first, then `enable`.
+ *   3. `disable` removes names from the kept set. Disabling something that's
+ *      already absent is a silent no-op (idempotent).
+ *   4. `enable` re-adds names. If the name isn't in the globals registry, it's
+ *      tracked as `unresolved` and a warning is emitted; we DON'T add unknown
+ *      names to the kept set since downstream code (symlink-farm, mcpServers
+ *      rewrite) needs every kept name to correspond to a real registry entry.
+ */
+function resolveGlobalsKind(
+  kind: 'plugins' | 'mcps' | 'hooks',
+  registry: GlobalsRegistry,
+  layers: Array<{ ownerLabel: string; block: { enable: EnableDisableBlock; disable: EnableDisableBlock } }>,
+  warn: (msg: string) => void,
+): { kept: string[]; dropped: string[]; unresolved: string[] } {
+  const baseline = new Set(Object.keys(registry[kind]));
+  const kept = new Set(baseline);
+  const unresolved: string[] = [];
+  const seenUnresolved = new Set<string>();
+
+  for (const layer of layers) {
+    const block = layer.block;
+    for (const name of block.disable[kind] ?? []) {
+      kept.delete(name);
+    }
+    for (const name of block.enable[kind] ?? []) {
+      if (!baseline.has(name)) {
+        if (!seenUnresolved.has(name)) {
+          unresolved.push(name);
+          seenUnresolved.add(name);
+          warn(
+            `globals: ${layer.ownerLabel} enable.${kind} references "${name}" not in globals.yaml — ignoring`,
+          );
+        }
+        continue;
+      }
+      kept.add(name);
+    }
+  }
+
+  const dropped: string[] = [];
+  for (const name of baseline) {
+    if (!kept.has(name)) dropped.push(name);
+  }
+  return {
+    kept: Array.from(kept).sort(),
+    dropped: dropped.sort(),
+    unresolved,
+  };
+}
+
 export function resolve(opts: ResolveOptions): Resolution {
   const { catalog, outfit, mode, modeBody, harness } = opts;
   const accessories = opts.accessories ?? [];
+  const warn = opts.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
   // Validate every include block up front. Strict-include semantics per
   // ADR-0010: bad references fail resolution rather than silently emit a
@@ -114,6 +201,32 @@ export function resolve(opts: ResolveOptions): Resolution {
     validateIncludes('accessory', acc.name, acc.include, catalog);
   }
 
+  // Compute globals kept/dropped/unresolved sets if a registry was provided.
+  // Layers are in CLI declaration order: outfit → mode → accessories[].
+  // Skipped entirely when `globals` is null/undefined to preserve v0.6 behavior.
+  let globalsMetadata: GlobalsResolutionMetadata = emptyGlobalsMetadata();
+  if (opts.globals) {
+    const layers: Array<{ ownerLabel: string; block: { enable: EnableDisableBlock; disable: EnableDisableBlock } }> = [];
+    const pickBlock = (m: { enable?: EnableDisableBlock; disable?: EnableDisableBlock } | undefined) => ({
+      enable: m?.enable ?? { plugins: [], mcps: [], hooks: [] },
+      disable: m?.disable ?? { plugins: [], mcps: [], hooks: [] },
+    });
+    if (outfit) {
+      layers.push({ ownerLabel: `outfit "${outfit.name}"`, block: pickBlock(outfit as any) });
+    }
+    if (mode) {
+      layers.push({ ownerLabel: `mode "${mode.name}"`, block: pickBlock(mode as any) });
+    }
+    for (const acc of accessories) {
+      layers.push({ ownerLabel: `accessory "${acc.name}"`, block: pickBlock(acc as any) });
+    }
+    globalsMetadata = {
+      plugins: resolveGlobalsKind('plugins', opts.globals, layers, warn),
+      mcps: resolveGlobalsKind('mcps', opts.globals, layers, warn),
+      hooks: resolveGlobalsKind('hooks', opts.globals, layers, warn),
+    };
+  }
+
   // No outfit, no mode, no accessories → identity (no filter).
   if (!outfit && !mode && accessories.length === 0) {
     return {
@@ -122,7 +235,13 @@ export function resolve(opts: ResolveOptions): Resolution {
       skillsDrop: [],
       skillsKeep: null,
       modePrompt: '',
-      metadata: { outfit: null, mode: null, accessories: [], categories: [] },
+      metadata: {
+        outfit: null,
+        mode: null,
+        accessories: [],
+        categories: [],
+        globals: globalsMetadata,
+      },
     };
   }
 
@@ -223,6 +342,7 @@ export function resolve(opts: ResolveOptions): Resolution {
       mode: mode?.name ?? null,
       accessories: accessories.map((a) => a.name),
       categories: effectiveCategories ? Array.from(effectiveCategories) : [],
+      globals: globalsMetadata,
     },
   };
 }
@@ -256,6 +376,8 @@ export interface ResolveAgainstHarnessOptions {
   mode?: ModeManifest;
   accessories?: AccessoryManifest[];
   modeBody?: string;
+  globals?: GlobalsRegistry | null;
+  warn?: (msg: string) => void;
 }
 
 export async function resolveAgainstHarness(
@@ -269,6 +391,8 @@ export async function resolveAgainstHarness(
     accessories: opts.accessories,
     modeBody: opts.modeBody,
     harness: opts.target,
+    globals: opts.globals,
+    warn: opts.warn,
   });
 }
 

@@ -8,6 +8,23 @@ export interface ComposeOptions {
   realHome: string;
   /** Skill names to KEEP (symlinked into tempdir/.<harness>/skills/). Others are dropped. */
   skillsKeep: string[];
+  /**
+   * v0.7+: kept-set of user-scope plugin subdir names. When provided (even
+   * empty array), the harness's `plugins/` dir is rebuilt as a real directory
+   * with only the listed subdirs symlinked through. Undefined = symlink the
+   * entire `plugins/` dir verbatim (current pre-v0.7 behavior).
+   *
+   * Only honored for `target === 'claude-code'` since plugins are a
+   * Claude-Code-specific concept; other harnesses ignore this field.
+   */
+  pluginsKeep?: string[];
+  /**
+   * v0.7+: kept-set of MCP server names. When provided, `~/.claude.json` is
+   * rewritten as a real file with `mcpServers` filtered to the listed names
+   * (other top-level keys preserved). Undefined = symlink `~/.claude.json` as
+   * before. Only honored for `target === 'claude-code'`.
+   */
+  mcpsKeep?: string[];
 }
 
 export interface ComposeResult {
@@ -52,17 +69,106 @@ export async function composeHarnessHome(opts: ComposeOptions): Promise<ComposeR
     // Real harness dir doesn't exist — leave tempdir mostly empty
   }
 
-  // Symlink every entry except skills/
+  // Plugin filtering only applies to claude-code (other harnesses don't have a
+  // user-scope plugins concept in this code path). For other targets, the
+  // `plugins` subdir (if any) gets symlinked through with everything else.
+  const filterPlugins = opts.target === 'claude-code' && opts.pluginsKeep !== undefined;
+  const PLUGINS_SUB = 'plugins';
+
+  // Symlink every entry except skills/ (and plugins/ when filtered).
   for (const entry of entries) {
     if (entry === skillsSub) continue;
+    if (filterPlugins && entry === PLUGINS_SUB) continue;
     const src = path.join(realHarnessDir, entry);
     const dest = path.join(tempHarnessDir, entry);
     await fs.symlink(src, dest);
   }
 
-  // Symlink home-root files/dirs that start with the harness prefix (e.g. .claude.json for claude-code)
-  // These are not inside ~/.<harness>/ but sit directly at home root and are required for auth.
+  // Build filtered plugins/ dir when pluginsKeep is provided. Claude Code's
+  // real layout under `~/.claude/plugins/` is `cache/<marketplace>/<plugin>/<version>/`
+  // plus a flat `installed_plugins.json` manifest that tells Claude Code which
+  // plugins to actually load. Filtering = rewriting the manifest, not shuffling
+  // plugin code directories. Disabled plugins keep their files on disk (in cache/)
+  // but Claude Code won't load them because they're absent from the rewritten
+  // manifest.
+  //
+  // Layout: tempdir/.claude/plugins/ is a real dir; every child of the real
+  // plugins/ is symlinked through EXCEPT `installed_plugins.json`, which is
+  // replaced with a filtered real file. Empty `pluginsKeep` = empty manifest =
+  // "disable everything."
+  if (filterPlugins) {
+    const tempPluginsDir = path.join(tempHarnessDir, PLUGINS_SUB);
+    await fs.mkdir(tempPluginsDir, { recursive: true });
+    const realPluginsDir = path.join(realHarnessDir, PLUGINS_SUB);
+    const PLUGIN_MANIFEST = 'installed_plugins.json';
+
+    let pluginEntries: string[] = [];
+    try {
+      pluginEntries = await fs.readdir(realPluginsDir);
+    } catch {
+      // Real plugins/ dir doesn't exist — leave tempdir/.claude/plugins/ empty.
+    }
+    for (const entry of pluginEntries) {
+      if (entry === PLUGIN_MANIFEST) continue;
+      const src = path.join(realPluginsDir, entry);
+      const dest = path.join(tempPluginsDir, entry);
+      try {
+        await fs.symlink(src, dest);
+      } catch {
+        // best-effort
+      }
+    }
+
+    // Rewrite installed_plugins.json filtered to entries whose bare-name (the
+    // part before "@") is in pluginsKeep. Multiple installs (user + project
+    // scope) under one composite key are kept together — Claude Code already
+    // distinguishes scope per-entry. If the registry's pluginsKeep used a
+    // marketplace-disambiguated name (e.g. "superpowers-claude-plugins-official"),
+    // also match against "<bare>-<marketplace>".
+    const realManifest = path.join(realPluginsDir, PLUGIN_MANIFEST);
+    const destManifest = path.join(tempPluginsDir, PLUGIN_MANIFEST);
+    let raw: string | null = null;
+    try {
+      raw = await fs.readFile(realManifest, 'utf8');
+    } catch {
+      // No manifest → nothing to filter; the empty plugins dir we built above
+      // serves as "no plugins active."
+    }
+    if (raw !== null) {
+      let parsed: { version?: number; plugins?: Record<string, unknown> } | null = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Malformed manifest → symlink the original through and let Claude Code
+        // surface the parse error.
+        try {
+          await fs.symlink(realManifest, destManifest);
+        } catch { /* best-effort */ }
+      }
+      if (parsed !== null) {
+        const keepSet = new Set(opts.pluginsKeep ?? []);
+        const sourcePlugins = parsed.plugins;
+        if (sourcePlugins && typeof sourcePlugins === 'object') {
+          const filtered: Record<string, unknown> = {};
+          for (const [key, val] of Object.entries(sourcePlugins)) {
+            const bare = key.split('@')[0]!;
+            const marketplace = key.includes('@') ? key.split('@')[1]! : '';
+            const disambig = marketplace ? `${bare}-${marketplace}` : bare;
+            if (keepSet.has(bare) || keepSet.has(disambig)) filtered[key] = val;
+          }
+          parsed.plugins = filtered;
+        }
+        await fs.writeFile(destManifest, JSON.stringify(parsed, null, 2));
+      }
+    }
+  }
+
+  // Home-root files matching the harness prefix (e.g. .claude.json) — needed
+  // for auth and global config. mcpsKeep, when set, replaces the .claude.json
+  // symlink with a real filtered file.
   const harnessPrefix = subdir; // e.g. '.claude'
+  const filterMcps = opts.target === 'claude-code' && opts.mcpsKeep !== undefined;
+  const CLAUDE_CONFIG = '.claude.json';
   let homeEntries: string[] = [];
   try {
     homeEntries = await fs.readdir(opts.realHome);
@@ -72,12 +178,54 @@ export async function composeHarnessHome(opts: ComposeOptions): Promise<ComposeR
   for (const entry of homeEntries) {
     if (entry === harnessPrefix) continue; // already handled above
     if (!entry.startsWith(harnessPrefix)) continue;
+    if (filterMcps && entry === CLAUDE_CONFIG) continue; // handled below
     const src = path.join(opts.realHome, entry);
     const dest = path.join(tempHome, entry);
     try {
       await fs.symlink(src, dest);
     } catch {
       // symlink may already exist (race) or src missing — best-effort
+    }
+  }
+
+  // Rewrite ~/.claude.json with a filtered mcpServers block when mcpsKeep is
+  // provided. Other top-level keys are preserved verbatim.
+  if (filterMcps) {
+    const realConfigPath = path.join(opts.realHome, CLAUDE_CONFIG);
+    let raw: string | null = null;
+    try {
+      raw = await fs.readFile(realConfigPath, 'utf8');
+    } catch {
+      // No config file → nothing to rewrite. Skip (matches pre-v0.7 behavior
+      // where the symlink would have been silently dropped on missing source).
+    }
+    if (raw !== null) {
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Malformed JSON — fall back to symlinking the file as-is rather than
+        // crashing. The harness will surface the parse error itself.
+        const dest = path.join(tempHome, CLAUDE_CONFIG);
+        try {
+          await fs.symlink(realConfigPath, dest);
+        } catch { /* best-effort */ }
+        parsed = null as unknown as Record<string, unknown>;
+      }
+      if (parsed !== null) {
+        const keepSet = new Set(opts.mcpsKeep ?? []);
+        const existing = (parsed as { mcpServers?: Record<string, unknown> }).mcpServers;
+        if (existing && typeof existing === 'object') {
+          const filtered: Record<string, unknown> = {};
+          for (const [name, conf] of Object.entries(existing)) {
+            if (keepSet.has(name)) filtered[name] = conf;
+          }
+          (parsed as { mcpServers: Record<string, unknown> }).mcpServers = filtered;
+        }
+        // If `mcpServers` was absent the file passes through unchanged.
+        const dest = path.join(tempHome, CLAUDE_CONFIG);
+        await fs.writeFile(dest, JSON.stringify(parsed, null, 2));
+      }
     }
   }
 

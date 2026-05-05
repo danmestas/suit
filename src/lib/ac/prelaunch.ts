@@ -97,13 +97,17 @@ export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<P
 import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { composeHarnessHome } from './symlink-farm.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
-import type { OutfitManifest, ModeManifest } from '../schema.js';
+import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
+import type { GlobalsRegistry } from '../globals-schema.js';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;
   outfit?: OutfitManifest;
   mode?: ModeManifest;
+  accessories?: AccessoryManifest[];
   modeBody?: string;
+  /** v0.7+: optional globals registry for plugin/mcp filtering. */
+  globals?: GlobalsRegistry | null;
 }
 
 /** @deprecated Use HomeOverridePrelaunchOptions */
@@ -119,12 +123,29 @@ async function composeWithHomeOverride(
     harnessHome: opts.realHome,
     outfit: opts.outfit,
     mode: opts.mode,
+    accessories: opts.accessories,
     modeBody: opts.modeBody,
+    globals: opts.globals,
   });
   const skillsKeep = opts.outfit || opts.mode
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name); // no filter → keep all
-  return composeHarnessHome({ target, realHome: opts.realHome, skillsKeep });
+  // Only forward plugins/mcps filtering when a globals registry was provided —
+  // otherwise composeHarnessHome falls through to the v0.6 symlink-everything
+  // path, which is the contract preserved for callers without globals.yaml.
+  const pluginsKeep = opts.globals && target === 'claude-code'
+    ? resolution.metadata.globals.plugins.kept
+    : undefined;
+  const mcpsKeep = opts.globals && target === 'claude-code'
+    ? resolution.metadata.globals.mcps.kept
+    : undefined;
+  return composeHarnessHome({
+    target,
+    realHome: opts.realHome,
+    skillsKeep,
+    pluginsKeep,
+    mcpsKeep,
+  });
 }
 
 export async function prelaunchComposeClaudeCode(
