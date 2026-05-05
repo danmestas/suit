@@ -61,7 +61,10 @@ interface FallthroughDef {
 const FALLTHROUGHS: FallthroughDef[] = [
   { kind: 'skill', topDir: 'skills', includeField: 'skills', filenames: ['SKILL.md'] },
   { kind: 'hook', topDir: 'hooks', includeField: 'hooks', filenames: ['HOOK.md', 'SKILL.md'] },
-  { kind: 'rule', topDir: 'rules', includeField: 'rules', filenames: ['RULES.md', 'SKILL.md'] },
+  // Wardrobe convention is `RULE.md` (singular), matching SKILL.md / HOOK.md /
+  // AGENT.md / COMMAND.md. The schema's `type` literal is plural (`'rules'`)
+  // but the file convention is singular. Accept both forms for safety.
+  { kind: 'rule', topDir: 'rules', includeField: 'rules', filenames: ['RULE.md', 'RULES.md', 'SKILL.md'] },
   { kind: 'agent', topDir: 'agents', includeField: 'agents', filenames: ['AGENT.md', 'SKILL.md'] },
   { kind: 'command', topDir: 'commands', includeField: 'commands', filenames: ['COMMAND.md', 'SKILL.md'] },
 ];
