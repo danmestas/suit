@@ -186,7 +186,21 @@ async function main(): Promise<number> {
       process.stderr.write('suit list: expected "outfits", "modes", or "accessories"\n');
       return 2;
     }
-    await listCommand(what, { ...dirs, print: (l) => process.stdout.write(l + '\n') });
+    const rest = argv.slice(2);
+    let verbose = false;
+    for (const a of rest) {
+      if (a === '-v' || a === '--verbose') {
+        verbose = true;
+      } else {
+        process.stderr.write(`suit list: unrecognized argument "${a}"\n`);
+        return 2;
+      }
+    }
+    await listCommand(
+      what,
+      { ...dirs, print: (l) => process.stdout.write(l + '\n') },
+      { verbose },
+    );
     return 0;
   }
 

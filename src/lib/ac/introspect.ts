@@ -2,15 +2,28 @@ import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
 import { listAllModes, findMode } from '../mode.js';
 import { listAllAccessories, findAccessory } from '../accessory.js';
 import { getHarnessPresence } from './harness-presence.js';
+import { extractBlurb } from '../blurb.js';
 
 export interface IntrospectDeps extends DiscoveryDirs {
   print: (line: string) => void;
 }
 
+export interface ListOptions {
+  /** When true, print a blurb sub-line under each row. */
+  verbose?: boolean;
+}
+
 export async function listCommand(
   what: 'outfits' | 'modes' | 'accessories',
   deps: IntrospectDeps,
+  opts: ListOptions = {},
 ): Promise<void> {
+  const verbose = opts.verbose === true;
+  // Sub-line indent: width of `${name20} v${version8} [${source}]  ` ≈ 20+1+8+...
+  // Use a stable 4-space indent — keeps wrapping simple and matches `-v` output
+  // across narrow terminals.
+  const indent = '    ';
+
   if (what === 'outfits') {
     const all = await listAllOutfits(deps);
     if (all.length === 0) {
@@ -19,6 +32,10 @@ export async function listCommand(
     }
     for (const p of all) {
       deps.print(`${p.manifest.name.padEnd(20)} v${p.manifest.version.padEnd(8)} [${p.source}]  ${p.manifest.description}`);
+      if (verbose) {
+        const blurb = extractBlurb(p.body, p.manifest.description);
+        if (blurb !== p.manifest.description) deps.print(`${indent}${blurb}`);
+      }
     }
     return;
   }
@@ -30,6 +47,10 @@ export async function listCommand(
     }
     for (const m of all) {
       deps.print(`${m.manifest.name.padEnd(20)} v${m.manifest.version.padEnd(8)} [${m.source}]  ${m.manifest.description}`);
+      if (verbose) {
+        const blurb = extractBlurb(m.body, m.manifest.description);
+        if (blurb !== m.manifest.description) deps.print(`${indent}${blurb}`);
+      }
     }
     return;
   }
@@ -41,6 +62,10 @@ export async function listCommand(
   }
   for (const a of all) {
     deps.print(`${a.manifest.name.padEnd(20)} v${a.manifest.version.padEnd(8)} [${a.source}]  ${a.manifest.description}`);
+    if (verbose) {
+      const blurb = extractBlurb(a.body, a.manifest.description);
+      if (blurb !== a.manifest.description) deps.print(`${indent}${blurb}`);
+    }
   }
 }
 
