@@ -210,62 +210,192 @@ function resolveGlobalsKind(
   };
 }
 
+/**
+ * Composing manifests — the three primitives that participate in the
+ * outfit/cut/accessory layering. Each carries `enable` and `disable` blocks per
+ * ADR-0014. Skills, hooks, rules, agents, commands, plugins, and mcps don't
+ * compose at this level so they're excluded.
+ */
+type ComposingManifest = OutfitManifest | CutManifest | AccessoryManifest;
+
+interface GlobalsLayer {
+  ownerLabel: string;
+  block: { enable: EnableDisableBlock; disable: EnableDisableBlock };
+}
+
+/**
+ * Wrap a composing manifest into a layer for `resolveGlobalsKind`. Defensive
+ * `??` defaults guard test fixtures that construct partial manifests via `as
+ * any` — at runtime the parsed schemas fill enable/disable, but the test
+ * fixture pattern predates that field.
+ */
+function makeGlobalsLayer(label: string, m: ComposingManifest): GlobalsLayer {
+  return {
+    ownerLabel: label,
+    block: {
+      enable: m.enable ?? { plugins: [], mcps: [], hooks: [] },
+      disable: m.disable ?? { plugins: [], mcps: [], hooks: [] },
+    },
+  };
+}
+
+/**
+ * Compute kept/dropped/unresolved metadata for plugins, mcps, and hooks against
+ * the active harness. Returns the all-empty shape for harnesses that don't
+ * participate in globals filtering today (gemini, copilot, apm, pi).
+ */
+function computeGlobalsMetadata(
+  globals: GlobalsRegistry,
+  outfit: OutfitManifest | undefined,
+  cut: CutManifest | undefined,
+  accessories: AccessoryManifest[],
+  harness: Target,
+  warn: (msg: string) => void,
+): GlobalsResolutionMetadata {
+  const harnessFilter: 'claude-code' | 'codex' | undefined =
+    harness === 'claude-code' ? 'claude-code' : harness === 'codex' ? 'codex' : undefined;
+  if (harnessFilter === undefined) return emptyGlobalsMetadata();
+
+  const layers: GlobalsLayer[] = [];
+  if (outfit) layers.push(makeGlobalsLayer(`outfit "${outfit.name}"`, outfit));
+  if (cut) layers.push(makeGlobalsLayer(`cut "${cut.name}"`, cut));
+  for (const acc of accessories) {
+    layers.push(makeGlobalsLayer(`accessory "${acc.name}"`, acc));
+  }
+
+  return {
+    plugins: resolveGlobalsKind('plugins', globals, layers, warn, harnessFilter),
+    mcps: resolveGlobalsKind('mcps', globals, layers, warn, harnessFilter),
+    hooks: resolveGlobalsKind('hooks', globals, layers, warn, harnessFilter),
+  };
+}
+
+/**
+ * Compute the effective category set: intersection when both outfit and cut
+ * declare categories, single set when only one does, null when neither.
+ */
+function computeEffectiveCategories(
+  outfit: OutfitManifest | undefined,
+  cut: CutManifest | undefined,
+): Set<string> | null {
+  if (outfit && cut) {
+    const p = new Set(outfit.categories);
+    return new Set(cut.categories.filter((c) => p.has(c)));
+  }
+  if (outfit) return new Set(outfit.categories);
+  if (cut) return new Set(cut.categories);
+  return null;
+}
+
+/**
+ * Compute the initial skillsDrop list via category filtering. Forced excludes
+ * win first; forced includes rescue specific names; uncategorized skills always
+ * load; otherwise drop unless the skill's primary category intersects the
+ * effective categories set.
+ */
+function computeSkillsDrop(
+  catalog: ComponentSource[],
+  outfit: OutfitManifest | undefined,
+  cut: CutManifest | undefined,
+  effectiveCategories: Set<string> | null,
+): string[] {
+  const includeNames = new Set([
+    ...(outfit?.skill_include ?? []),
+    ...(cut?.skill_include ?? []),
+  ]);
+  const excludeNames = new Set([
+    ...(outfit?.skill_exclude ?? []),
+    ...(cut?.skill_exclude ?? []),
+  ]);
+
+  const skillsDrop: string[] = [];
+  for (const c of catalog) {
+    if (c.manifest.type !== 'skill') continue;
+    const skillCategory = c.manifest.category?.primary;
+
+    if (excludeNames.has(c.manifest.name)) {
+      skillsDrop.push(c.manifest.name);
+      continue;
+    }
+    if (includeNames.has(c.manifest.name)) continue;
+    if (skillCategory === undefined) continue;
+    if (!effectiveCategories) continue;
+    if (effectiveCategories.has(skillCategory)) continue;
+    skillsDrop.push(c.manifest.name);
+  }
+  return skillsDrop;
+}
+
+/**
+ * Force-include phase per ADR-0010 §3. Layer overlays AFTER outfit + cut
+ * category filtering and reverse the outfit's category-based drops. Order:
+ *
+ *   1. cut.include (if the active cut declares one) — runs first so a
+ *      cut-bundled component is in the kept set before any accessory layers
+ *      its own bundle on top.
+ *   2. each accessory's include in CLI order.
+ *
+ * Convergence: every named skill is removed from the drop set, and once
+ * removed it stays removed regardless of who runs next. Order matters only for
+ * "first to add" claim logging; the resulting kept-set is identical.
+ *
+ * Defensive: callers may construct CutManifest-shaped objects via `as any`
+ * (existing tests do) so `cut.include` may be undefined at runtime even though
+ * the schema fills it in for parsed manifests. Treat undefined as the empty
+ * default so back-compat callers continue to skip the force-include phase.
+ */
+function applyForceIncludes(
+  skillsDrop: string[],
+  cut: CutManifest | undefined,
+  accessories: AccessoryManifest[],
+): string[] {
+  const cutInclude = cut?.include;
+  const hasCutIncludes = cutInclude
+    ? cutInclude.skills.length +
+        cutInclude.rules.length +
+        cutInclude.hooks.length +
+        cutInclude.agents.length +
+        cutInclude.commands.length >
+      0
+    : false;
+  if (!hasCutIncludes && accessories.length === 0) {
+    return skillsDrop;
+  }
+  const dropSet = new Set(skillsDrop);
+  if (cutInclude && hasCutIncludes) {
+    for (const skillName of cutInclude.skills) {
+      dropSet.delete(skillName);
+    }
+  }
+  for (const acc of accessories) {
+    for (const skillName of acc.include.skills) {
+      dropSet.delete(skillName);
+    }
+  }
+  return Array.from(dropSet);
+}
+
 export function resolve(opts: ResolveOptions): Resolution {
   const { catalog, outfit, cut, cutBody, harness } = opts;
   const accessories = opts.accessories ?? [];
   const warn = opts.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  // Validate every include block up front. Strict-include semantics per
-  // ADR-0010: bad references fail resolution rather than silently emit a
-  // partially-applied session. Cut include is validated with speaker="cut"
-  // so its error message reads `cut "X" includes ...`; accessories use
-  // speaker="accessory". We validate cut first so a typo in the cut is
-  // surfaced before any accessory-level error.
-  if (cut && cut.include) {
+  // Phase 1: validate include blocks (strict per ADR-0010). Cut first so a
+  // cut typo surfaces before any accessory-level error.
+  if (cut?.include) {
     validateIncludes('cut', cut.name, cut.include, catalog);
   }
   for (const acc of accessories) {
     validateIncludes('accessory', acc.name, acc.include, catalog);
   }
 
-  // Compute globals kept/dropped/unresolved sets if a registry was provided.
-  // Layers are in CLI declaration order: outfit → cut → accessories[].
-  // Skipped entirely when `globals` is null/undefined to preserve v0.6 behavior.
-  let globalsMetadata: GlobalsResolutionMetadata = emptyGlobalsMetadata();
-  if (opts.globals) {
-    const layers: Array<{ ownerLabel: string; block: { enable: EnableDisableBlock; disable: EnableDisableBlock } }> = [];
-    const pickBlock = (m: { enable?: EnableDisableBlock; disable?: EnableDisableBlock } | undefined) => ({
-      enable: m?.enable ?? { plugins: [], mcps: [], hooks: [] },
-      disable: m?.disable ?? { plugins: [], mcps: [], hooks: [] },
-    });
-    if (outfit) {
-      layers.push({ ownerLabel: `outfit "${outfit.name}"`, block: pickBlock(outfit as any) });
-    }
-    if (cut) {
-      layers.push({ ownerLabel: `cut "${cut.name}"`, block: pickBlock(cut as any) });
-    }
-    for (const acc of accessories) {
-      layers.push({ ownerLabel: `accessory "${acc.name}"`, block: pickBlock(acc as any) });
-    }
-    // v0.8: scope globals filtering by harness. Only entries belonging to the
-    // active harness participate in kept/dropped sets. Other harnesses
-    // (gemini, copilot, apm, pi) get all-empty sets — there's nothing to
-    // filter for them today. claude-code and codex each see only their own
-    // registered entries.
-    const harnessFilter: 'claude-code' | 'codex' | 'none' =
-      harness === 'claude-code' ? 'claude-code' : harness === 'codex' ? 'codex' : 'none';
-    if (harnessFilter === 'none') {
-      globalsMetadata = emptyGlobalsMetadata();
-    } else {
-      globalsMetadata = {
-        plugins: resolveGlobalsKind('plugins', opts.globals, layers, warn, harnessFilter),
-        mcps: resolveGlobalsKind('mcps', opts.globals, layers, warn, harnessFilter),
-        hooks: resolveGlobalsKind('hooks', opts.globals, layers, warn, harnessFilter),
-      };
-    }
-  }
+  // Phase 2: globals kept/dropped/unresolved sets per kind. Skipped entirely
+  // when no registry is supplied to preserve v0.6 behavior.
+  const globalsMetadata = opts.globals
+    ? computeGlobalsMetadata(opts.globals, outfit, cut, accessories, harness, warn)
+    : emptyGlobalsMetadata();
 
-  // No outfit, no cut, no accessories → identity (no filter).
+  // Phase 3: identity short-circuit when no composition primitives are active.
   if (!outfit && !cut && accessories.length === 0) {
     return {
       schemaVersion: 1,
@@ -283,91 +413,10 @@ export function resolve(opts: ResolveOptions): Resolution {
     };
   }
 
-  // Effective categories: intersection if both, single if one.
-  let effectiveCategories: Set<string> | null = null;
-  if (outfit && cut) {
-    const p = new Set(outfit.categories);
-    effectiveCategories = new Set(cut.categories.filter((c) => p.has(c)));
-  } else if (outfit) {
-    effectiveCategories = new Set(outfit.categories);
-  } else if (cut) {
-    effectiveCategories = new Set(cut.categories);
-  }
-
-  const includeNames = new Set([
-    ...(outfit?.skill_include ?? []),
-    ...(cut?.skill_include ?? []),
-  ]);
-  const excludeNames = new Set([
-    ...(outfit?.skill_exclude ?? []),
-    ...(cut?.skill_exclude ?? []),
-  ]);
-
-  const skillsDrop: string[] = [];
-  for (const c of catalog) {
-    if (c.manifest.type !== 'skill') continue;
-    const skillCategory = (c.manifest as any).category?.primary as string | undefined;
-
-    // Forced exclude wins.
-    if (excludeNames.has(c.manifest.name)) {
-      skillsDrop.push(c.manifest.name);
-      continue;
-    }
-    // Forced include wins over category mismatch.
-    if (includeNames.has(c.manifest.name)) continue;
-    // Universal default — uncategorized skills always load.
-    if (skillCategory === undefined) continue;
-    // No outfit/cut but accessories present → no category filtering at all.
-    if (!effectiveCategories) continue;
-    // Category match.
-    if (effectiveCategories.has(skillCategory)) continue;
-    // Otherwise: drop.
-    skillsDrop.push(c.manifest.name);
-  }
-
-  // Force-include phase per ADR-0010 §3: layer overlays AFTER outfit + cut
-  // category filtering and reverse the outfit's category-based drops. Order:
-  //
-  //   1. cut.include (if the active cut declares one) — runs first so a
-  //      cut-bundled component is in the kept set before any accessory layers
-  //      its own bundle on top.
-  //   2. each accessory's include in CLI order.
-  //
-  // For pure force-include semantics this ordering is purely cosmetic: every
-  // named skill is `delete`d from `dropSet`, and once it's out it stays out
-  // regardless of who runs next. The order DOES matter if both a cut and an
-  // accessory list the same skill — cut wins the "first to add" claim, the
-  // accessory becomes a no-op, but the resulting kept-set is identical. Tests
-  // assert this convergence to lock the contract.
-  // Defensive: callers may construct CutManifest-shaped objects via `as any`
-  // (existing tests do) so `cut.include` may be undefined at runtime even
-  // though the schema fills it in for parsed manifests. Treat undefined as the
-  // empty default so back-compat callers continue to skip the force-include
-  // phase entirely.
-  const cutInclude = cut?.include;
-  const hasCutIncludes = cutInclude
-    ? cutInclude.skills.length +
-        cutInclude.rules.length +
-        cutInclude.hooks.length +
-        cutInclude.agents.length +
-        cutInclude.commands.length >
-      0
-    : false;
-  if (hasCutIncludes || accessories.length > 0) {
-    const dropSet = new Set(skillsDrop);
-    if (cutInclude && hasCutIncludes) {
-      for (const skillName of cutInclude.skills) {
-        dropSet.delete(skillName);
-      }
-    }
-    for (const acc of accessories) {
-      for (const skillName of acc.include.skills) {
-        dropSet.delete(skillName);
-      }
-    }
-    skillsDrop.length = 0;
-    skillsDrop.push(...dropSet);
-  }
+  // Phase 4-6: category filter, force-include rescue, assemble.
+  const effectiveCategories = computeEffectiveCategories(outfit, cut);
+  const initialDrops = computeSkillsDrop(catalog, outfit, cut, effectiveCategories);
+  const skillsDrop = applyForceIncludes(initialDrops, cut, accessories);
 
   return {
     schemaVersion: 1,
