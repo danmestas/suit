@@ -25,8 +25,9 @@ import path from 'node:path';
 import { findOutfit } from '../outfit.js';
 import { findMode } from '../mode.js';
 import { findAccessory } from '../accessory.js';
-import { resolveAndPersist } from '../resolution.js';
+import { resolveAndPersist, resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
+import { loadHarnessCatalog } from './harness-catalog.js';
 import type { Target } from '../types.js';
 import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
@@ -149,13 +150,44 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
     }
     case 'codex': {
       if (!resolutionArtifactPath) return { envOverrides: {} };
+      // v0.8: when a globals registry is loaded AND the session is filtered,
+      // also build a CODEX_HOME tempdir whose `config.toml` has non-kept
+      // plugins/MCPs flipped to `enabled = false`. Skipped silently when no
+      // globals registry is present (no semantic regression vs v0.7).
+      let codexHomeFilter: { realCodexHome: string; skillsKeep: string[]; pluginsKeep?: string[]; mcpsKeep?: string[] } | undefined;
+      if (globals && filtered) {
+        const catalog = await loadHarnessCatalog('codex', opts.realHome);
+        const resolution = await resolveAgainstHarness({
+          target: 'codex',
+          harnessHome: opts.realHome,
+          outfit,
+          mode,
+          accessories: opts.accessories,
+          modeBody,
+          globals,
+        });
+        const skillsKeep = outfit || mode
+          ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
+          : catalog
+              .filter((c: { manifest: { type: string; name: string } }) => c.manifest.type === 'skill')
+              .map((c: { manifest: { type: string; name: string } }) => c.manifest.name);
+        codexHomeFilter = {
+          realCodexHome: process.env.CODEX_HOME ?? path.join(opts.realHome, '.codex'),
+          skillsKeep,
+          pluginsKeep: resolution.metadata.globals.plugins.kept,
+          mcpsKeep: resolution.metadata.globals.mcps.kept,
+        };
+      }
       const r = await prelaunchComposeCodex({
         resolutionPath: resolutionArtifactPath,
         originalCwd: process.cwd(),
+        codexHomeFilter,
       });
+      const envOverrides: NodeJS.ProcessEnv = { AC_ORIGINAL_CWD: process.cwd() };
+      if (r.codexHome) envOverrides.CODEX_HOME = r.codexHome;
       return {
         cwd: r.tempdir,
-        envOverrides: { AC_ORIGINAL_CWD: process.cwd() },
+        envOverrides,
         cleanup: r.cleanup,
       };
     }

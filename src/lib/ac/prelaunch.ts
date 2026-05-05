@@ -13,10 +13,27 @@ export interface PrelaunchOptions {
    * project to write the same artifacts straight into the project tree.
    */
   writer?: Writer;
+  /**
+   * v0.8: when set, also build a filtered `CODEX_HOME` tempdir mirroring the
+   * user's real codex home with `config.toml` rewritten to disable plugins/MCPs
+   * outside the kept-sets. Optional — older callers that don't pass globals
+   * filtering get `codexHome: undefined` and behave exactly as v0.7.
+   */
+  codexHomeFilter?: {
+    realCodexHome: string;
+    skillsKeep: string[];
+    pluginsKeep?: string[];
+    mcpsKeep?: string[];
+  };
 }
 
 export interface PrelaunchResult {
   tempdir: string;
+  /**
+   * v0.8: tempdir to set as `CODEX_HOME` when spawning codex, when the caller
+   * requested `codexHomeFilter`. Undefined in the no-filter path.
+   */
+  codexHome?: string;
   /** Cleanup function — call on session end. Best-effort. */
   cleanup: () => Promise<void>;
 }
@@ -77,9 +94,34 @@ export async function prelaunchComposeCodex(opts: PrelaunchOptions): Promise<Pre
   const content = await buildDocsToBuffer('codex', opts.resolutionPath, opts.originalCwd);
   await writer.write({ path: 'AGENTS.md', content });
   await symlinkProjectFiles(opts.originalCwd, writer);
+
+  // v0.8: optional CODEX_HOME composition. The project-cwd tempdir (above)
+  // and the CODEX_HOME tempdir are intentionally separate — one carries
+  // AGENTS.md and project files (becomes the spawn cwd), the other carries
+  // the codex config + filtered plugins/MCPs (becomes $CODEX_HOME). They
+  // serve different roles and codex consumes them via different mechanisms.
+  let codexHome: string | undefined;
+  let codexHomeCleanup: (() => Promise<void>) | undefined;
+  if (opts.codexHomeFilter) {
+    const r = await composeCodexHome({
+      realCodexHome: opts.codexHomeFilter.realCodexHome,
+      skillsKeep: opts.codexHomeFilter.skillsKeep,
+      pluginsKeep: opts.codexHomeFilter.pluginsKeep,
+      mcpsKeep: opts.codexHomeFilter.mcpsKeep,
+    });
+    codexHome = r.tempCodexHome;
+    codexHomeCleanup = r.cleanup;
+  }
+
+  const cwdCleanup = writer.cleanup ?? (async () => {});
   return {
     tempdir: writer.destination,
-    cleanup: writer.cleanup ?? (async () => {}),
+    codexHome,
+    cleanup: async () => {
+      // Chain both cleanups; failure in one shouldn't block the other.
+      await cwdCleanup().catch(() => {});
+      if (codexHomeCleanup) await codexHomeCleanup().catch(() => {});
+    },
   };
 }
 
@@ -96,6 +138,7 @@ export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<P
 
 import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { composeHarnessHome } from './symlink-farm.js';
+import { composeCodexHome } from './codex-home.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
 import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
