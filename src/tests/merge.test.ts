@@ -61,7 +61,7 @@ describe('mergeJsonBuffers — settings.fragment.json case', () => {
     const recall = JSON.stringify({
       hooks: {
         SessionStart: [
-          { matcher: '*', hooks: [{ type: 'command', command: '${CLAUDE_PROJECT_DIR}/hooks/recall.sh' }] },
+          { matcher: '*', hooks: [{ type: 'command', command: '${CLAUDE_PROJECT_DIR}/.claude/hooks/recall.sh' }] },
         ],
       },
     });
@@ -69,7 +69,7 @@ describe('mergeJsonBuffers — settings.fragment.json case', () => {
     const trace = JSON.stringify({
       hooks: {
         Stop: [
-          { matcher: '*', hooks: [{ type: 'command', command: '${CLAUDE_PROJECT_DIR}/hooks/trace.sh' }] },
+          { matcher: '*', hooks: [{ type: 'command', command: '${CLAUDE_PROJECT_DIR}/.claude/hooks/trace.sh' }] },
         ],
       },
     });
