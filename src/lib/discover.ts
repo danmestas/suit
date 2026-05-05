@@ -26,7 +26,9 @@ const DIR_FILENAMES: Partial<Record<string, string[]>> = {
   accessories: ['accessory.md'],
   agents: ['AGENT.md', 'SKILL.md'],
   hooks: ['HOOK.md', 'SKILL.md'],
-  rules: ['RULES.md', 'SKILL.md'],
+  // Wardrobe convention is `RULE.md` (singular), matching SKILL/HOOK/AGENT/COMMAND.
+  // Schema's type literal is plural (`'rules'`) but file is singular. Accept both.
+  rules: ['RULE.md', 'RULES.md', 'SKILL.md'],
 };
 
 function getComponentFilenames(dir: string): string[] {
