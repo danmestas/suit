@@ -2,7 +2,7 @@
  * AC session orchestrator.
  *
  * An AC session is the lifecycle of a single `ac <harness> ...` invocation:
- * it composes the outfit/mode-filtered environment a downstream harness
+ * it composes the outfit/cut-filtered environment a downstream harness
  * (claude-code, gemini, pi, apm, codex, copilot) sees, spawns the harness
  * binary, and tears the temp environment down on exit.
  *
@@ -23,13 +23,13 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { findOutfit } from '../outfit.js';
-import { findMode } from '../mode.js';
+import { findCut } from '../cut.js';
 import { findAccessory } from '../accessory.js';
 import { resolveAndPersist, resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
 import type { Target } from '../types.js';
-import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
+import type { OutfitManifest, CutManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
 import { loadGlobalsRegistry } from '../globals-loader.js';
 import {
@@ -97,9 +97,9 @@ export function defaultResolveHarnessBin(harness: string): string {
 interface PrelaunchInputs {
   target: Target;
   outfit?: OutfitManifest;
-  mode?: ModeManifest;
+  cut?: CutManifest;
   accessories: AccessoryManifest[];
-  modeBody?: string;
+  cutBody?: string;
   resolutionArtifactPath?: string;
   realHome: string;
   apmPackageDir: string;
@@ -119,8 +119,8 @@ interface PrelaunchEffects {
  * in `runAc`.
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
-  const { target, outfit, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir, globals } = opts;
-  const filtered = outfit !== undefined || mode !== undefined || opts.accessories.length > 0;
+  const { target, outfit, cut, cutBody, resolutionArtifactPath, realHome, apmPackageDir, globals } = opts;
+  const filtered = outfit !== undefined || cut !== undefined || opts.accessories.length > 0;
 
   switch (target) {
     case 'claude-code':
@@ -136,16 +136,16 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
       const r = await composer({
         realHome,
         outfit,
-        mode,
+        cut,
         accessories: opts.accessories,
-        modeBody,
+        cutBody,
         globals,
       });
       return { envOverrides: { HOME: r.tempHome }, cleanup: r.cleanup };
     }
     case 'apm': {
       if (!filtered) return { envOverrides: {} };
-      const r = await prelaunchComposeApm({ packageDir: apmPackageDir, outfit, mode, modeBody });
+      const r = await prelaunchComposeApm({ packageDir: apmPackageDir, outfit, cut, cutBody });
       return { envOverrides: { APM_PACKAGE_DIR: r.tempPackageDir }, cleanup: r.cleanup };
     }
     case 'codex': {
@@ -161,12 +161,12 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
           target: 'codex',
           harnessHome: opts.realHome,
           outfit,
-          mode,
+          cut,
           accessories: opts.accessories,
-          modeBody,
+          cutBody,
           globals,
         });
-        const skillsKeep = outfit || mode
+        const skillsKeep = outfit || cut
           ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
           : catalog
               .filter((c: { manifest: { type: string; name: string } }) => c.manifest.type === 'skill')
@@ -220,29 +220,29 @@ export async function runAcSession(
   const projectDir = deps.projectDir ?? process.cwd();
   const userDir = deps.userDir ?? path.join(os.homedir(), '.config', 'agent-config');
   // session.ts lives at <repo>/src/lib/ac/session.ts — walk up to the repo
-  // root where outfits/ and modes/ live.
+  // root where outfits/ and cuts/ live.
   const builtinDir = deps.builtinDir ?? findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
   const dirs = { projectDir, userDir, builtinDir };
 
   const env: NodeJS.ProcessEnv = { ...process.env, AC_WRAPPED: '1', AC_HARNESS: target };
 
-  // Stage 2: load outfit/mode/accessories and persist a resolution artifact
+  // Stage 2: load outfit/cut/accessories and persist a resolution artifact
   // when filter is requested. `--no-filter` skips loading any of them per
   // ADR-0010 (treat the harness as if `suit` were not in the loop).
   const filtered =
     !args.noFilter &&
-    (args.outfit !== undefined || args.mode !== undefined || args.accessories.length > 0);
+    (args.outfit !== undefined || args.cut !== undefined || args.accessories.length > 0);
   let outfit: OutfitManifest | undefined;
-  let modeManifest: ModeManifest | undefined;
-  let modeBody: string | undefined;
+  let cutManifest: CutManifest | undefined;
+  let cutBody: string | undefined;
   let accessoryManifests: AccessoryManifest[] = [];
   let resolutionArtifactPath: string | undefined;
   if (filtered) {
     if (args.outfit) outfit = (await findOutfit(args.outfit, dirs)).manifest;
-    if (args.mode) {
-      const found = await findMode(args.mode, dirs);
-      modeManifest = found?.manifest;
-      modeBody = found?.body;
+    if (args.cut) {
+      const found = await findCut(args.cut, dirs);
+      cutManifest = found?.manifest;
+      cutBody = found?.body;
     }
     // Load accessories in CLI order — order is significant per ADR-0010 §3.
     for (const accName of args.accessories) {
@@ -253,9 +253,9 @@ export async function runAcSession(
     const { artifactPath } = await resolveAndPersist({
       catalog,
       outfit,
-      mode: modeManifest,
+      cut: cutManifest,
       accessories: accessoryManifests,
-      modeBody,
+      cutBody,
       harness: target,
     });
     resolutionArtifactPath = artifactPath;
@@ -280,9 +280,9 @@ export async function runAcSession(
   const effects = await prelaunchForTarget({
     target,
     outfit,
-    mode: modeManifest,
+    cut: cutManifest,
     accessories: accessoryManifests,
-    modeBody,
+    cutBody,
     resolutionArtifactPath,
     realHome: deps.homeDir ?? os.homedir(),
     apmPackageDir: deps.homeDir ?? process.cwd(),

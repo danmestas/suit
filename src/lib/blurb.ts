@@ -1,5 +1,5 @@
 /**
- * Derive a one-paragraph contextual blurb from an outfit/mode/accessory body.
+ * Derive a one-paragraph contextual blurb from an outfit/cut/accessory body.
  *
  * Picker rows and `suit list -v` show the blurb as a sub-line under the
  * `description:` field. The blurb gives the user enough context to choose

@@ -4,6 +4,29 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-05-04
+
+Renames the work-shape composition primitive from `mode` to `cut`. Mirrors the persona→outfit precedent from ADR-0010 — clean break, no migration tooling, single coordinated cutover across `suit`, `wardrobe`, and `suit-template`. Resolver semantics unchanged; this is a vocabulary rename, not a behavior change.
+
+### BREAKING
+
+- **`mode` → `cut`** across schema, CLI, lockfile, filesystem, and resolver. Every `--mode` flag, `ModeSchema`, `type: mode` frontmatter, and `modes/` directory has been renamed. No backwards-compatible alias is provided. ([ADR-0016](docs/adr/0016-rename-mode-to-cut.md))
+- **Schema**: `ModeSchema` → `CutSchema`; `ModeManifest` → `CutManifest`; frontmatter `type: mode` → `type: cut`. The discriminated union member is updated in lockstep.
+- **CLI**: `--mode <name>` → `--cut <name>` on every entry point (`suit up`, `suit <harness>`). `suit list <outfits|modes|accessories>` → `suit list <outfits|cuts|accessories>`. `suit show <outfit|mode|accessory>` → `suit show <outfit|cut|accessory>`.
+- **Filesystem**: wardrobe `modes/` → `cuts/`; per-component file `mode.md` → `cut.md`; project-overlay `.suit/modes/` → `.suit/cuts/`; user-overlay `<userDir>/modes/` → `<userDir>/cuts/`.
+- **Resolver**: `ResolveOptions.mode` → `cut`; `modeBody` → `cutBody`; `Resolution.metadata.mode` → `metadata.cut`; `Resolution.modePrompt` → `cutPrompt`; error messages now read `cut "X" includes ...`.
+- **Lockfile**: `.suit/lock.json`'s `resolution.mode` → `resolution.cut`. The lockfile schema rejects the old key.
+- **Adapters**: every adapter's `case 'mode': return []` clause → `case 'cut': return []`.
+
+### Migration
+
+There is **no automatic migration path**. Authors of wardrobes / suit-template forks should rename `modes/` → `cuts/` and `mode.md` → `cut.md`, and update frontmatter `type: mode` → `type: cut`, in lockstep with this release. See ADR-0016 for the full rationale and ADR-0010 for the precedent.
+
+### Companion releases
+
+- **wardrobe**: parallel rename to v5 (filesystem layout + manifests).
+- **suit-template**: parallel rename.
+
 ## [0.5.3] — 2026-05-04
 
 ### Added

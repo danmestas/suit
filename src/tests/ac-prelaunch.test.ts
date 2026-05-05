@@ -12,8 +12,8 @@ describe('prelaunchComposeCodex', () => {
       harness: 'codex',
       skillsDrop: [],
       skillsKeep: null,
-      modePrompt: '',
-      metadata: { outfit: null, mode: null, categories: [] },
+      cutPrompt: '',
+      metadata: { outfit: null, cut: null, categories: [] },
     }));
 
     const result = await prelaunchComposeCodex({
@@ -36,8 +36,8 @@ describe('prelaunchComposeCopilot', () => {
       harness: 'copilot',
       skillsDrop: [],
       skillsKeep: null,
-      modePrompt: '',
-      metadata: { outfit: null, mode: null, categories: [] },
+      cutPrompt: '',
+      metadata: { outfit: null, cut: null, categories: [] },
     }));
 
     const result = await prelaunchComposeCopilot({

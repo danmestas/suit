@@ -18,7 +18,7 @@ const MATRIX: Record<ComponentType, Record<Target, Cell>> = {
   rules:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
   mcp:     { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'error', pi: 'warn' },
   outfit:    { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
-  mode:      { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
+  cut:       { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
   accessory: { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
 };
 
@@ -153,7 +153,7 @@ export function validateComponents(components: ComponentSource[]): ValidationErr
 }
 
 // ---------------------------------------------------------------------------
-// Async validation layer: TAXONOMY cross-ref + mode body-size limits
+// Async validation layer: TAXONOMY cross-ref + cut body-size limits
 // ---------------------------------------------------------------------------
 
 async function loadValidCategories(repoRoot: string): Promise<Set<string>> {
@@ -186,9 +186,9 @@ async function loadValidCategories(repoRoot: string): Promise<Set<string>> {
 /**
  * Async extension of validateComponents.
  * Runs the synchronous checks first, then adds:
- *   1. outfit/mode categories cross-ref against TAXONOMY.md
- *   2. outfit/mode skill_include/skill_exclude cross-ref against known skills
- *   3. mode body size limit (error >4096 bytes, warning >1024 bytes)
+ *   1. outfit/cut categories cross-ref against TAXONOMY.md
+ *   2. outfit/cut skill_include/skill_exclude cross-ref against known skills
+ *   3. cut body size limit (error >4096 bytes, warning >1024 bytes)
  *
  * @param components  Discovered component sources.
  * @param dirs        Discovery dirs. TAXONOMY.md is loaded from `dirs.builtinDir`.
@@ -213,7 +213,7 @@ export async function validateAll(
 
   for (const component of components) {
     const { manifest } = component;
-    if (manifest.type !== 'outfit' && manifest.type !== 'mode') continue;
+    if (manifest.type !== 'outfit' && manifest.type !== 'cut') continue;
 
     const cats: Set<string> = await getValidCats();
 
@@ -247,19 +247,19 @@ export async function validateAll(
       }
     }
 
-    if (manifest.type === 'mode') {
+    if (manifest.type === 'cut') {
       const len = Buffer.byteLength(component.body, 'utf8');
       if (len > 4096) {
         errors.push({
           severity: 'error',
           componentName: manifest.name,
-          message: `mode body too long: ${len} bytes (max 4096)`,
+          message: `cut body too long: ${len} bytes (max 4096)`,
         });
       } else if (len > 1024) {
         errors.push({
           severity: 'warning',
           componentName: manifest.name,
-          message: `mode body is ${len} bytes (>1024 warns; long prompts cost real tokens every session)`,
+          message: `cut body is ${len} bytes (>1024 warns; long prompts cost real tokens every session)`,
         });
       }
     }

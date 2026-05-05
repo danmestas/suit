@@ -54,7 +54,7 @@ export interface Lockfile {
   appliedAt: string;
   resolution: {
     outfit: string | null;
-    mode: string | null;
+    cut: string | null;
     accessories: string[];
   };
   files: LockEntry[];
@@ -72,7 +72,7 @@ const lockfileSchema = z.object({
   appliedAt: z.string().min(1),
   resolution: z.object({
     outfit: z.string().nullable(),
-    mode: z.string().nullable(),
+    cut: z.string().nullable(),
     accessories: z.array(z.string()),
   }),
   files: z.array(lockEntrySchema),

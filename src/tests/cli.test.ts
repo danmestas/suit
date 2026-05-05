@@ -46,8 +46,8 @@ B body
       harness: 'codex',
       skillsDrop: ['b'],
       skillsKeep: null,
-      modePrompt: '',
-      metadata: { outfit: 'p', mode: null, categories: ['tooling'] },
+      cutPrompt: '',
+      metadata: { outfit: 'p', cut: null, categories: ['tooling'] },
     }));
 
     const outPath = path.join(repo, 'AGENTS.md');

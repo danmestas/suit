@@ -162,24 +162,24 @@ body
     expect(result.find((c) => c.manifest.name === 'legacy-agent')).toBeDefined();
   });
 
-  it('finds modes under modes/', async () => {
+  it('finds cuts under cuts/', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'discover-'));
-    await fs.mkdir(path.join(tmp, 'modes', 'test-mode'), { recursive: true });
+    await fs.mkdir(path.join(tmp, 'cuts', 'test-cut'), { recursive: true });
     await fs.writeFile(
-      path.join(tmp, 'modes', 'test-mode', 'mode.md'),
+      path.join(tmp, 'cuts', 'test-cut', 'cut.md'),
       `---
-name: test-mode
+name: test-cut
 version: 1.0.0
-type: mode
+type: cut
 description: t
 targets: [claude-code]
 categories: [tooling]
 ---
 
-You are in test mode.
+You are in test cut.
 `,
     );
     const result = await discoverComponents(tmp);
-    expect(result.find((c) => c.manifest.type === 'mode' && c.manifest.name === 'test-mode')).toBeDefined();
+    expect(result.find((c) => c.manifest.type === 'cut' && c.manifest.name === 'test-cut')).toBeDefined();
   });
 });

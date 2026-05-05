@@ -51,7 +51,7 @@ describe('runCurrent', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: 'backend', mode: 'focused', accessories: ['axiom'] },
+      resolution: { outfit: 'backend', cut: 'focused', accessories: ['axiom'] },
       files: [
         { path: filePath, sha256: sha256OfBuffer(body), sourceComponent: 'skills/foo' },
       ],
@@ -63,7 +63,7 @@ describe('runCurrent', () => {
     expect(code).toBe(0);
     const out = cap.out.join('');
     expect(out).toMatch(/outfit:\s+backend/);
-    expect(out).toMatch(/mode:\s+focused/);
+    expect(out).toMatch(/cut:\s+focused/);
     expect(out).toMatch(/axiom/);
     expect(out).toMatch(/2026-05-04T19:06:54Z/);
     expect(out).toMatch(/files:\s+1/);
@@ -80,7 +80,7 @@ describe('runCurrent', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [
         { path: filePath, sha256: sha256OfBuffer(original), sourceComponent: 'rules/x' },
       ],
@@ -104,7 +104,7 @@ describe('runCurrent', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [
         { path: filePath, sha256: 'a'.repeat(64), sourceComponent: 'rules/x' },
       ],
@@ -130,7 +130,7 @@ describe('runCurrent', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files,
     };
     await writeLockfile(proj, lock);

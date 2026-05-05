@@ -31,7 +31,7 @@ const sampleLock: Lockfile = {
   appliedAt: '2026-05-04T19:06:54Z',
   resolution: {
     outfit: 'backend',
-    mode: 'focused',
+    cut: 'focused',
     accessories: ['axiom', 'linear'],
   },
   files: [
@@ -70,7 +70,7 @@ describe('writeLockfile / readLockfile', () => {
     await writeLockfile(proj, sampleLock);
     const updated: Lockfile = {
       ...sampleLock,
-      resolution: { outfit: 'frontend', mode: null, accessories: [] },
+      resolution: { outfit: 'frontend', cut: null, accessories: [] },
       files: [],
     };
     await writeLockfile(proj, updated);
@@ -101,7 +101,7 @@ describe('readLockfile', () => {
     await fs.mkdir(path.join(proj, '.suit'), { recursive: true });
     await fs.writeFile(path.join(proj, LOCKFILE_PATH), JSON.stringify({
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: null, mode: null, accessories: [] },
+      resolution: { outfit: null, cut: null, accessories: [] },
       files: [],
     }));
     await expect(readLockfile(proj)).rejects.toThrow(/schema validation failed/);
@@ -113,7 +113,7 @@ describe('readLockfile', () => {
     await fs.writeFile(path.join(proj, LOCKFILE_PATH), JSON.stringify({
       schemaVersion: 2,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: null, mode: null, accessories: [] },
+      resolution: { outfit: null, cut: null, accessories: [] },
       files: [],
     }));
     await expect(readLockfile(proj)).rejects.toThrow(/schema validation failed/);
@@ -125,7 +125,7 @@ describe('readLockfile', () => {
     await fs.writeFile(path.join(proj, LOCKFILE_PATH), JSON.stringify({
       schemaVersion: 1,
       appliedAt: '2026-05-04T19:06:54Z',
-      resolution: { outfit: null, mode: null, accessories: [] },
+      resolution: { outfit: null, cut: null, accessories: [] },
       files: [{ path: 'a', sha256: 'too-short', sourceComponent: 'x' }],
     }));
     await expect(readLockfile(proj)).rejects.toThrow(/schema validation failed/);

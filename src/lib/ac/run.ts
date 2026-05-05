@@ -3,7 +3,7 @@ import { runAcSession, type AcSessionDeps } from './session.js';
 export interface ParsedAcArgs {
   harness: string;
   outfit?: string;
-  mode?: string;
+  cut?: string;
   /**
    * Names of accessories the user passed via repeated `--accessory <name>`
    * flags. Always present (default empty array) so callers can iterate without
@@ -46,12 +46,12 @@ export function parseAcArgs(argv: string[]): ParsedAcArgs {
       i += 2;
       continue;
     }
-    if (tok === '--mode') {
+    if (tok === '--cut') {
       const v = argv[i + 1];
       if (v === undefined || v.startsWith('--')) {
-        throw new Error('ac: --mode requires a value');
+        throw new Error('ac: --cut requires a value');
       }
-      out.mode = v;
+      out.cut = v;
       i += 2;
       continue;
     }

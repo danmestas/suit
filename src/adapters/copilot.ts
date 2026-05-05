@@ -23,9 +23,9 @@ export const copilotAdapter: Adapter = {
             `(see compatibility matrix in spec). Remove "copilot" from the component's targets.`,
         );
       case 'outfit':
-      case 'mode':
+      case 'cut':
       case 'accessory':
-        // Outfits, modes, and accessories are harness-agnostic, consumed by
+        // Outfits, cuts, and accessories are harness-agnostic, consumed by
         // `ac` at resolution time. Not emitted per-target. See spec §5.2.
         return [];
       default:

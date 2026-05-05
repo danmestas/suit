@@ -5,7 +5,7 @@
  *
  * Numbered-list rendering and parseChoice logic live behind closure scope
  * inside picker.ts; we test them indirectly via the empty-wardrobe rejection
- * path which exercises module loading + listAllOutfits/Modes/Accessories.
+ * path which exercises module loading + listAllOutfits/Cuts/Accessories.
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs/promises';

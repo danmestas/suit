@@ -23,10 +23,10 @@ export async function runInit(args: RunInitArgs, deps: RunInitDeps): Promise<num
   deps.stdout(`${result.message}\n`);
 
   const hasOutfits = existsSync(path.join(args.contentDir, 'outfits'));
-  const hasModes = existsSync(path.join(args.contentDir, 'modes'));
-  if (!hasOutfits && !hasModes) {
+  const hasCuts = existsSync(path.join(args.contentDir, 'cuts'));
+  if (!hasOutfits && !hasCuts) {
     deps.stderr(
-      `Warning: cloned content has no outfits/ or modes/ directories. ` +
+      `Warning: cloned content has no outfits/ or cuts/ directories. ` +
         `This may not be a suit content repo.\n`,
     );
   }

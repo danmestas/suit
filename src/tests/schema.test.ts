@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ManifestSchema, OutfitSchema, ModeSchema, AccessorySchema } from '../lib/schema.ts';
+import { ManifestSchema, OutfitSchema, CutSchema, AccessorySchema } from '../lib/schema.ts';
 
 describe('ManifestSchema', () => {
   it('accepts a minimal valid skill manifest', () => {
@@ -129,11 +129,11 @@ describe('ManifestSchema', () => {
       targets: ['claude-code' as const],
       categories: [],
     };
-    const baseMode = {
+    const baseCut = {
       name: 'm',
       version: '1.0.0',
       description: 'd',
-      type: 'mode' as const,
+      type: 'cut' as const,
       targets: ['claude-code' as const],
       categories: [],
     };
@@ -167,9 +167,9 @@ describe('ManifestSchema', () => {
       }
     });
 
-    it('mode parses with enable/disable blocks', () => {
-      const r = ModeSchema.safeParse({
-        ...baseMode,
+    it('cut parses with enable/disable blocks', () => {
+      const r = CutSchema.safeParse({
+        ...baseCut,
         disable: { plugins: ['noisy-plugin'], mcps: [], hooks: [] },
       });
       expect(r.success).toBe(true);

@@ -4,7 +4,7 @@ A task-oriented walkthrough of `suit`. The [README](../README.md) has install + 
 
 ## 1. Overview
 
-`suit` is a CLI that filters and composes harness configs (Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, Pi) using YAML-frontmatter outfit files, mode files, and skills. The CLI ships separately from the content it reads: you install `@agent-ops/suit` once, point it at a content repo (clone the canonical [`suit-template`](https://github.com/danmestas/suit-template) or fork your own), then launch any harness through `suit <harness>` to apply the outfit and mode you want for that session.
+`suit` is a CLI that filters and composes harness configs (Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, Pi) using YAML-frontmatter outfit files, cut files, and skills. The CLI ships separately from the content it reads: you install `@agent-ops/suit` once, point it at a content repo (clone the canonical [`suit-template`](https://github.com/danmestas/suit-template) or fork your own), then launch any harness through `suit <harness>` to apply the outfit and cut you want for that session.
 
 The mental model is:
 
@@ -62,16 +62,16 @@ If a harness shows missing, install that harness's CLI separately. `suit` doesn'
 The full surface (from `suit --help`):
 
 ```text
-suit <harness> [--outfit X] [--mode Y] [--accessory A]... [--no-filter] [-- <harness args>]
-suit up        --outfit X [--mode Y] [--accessory A]... [--force]
+suit <harness> [--outfit X] [--cut Y] [--accessory A]... [--no-filter] [-- <harness args>]
+suit up        --outfit X [--cut Y] [--accessory A]... [--force]
 suit off       [--force]
 suit current
 suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
 suit sync
 suit status
 suit doctor
-suit list <outfits|modes|accessories>
-suit show <outfit|mode|accessory> <name>
+suit list <outfits|cuts|accessories>
+suit show <outfit|cut|accessory> <name>
 ```
 
 `suit` has **two modes of working** (v0.5+):
@@ -79,7 +79,7 @@ suit show <outfit|mode|accessory> <name>
 - **`suit up` / `suit off` — project-state mutator** (the standard daily-driver flow). `suit up` writes resolved components into the project's `.claude/`, `.codex/`, `.pi/` etc. directly, backed by `.suit/lock.json`. Native invocations of `claude`, `codex`, `pi` from inside the dressed project pick up the suit automatically — no wrapper needed. Right for "wear this for the next few hours of work in this project."
 - **`suit <harness>` — stateless launcher**. Spawns the harness binary against an ephemeral prelaunch tempdir, deletes the tempdir on exit. Right for "try this outfit for one query without dressing the project."
 
-Both modes use the same outfit/mode/accessory composition model. The mutator is the default — reach for the launcher when you specifically want one-off behavior.
+Both modes of working use the same outfit/cut/accessory composition model. The mutator is the default — reach for the launcher when you specifically want one-off behavior.
 
 ### 3.1 `suit up` — dress the project (the standard flow)
 
@@ -87,7 +87,7 @@ Writes the resolved components directly into the project's harness directories (
 
 ```bash
 cd ~/projects/foo
-suit up --outfit backend --mode focused
+suit up --outfit backend --cut focused
 suit up --outfit frontend --accessory tracing --accessory pr-policy
 suit up                          # interactive picker on a TTY
 ```
@@ -95,7 +95,7 @@ suit up                          # interactive picker on a TTY
 | Flag | Meaning |
 |---|---|
 | `--outfit <name>` | Required (or use the interactive picker on a TTY). |
-| `--mode <name>` | Optional. |
+| `--cut <name>` | Optional. |
 | `--accessory <name>` | Optional, repeatable. Each occurrence layers another small bundle. |
 | `--force` | Override the refuse-when-dirty checks (see below). |
 
@@ -105,7 +105,7 @@ suit up                          # interactive picker on a TTY
 - If a target file IS tracked but its current sha256 doesn't match what was recorded → refuse (file was hand-edited since suit applied it). `--force` overwrites.
 - If `.suit/lock.json` already records a different resolution than the new flags → refuse with `project already dressed: <prior>. Run \`suit off\` first, or pass --force to switch.`
 
-**Interactive picker** (TTY only): if `--outfit` is missing on a TTY, `suit up` prompts you to pick from the available outfits / modes / accessories — numbered list per primitive, blank input skips the optional sections, comma-separated multi-select for accessories.
+**Interactive picker** (TTY only): if `--outfit` is missing on a TTY, `suit up` prompts you to pick from the available outfits / cuts / accessories — numbered list per primitive, blank input skips the optional sections, comma-separated multi-select for accessories.
 
 JSON fragment files emitted by multiple components (e.g. `.claude/settings.fragment.json` from each hook) are deep-merged so all contributions land in one file. Markdown emits don't merge — they're already composed at the adapter layer.
 
@@ -129,7 +129,7 @@ Read-only. Reports what's currently applied: resolution, applied-at timestamp, f
 ```bash
 $ suit current
 outfit:       backend
-mode:         focused
+cut:          focused
 accessories:  []
 applied at:   2026-05-04T20:28:43.840Z
 files:        54
@@ -146,19 +146,19 @@ lockfile:     /Users/foo/projects/bar/.suit/lock.json
 Wraps a single harness invocation against an ephemeral prelaunch tempdir, then cleans up on exit. Use when you specifically *don't* want to dress the project — for example, to try an outfit for one query, or to run a harness with `--no-filter` while a project is suited up.
 
 ```bash
-suit claude --outfit backend --mode focused -- --print "say hi"
+suit claude --outfit backend --cut focused -- --print "say hi"
 suit codex  --outfit backend --accessory tracing -- exec --skip-git-repo-check "say hi"
-suit gemini --outfit personal --mode focused
-suit claude --no-filter      # no outfit/mode/accessory applied for this one session
+suit gemini --outfit personal --cut focused
+suit claude --no-filter      # no outfit/cut/accessory applied for this one session
 ```
 
 | Element | Meaning |
 |---|---|
 | `<harness>` | One of `claude-code`, `codex`, `gemini`, `copilot`, `apm`, `pi`. (`claude` is an accepted shorthand for `claude-code`.) |
 | `--outfit <name>` | Apply the named outfit. Skills are filtered by its `categories`, `skill_include`, `skill_exclude`. |
-| `--mode <name>` | Apply the named mode. The mode's body is injected as additional context. |
+| `--cut <name>` | Apply the named cut. The cut's body is injected as additional context. |
 | `--accessory <name>` | Apply the named accessory as a piecemeal overlay. **Repeatable.** |
-| `--no-filter` | Skip outfit, mode, and accessory loading. |
+| `--no-filter` | Skip outfit, cut, and accessory loading. |
 | `--verbose` | Extra logging from `suit`'s prelaunch step. |
 | `-- <args>` | Everything after `--` is passed verbatim to the harness binary. |
 
@@ -177,9 +177,9 @@ Exit codes:
 
 > **When in doubt, use `suit up`.** The launcher exists for situations where you specifically need ephemeral, single-invocation behavior — debugging an outfit, running a one-off query without changing project state, or temporarily bypassing filtering with `--no-filter`. Most day-to-day work belongs in `suit up`.
 
-### 3.5 `suit list <outfits|modes|accessories>`
+### 3.5 `suit list <outfits|cuts|accessories>`
 
-Lists every outfit, mode, or accessory discovered across the 3 tiers. The output is `name version [tier] description`:
+Lists every outfit, cut, or accessory discovered across the 3 tiers. The output is `name version [tier] description`:
 
 ```bash
 $ suit list outfits
@@ -195,7 +195,7 @@ tracing       v1.0.0    [builtin]  Add OpenTelemetry tracing context
 
 The `[tier]` column is `project` / `user` / `builtin` — useful for confirming an overlay actually wins. When no accessories exist anywhere, the command prints `(no accessories found)`.
 
-### 3.6 `suit show <outfit|mode|accessory> <name>`
+### 3.6 `suit show <outfit|cut|accessory> <name>`
 
 Pretty-prints the resolved manifest plus body. Resolution honors the 3-tier chain (project beats user beats builtin):
 
@@ -211,13 +211,13 @@ skill_include: idiomatic-go
 skill_exclude: datastar-tao, datastar-patterns, datastar
 ```
 
-For modes, `suit show mode <name>` also prints the prompt body that gets injected. If the mode declares a structured `include:` block (Phase 3 feature — see §4.2 below), that block is printed above the body the same way it is for accessories:
+For cuts, `suit show cut <name>` also prints the prompt body that gets injected. If the cut declares a structured `include:` block (see §4.2 below), that block is printed above the body the same way it is for accessories:
 
 ```bash
-$ suit show mode ticket-writing
+$ suit show cut ticket-writing
 name: ticket-writing
 version: 1.0.0
-source: builtin (/Users/you/.local/share/suit/content/modes/ticket-writing/mode.md)
+source: builtin (/Users/you/.local/share/suit/content/cuts/ticket-writing/cut.md)
 description: Ticket writing focus — strict scope, single bullet per ticket
 targets: claude-code
 categories: workflow
@@ -230,11 +230,11 @@ include:
   agents:
   commands:
 
---- mode prompt body (injected as additional context when active) ---
+--- cut prompt body (injected as additional context when active) ---
 You are writing tickets...
 ```
 
-Body-only modes (the default v0.3 shape) omit the `include:` section entirely — their `show` output is unchanged.
+Body-only cuts (the v0.3-era shape) omit the `include:` section entirely — their `show` output is unchanged.
 
 For accessories, `suit show accessory <name>` prints the same header plus the `include:` block:
 
@@ -312,9 +312,9 @@ suit init --force https://github.com/your-org/your-config # blow away existing
 
 Exit codes: 0 on success, 1 on git failure, 2 on missing URL with no `templateUrl` configured.
 
-After clone, `suit init` warns (but does not fail) if the cloned repo has neither `outfits/` nor `modes/` — that probably means you pointed at the wrong repo.
+After clone, `suit init` warns (but does not fail) if the cloned repo has neither `outfits/` nor `cuts/` — that probably means you pointed at the wrong repo.
 
-## 4. Outfits, modes, and skills
+## 4. Outfits, cuts, and skills
 
 These are the three composable units `suit` operates on. All three are markdown files with YAML frontmatter.
 
@@ -350,15 +350,15 @@ System prompt body that frames the outfit's role.
 
 The body (after the frontmatter `---`) becomes additional context injected at session start.
 
-### 4.2 Mode
+### 4.2 Cut
 
-A mode is a smaller, swappable prompt overlay — typically a working stance like "focused" or "design":
+A cut is a smaller, swappable prompt overlay — typically a working stance like "focused" or "design":
 
 ```yaml
 ---
 name: focused
 version: 1.0.0
-type: mode
+type: cut
 description: Single-task deep focus, no scope creep
 targets: [claude-code, apm, gemini, codex, copilot, pi]
 categories: [tooling]
@@ -366,18 +366,18 @@ skill_include: []
 skill_exclude: []
 ---
 
-Body: a few hundred words framing the mode. Capped at 4096 bytes.
+Body: a few hundred words framing the cut. Capped at 4096 bytes.
 ```
 
-Modes compose with outfits: `--outfit backend --mode focused` applies both.
+Cuts compose with outfits: `--outfit backend --cut focused` applies both.
 
-**Optional `include:` block (Phase 3).** A mode can also carry a structured `include:` block — same shape as an accessory's — to bundle a small named set of components alongside its prompt overlay. This is useful for modes whose stance only makes sense when a specific skill/hook/rule is in scope (e.g., a `ticket-writing` mode that wants `linear-method` force-included even if the outfit's category filter would normally drop it):
+**Optional `include:` block.** A cut can also carry a structured `include:` block — same shape as an accessory's — to bundle a small named set of components alongside its prompt overlay. This is useful for cuts whose stance only makes sense when a specific skill/hook/rule is in scope (e.g., a `ticket-writing` cut that wants `linear-method` force-included even if the outfit's category filter would normally drop it):
 
 ```yaml
 ---
 name: ticket-writing
 version: 1.0.0
-type: mode
+type: cut
 description: Ticket writing focus
 targets: [claude-code]
 categories: [workflow]
@@ -389,13 +389,13 @@ include:
 Body framing the ticket-writing stance.
 ```
 
-Each name in `include.skills`, `include.rules`, `include.hooks`, and `include.agents` is validated against the discovered catalog at resolve time — a missing reference fails the launch with `mode "<name>" includes <kind> "<ref>" not found in wardrobe`. Body-only modes (no `include:` key) continue to work unchanged: every sub-array defaults to `[]` and the resolver's force-include phase becomes a no-op for that mode.
+Each name in `include.skills`, `include.rules`, `include.hooks`, and `include.agents` is validated against the discovered catalog at resolve time — a missing reference fails the launch with `cut "<name>" includes <kind> "<ref>" not found in wardrobe`. Body-only cuts (no `include:` key) continue to work unchanged: every sub-array defaults to `[]` and the resolver's force-include phase becomes a no-op for that cut.
 
-When both an outfit-level filter and a mode `include:` agree on a skill, the mode's force-include wins (just like accessory force-includes override the outfit's category-based drops).
+When both an outfit-level filter and a cut `include:` agree on a skill, the cut's force-include wins (just like accessory force-includes override the outfit's category-based drops).
 
 ### 4.3 Accessory
 
-An **accessory** is a piecemeal overlay layered after outfit + mode at invocation time. Where an outfit defines a complete role and a mode flavors the workflow, an accessory adds (typically) a single extra component or a small named bundle. Pass `--accessory <name>` once per accessory you want layered in, in any order — accessories compose left-to-right after the outfit's category-based filtering.
+An **accessory** is a piecemeal overlay layered after outfit + cut at invocation time. Where an outfit defines a complete role and a cut flavors the workflow, an accessory adds (typically) a single extra component or a small named bundle. Pass `--accessory <name>` once per accessory you want layered in, in any order — accessories compose left-to-right after the outfit's category-based filtering.
 
 Frontmatter shape:
 
@@ -438,7 +438,7 @@ accessory "tracing" includes hook "trace" not found in wardrobe
 
 This catches typos at prelaunch instead of letting the session start with a silently-dropped component. Accessories cannot reference unknown components.
 
-**Composition order.** The resolver applies outfit → mode → each accessory in CLI order. Force-includes layer in the same order: mode's `include:` (if present) runs first, then each accessory's `include:`. Both override the outfit's category-based drops — a skill the outfit would normally filter out is brought back in if any active mode include or accessory include names it. Force-include is set-deletion, so when both a mode and an accessory list the same skill the resulting kept-set is identical regardless of order.
+**Composition order.** The resolver applies outfit → cut → each accessory in CLI order. Force-includes layer in the same order: cut's `include:` (if present) runs first, then each accessory's `include:`. Both override the outfit's category-based drops — a skill the outfit would normally filter out is brought back in if any active cut include or accessory include names it. Force-include is set-deletion, so when both a cut and an accessory list the same skill the resulting kept-set is identical regardless of order.
 
 ### 4.4 Skill
 
@@ -465,14 +465,14 @@ Skill resolution per session:
 4. Force-drop anything in `skill_exclude`.
 5. Mirror the kept set into the session tempdir.
 
-### 4.5 What `suit claude --outfit X --mode Y` actually does
+### 4.5 What `suit claude --outfit X --cut Y` actually does
 
 Step by step:
 
 1. Resolve `X` and `Y` against the 3-tier chain (project → user → builtin).
 2. Load the harness's catalog of skills from `~/.<harness>/skills/`.
 3. Filter by the outfit's categories, then apply `skill_include` / `skill_exclude`.
-4. Build a tempdir mirror of `~/.<harness>/` containing only the kept skills, plus an injected prompt assembled from outfit body + mode body.
+4. Build a tempdir mirror of `~/.<harness>/` containing only the kept skills, plus an injected prompt assembled from outfit body + cut body.
 5. For Codex and Copilot, also generate `AGENTS.md` (or `copilot-instructions.md`) from the same resolution into the tempdir, since those harnesses read project-root files instead of skills.
 6. Spawn the harness binary with `HOME` (or `cwd`) overridden to the tempdir.
 
@@ -480,12 +480,12 @@ Your real `~/.<harness>/` is never modified. See ADR-0002 for the two-binary spl
 
 ## 5. Content sources and resolution order
 
-Outfits, modes, accessories, and skills are looked up across three tiers, highest priority first:
+Outfits, cuts, accessories, and skills are looked up across three tiers, highest priority first:
 
 | Priority | Tier | Path |
 |---|---|---|
-| 1 | Project overlay | `<cwd>/.suit/outfits/<name>.md` (and `modes/`, `accessories/`, `skills/`) |
-| 2 | User overlay | `~/.config/suit/outfits/<name>.md` (and `modes/`, `accessories/`, `skills/`) |
+| 1 | Project overlay | `<cwd>/.suit/outfits/<name>.md` (and `cuts/`, `accessories/`, `skills/`) |
+| 2 | User overlay | `~/.config/suit/outfits/<name>.md` (and `cuts/`, `accessories/`, `skills/`) |
 | 3 | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or `<name>.md` for non-builtin tiers; `accessories/<name>/accessory.md` likewise) |
 
 Note the slight shape difference: builtin uses a `<name>/outfit.md` directory layout, while the overlay tiers accept a flat `<name>.md`. Both work — `suit list` shows whichever tier found it.
@@ -539,7 +539,7 @@ Choose a tier first:
 
 | Goal | Tier | Path |
 |---|---|---|
-| Sharable outfit/mode/skill maintained in version control | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or in the source repo and pulled via `suit sync`) |
+| Sharable outfit/cut/skill maintained in version control | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or in the source repo and pulled via `suit sync`) |
 | Personal override across all repos | User | `~/.config/suit/outfits/<name>.md` |
 | Repo-specific override | Project | `<repo>/.suit/outfits/<name>.md` |
 
@@ -550,7 +550,7 @@ The canonical `suit-template` (and forks of it) ships slash commands under `.cla
 | Command | What it does |
 |---|---|
 | `/new-outfit` | Interactively author a new outfit file |
-| `/new-mode` | Interactively author a new mode file |
+| `/new-cut` | Interactively author a new cut file |
 | `/new-skill` | Interactively author a new skill file |
 | `/new-plugin` | Author a multi-file plugin bundle |
 
@@ -627,7 +627,7 @@ Forks of `suit` itself (not content forks — tool forks) point this at their ow
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `outfit "X" not found` | Typo, or outfit lives in a tier `suit` isn't reading | `suit list outfits` shows what's discoverable; check `[tier]` column |
-| `mode "Y" not found` | Same | `suit list modes` |
+| `cut "Y" not found` | Same | `suit list cuts` |
 | `suit init` says "already exists" | Content dir already populated | `suit sync` to update, or `suit init --force <url>` to overwrite |
 | `suit sync` errors with "uncommitted changes" | Working tree dirty in content dir | `cd ~/.local/share/suit/content && git status`, then stash or commit |
 | `suit sync` errors with "not a git repo" | Content dir isn't from `suit init`, or `.git/` was deleted | `suit init --force <url>` to re-clone |
@@ -653,12 +653,12 @@ If `suit status` looks healthy but a launch silently fails, re-run with `--verbo
 | `suit status` | Show version, content, harness presence | `suit status` (or bare `suit`) |
 | `suit doctor` | Verify each harness binary on PATH | `suit doctor` |
 | `suit list outfits` | List discoverable outfits | `suit list outfits` |
-| `suit list modes` | List discoverable modes | `suit list modes` |
+| `suit list cuts` | List discoverable cuts | `suit list cuts` |
 | `suit list accessories` | List discoverable accessories | `suit list accessories` |
 | `suit show outfit <name>` | Print resolved outfit | `suit show outfit backend` |
-| `suit show mode <name>` | Print resolved mode + body | `suit show mode focused` |
+| `suit show cut <name>` | Print resolved cut + body | `suit show cut focused` |
 | `suit show accessory <name>` | Print resolved accessory + include block | `suit show accessory tracing` |
-| `suit <harness>` | Launch with outfit/mode/accessory | `suit claude --outfit backend --mode focused --accessory tracing` |
+| `suit <harness>` | Launch with outfit/cut/accessory | `suit claude --outfit backend --cut focused --accessory tracing` |
 | `suit <harness> --no-filter` | Launch without filtering | `suit claude --no-filter` |
 | `suit <harness> -- <args>` | Pass-through to harness | `suit codex --outfit frontend -- --resume sess-123` |
 

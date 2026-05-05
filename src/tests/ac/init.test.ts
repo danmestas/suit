@@ -68,7 +68,7 @@ describe('runInit', () => {
     expect(existsSync(path.join(target, 'old'))).toBe(false);
   });
 
-  it('warns (does not error) when cloned content lacks outfits/ and modes/', async () => {
+  it('warns (does not error) when cloned content lacks outfits/ and cuts/', async () => {
     const empty = path.join(tmp, 'empty');
     mkdirSync(empty);
     execSync('git init -q', { cwd: empty });
@@ -82,6 +82,6 @@ describe('runInit', () => {
       { stdout: (s) => logs.push(s), stderr: (s) => errs.push(s) },
     );
     expect(code).toBe(0);
-    expect(errs.join('')).toMatch(/outfits|modes/i);
+    expect(errs.join('')).toMatch(/outfits|cuts/i);
   });
 });

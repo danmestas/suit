@@ -33,9 +33,9 @@ export const codexAdapter: Adapter = {
       case 'mcp':
         return emitMcp(component, ctx);
       case 'outfit':
-      case 'mode':
+      case 'cut':
       case 'accessory':
-        // Outfits, modes, and accessories are harness-agnostic, consumed by
+        // Outfits, cuts, and accessories are harness-agnostic, consumed by
         // `ac` at resolution time. Not emitted per-target. See spec §5.2.
         return [];
       // plugin is schema-rejected for codex (see Plan 1's validate.ts).
