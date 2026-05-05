@@ -84,23 +84,81 @@ export async function composeHarnessHome(opts: ComposeOptions): Promise<ComposeR
     await fs.symlink(src, dest);
   }
 
-  // Build filtered plugins/ dir when pluginsKeep is provided. Always create
-  // the directory (even when the kept-set is empty) so Claude Code sees an
-  // explicit empty plugins dir rather than nothing — that's the "disable
-  // everything" intent.
+  // Build filtered plugins/ dir when pluginsKeep is provided. Claude Code's
+  // real layout under `~/.claude/plugins/` is `cache/<marketplace>/<plugin>/<version>/`
+  // plus a flat `installed_plugins.json` manifest that tells Claude Code which
+  // plugins to actually load. Filtering = rewriting the manifest, not shuffling
+  // plugin code directories. Disabled plugins keep their files on disk (in cache/)
+  // but Claude Code won't load them because they're absent from the rewritten
+  // manifest.
+  //
+  // Layout: tempdir/.claude/plugins/ is a real dir; every child of the real
+  // plugins/ is symlinked through EXCEPT `installed_plugins.json`, which is
+  // replaced with a filtered real file. Empty `pluginsKeep` = empty manifest =
+  // "disable everything."
   if (filterPlugins) {
     const tempPluginsDir = path.join(tempHarnessDir, PLUGINS_SUB);
     await fs.mkdir(tempPluginsDir, { recursive: true });
     const realPluginsDir = path.join(realHarnessDir, PLUGINS_SUB);
-    for (const pluginName of opts.pluginsKeep ?? []) {
-      const src = path.join(realPluginsDir, pluginName);
-      const dest = path.join(tempPluginsDir, pluginName);
+    const PLUGIN_MANIFEST = 'installed_plugins.json';
+
+    let pluginEntries: string[] = [];
+    try {
+      pluginEntries = await fs.readdir(realPluginsDir);
+    } catch {
+      // Real plugins/ dir doesn't exist — leave tempdir/.claude/plugins/ empty.
+    }
+    for (const entry of pluginEntries) {
+      if (entry === PLUGIN_MANIFEST) continue;
+      const src = path.join(realPluginsDir, entry);
+      const dest = path.join(tempPluginsDir, entry);
       try {
-        await fs.access(src);
         await fs.symlink(src, dest);
       } catch {
-        // Plugin in keep list isn't installed in user's home — skip silently;
-        // the resolver's `unresolved` metadata is the surface for that.
+        // best-effort
+      }
+    }
+
+    // Rewrite installed_plugins.json filtered to entries whose bare-name (the
+    // part before "@") is in pluginsKeep. Multiple installs (user + project
+    // scope) under one composite key are kept together — Claude Code already
+    // distinguishes scope per-entry. If the registry's pluginsKeep used a
+    // marketplace-disambiguated name (e.g. "superpowers-claude-plugins-official"),
+    // also match against "<bare>-<marketplace>".
+    const realManifest = path.join(realPluginsDir, PLUGIN_MANIFEST);
+    const destManifest = path.join(tempPluginsDir, PLUGIN_MANIFEST);
+    let raw: string | null = null;
+    try {
+      raw = await fs.readFile(realManifest, 'utf8');
+    } catch {
+      // No manifest → nothing to filter; the empty plugins dir we built above
+      // serves as "no plugins active."
+    }
+    if (raw !== null) {
+      let parsed: { version?: number; plugins?: Record<string, unknown> } | null = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Malformed manifest → symlink the original through and let Claude Code
+        // surface the parse error.
+        try {
+          await fs.symlink(realManifest, destManifest);
+        } catch { /* best-effort */ }
+      }
+      if (parsed !== null) {
+        const keepSet = new Set(opts.pluginsKeep ?? []);
+        const sourcePlugins = parsed.plugins;
+        if (sourcePlugins && typeof sourcePlugins === 'object') {
+          const filtered: Record<string, unknown> = {};
+          for (const [key, val] of Object.entries(sourcePlugins)) {
+            const bare = key.split('@')[0]!;
+            const marketplace = key.includes('@') ? key.split('@')[1]! : '';
+            const disambig = marketplace ? `${bare}-${marketplace}` : bare;
+            if (keepSet.has(bare) || keepSet.has(disambig)) filtered[key] = val;
+          }
+          parsed.plugins = filtered;
+        }
+        await fs.writeFile(destManifest, JSON.stringify(parsed, null, 2));
       }
     }
   }
