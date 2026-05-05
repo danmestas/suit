@@ -117,6 +117,40 @@ describe('composeCodexHome', () => {
     expect(parsed.plugins['p2@market-a'].enabled).toBe(false);
   });
 
+  it('pluginsKeep matches cross-harness `<bare>-codex` disambiguation', async () => {
+    // sync-globals' collision rule: when a plugin name collides across
+    // harnesses (e.g. claude-code AND codex both have `superpowers`), the
+    // codex-side entry is recorded with a `-codex` suffix in the registry.
+    // The codex compose must reverse that suffix when matching back to
+    // config.toml's bare name.
+    const real = await makeFakeCodexHome();
+    const r = await composeCodexHome({
+      realCodexHome: real,
+      skillsKeep: [],
+      pluginsKeep: ['p1-codex'], // codex-suffix form (registry's collision name)
+    });
+    const parsed = TOML.parse(
+      await fs.readFile(path.join(r.tempCodexHome, 'config.toml'), 'utf8'),
+    ) as any;
+    expect(parsed.plugins['p1@market-a'].enabled).toBe(true);
+    expect(parsed.plugins['p2@market-a'].enabled).toBe(false);
+  });
+
+  it('mcpsKeep matches cross-harness `<id>-codex` disambiguation', async () => {
+    const real = await makeFakeCodexHome();
+    const r = await composeCodexHome({
+      realCodexHome: real,
+      skillsKeep: [],
+      mcpsKeep: ['keep1-codex', 'keep2-codex'], // codex-suffix form
+    });
+    const parsed = TOML.parse(
+      await fs.readFile(path.join(r.tempCodexHome, 'config.toml'), 'utf8'),
+    ) as any;
+    expect(parsed.mcp_servers.keep1.enabled).toBeUndefined();
+    expect(parsed.mcp_servers.keep2.enabled).toBeUndefined();
+    expect(parsed.mcp_servers.drop1.enabled).toBe(false);
+  });
+
   it('mcpsKeep flips enabled=false on non-kept mcp_servers blocks', async () => {
     const real = await makeFakeCodexHome();
     const r = await composeCodexHome({

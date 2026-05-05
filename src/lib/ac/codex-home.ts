@@ -148,8 +148,17 @@ async function rewriteConfigToml(
         const at = composite.lastIndexOf('@');
         const bare = at > 0 ? composite.slice(0, at) : composite;
         const marketplace = at > 0 && at < composite.length - 1 ? composite.slice(at + 1) : '';
-        const disambig = marketplace ? `${bare}-${marketplace}` : bare;
-        const isKept = keep.has(bare) || keep.has(disambig);
+        // Three valid registry forms can identify this codex-side entry:
+        //   1. bare name              ("github" — codex-only, no collision)
+        //   2. marketplace-disambig   ("github-openai-curated" — when a single
+        //      harness has the same name in two marketplaces)
+        //   3. cross-harness-disambig ("superpowers-codex" — when claude-code
+        //      has the same bare name and won the registry's bare slot, per
+        //      sync-globals' collision rule)
+        // The pluginsKeep set may contain any of those forms; check all three.
+        const mktDisambig = marketplace ? `${bare}-${marketplace}` : bare;
+        const codexDisambig = `${bare}-codex`;
+        const isKept = keep.has(bare) || keep.has(mktDisambig) || keep.has(codexDisambig);
         if (!isKept) {
           (val as Record<string, unknown>).enabled = false;
         }
@@ -165,7 +174,11 @@ async function rewriteConfigToml(
     if (mcpsBlock && typeof mcpsBlock === 'object' && !Array.isArray(mcpsBlock)) {
       for (const [id, val] of Object.entries(mcpsBlock as Record<string, unknown>)) {
         if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
-        if (!keep.has(id)) {
+        // MCP names in the codex-side registry get a `-codex` suffix when they
+        // collide with a claude-code MCP (e.g. axiom-codex). The config.toml
+        // key is always the bare id. Check both forms.
+        const isKept = keep.has(id) || keep.has(`${id}-codex`);
+        if (!isKept) {
           (val as Record<string, unknown>).enabled = false;
         }
       }
