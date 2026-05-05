@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import YAML from 'yaml';
+import TOML from '@iarna/toml';
 import {
   GlobalsRegistrySchema,
   type GlobalsRegistry,
@@ -17,6 +18,12 @@ export interface SyncGlobalsOptions {
   hostname?: string;
   /** Override timestamp (used by tests). Defaults to new Date().toISOString(). */
   now?: string;
+  /**
+   * Override `$CODEX_HOME` (used by tests). Defaults to `process.env.CODEX_HOME`
+   * if set, else `<home>/.codex`. Codex uses CODEX_HOME (not HOME) to locate
+   * its config — mirror that here so a test can point sync at a fixture.
+   */
+  codexHome?: string;
 }
 
 /**
@@ -33,8 +40,19 @@ export async function buildGlobalsSnapshot(
   const hostname = opts.hostname ?? os.hostname();
   const generatedAt = opts.now ?? new Date().toISOString();
 
-  const plugins = await discoverPlugins(home);
-  const mcps = await discoverMcps(home);
+  const codexHome =
+    opts.codexHome ?? process.env.CODEX_HOME ?? path.join(home, '.codex');
+
+  const ccPlugins = await discoverPlugins(home);
+  const ccMcps = await discoverMcps(home);
+  const codex = await discoverCodexFromConfig(codexHome);
+
+  // Merge claude-code + codex registries. On bare-name collisions across
+  // harnesses, the codex entry takes the disambiguated key `<name>-codex` (the
+  // claude-code entry wins the bare-name slot since it's been the dominant
+  // harness since v0.7). Outfit authors can reference either form.
+  const plugins = mergeWithHarnessDisambiguation(ccPlugins, codex.plugins);
+  const mcps = mergeWithHarnessDisambiguation(ccMcps, codex.mcps);
 
   const snapshot: GlobalsRegistry = {
     schemaVersion: 1,
@@ -231,6 +249,162 @@ async function discoverMcps(
 
 function isKebab(s: string): boolean {
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s);
+}
+
+/**
+ * Merge claude-code and codex registries on a per-kind basis.
+ *
+ * Convention: the claude-code entry keeps the bare-name slot. Codex entries
+ * collide with codex entries internally are unlikely (single config file), so
+ * the only collision class is cross-harness. When a codex entry's bare name is
+ * already taken by a claude-code entry, the codex entry is moved to
+ * `<name>-codex`. v0.7 outfits referencing the bare name continue to resolve
+ * against the claude-code entry without modification.
+ */
+function mergeWithHarnessDisambiguation<T extends { harness?: 'claude-code' | 'codex' | undefined }>(
+  cc: Record<string, T>,
+  codex: Record<string, T>,
+): Record<string, T> {
+  const out: Record<string, T> = { ...cc };
+  for (const [name, entry] of Object.entries(codex)) {
+    if (out[name] !== undefined) {
+      const disambig = `${name}-codex`;
+      if (isKebab(disambig)) {
+        out[disambig] = entry;
+      }
+      // If the disambig form isn't kebab — extremely unlikely since both
+      // sources gate on kebab-case — fall through silently.
+      continue;
+    }
+    out[name] = entry;
+  }
+  return out;
+}
+
+interface CodexDiscoveryResult {
+  plugins: Record<string, GlobalsPluginEntry>;
+  mcps: Record<string, GlobalsMcpEntry>;
+}
+
+/**
+ * Read `<codexHome>/config.toml` and extract plugin and MCP entries.
+ *
+ * Codex's config layout (per the running fixture on this machine):
+ *   - `[plugins."<bare>@<marketplace>"]` blocks with an `enabled` boolean.
+ *     Marketplaces themselves live under `[marketplaces.<name>]` and are NOT
+ *     plugins — those are skipped here.
+ *   - `[mcp_servers.<id>]` blocks; either stdio (`command`/`args`/`env_vars`)
+ *     or http (`url`/`http_headers`).
+ *
+ * Discovery records non-secret metadata only: `has_env` / `has_headers`
+ * presence flags, never values. Mirrors the claude-code discoverers.
+ */
+async function discoverCodexFromConfig(codexHome: string): Promise<CodexDiscoveryResult> {
+  const out: CodexDiscoveryResult = { plugins: {}, mcps: {} };
+  const configPath = path.join(codexHome, 'config.toml');
+  let raw: string;
+  try {
+    raw = await fs.readFile(configPath, 'utf8');
+  } catch {
+    return out; // no codex config on this machine
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = TOML.parse(raw) as Record<string, unknown>;
+  } catch {
+    return out; // malformed → empty (matches claude-code's silent-fail style)
+  }
+
+  // Plugins: `parsed.plugins` is a record keyed by `<bare>@<marketplace>`.
+  const pluginsRaw = parsed.plugins;
+  if (pluginsRaw && typeof pluginsRaw === 'object' && !Array.isArray(pluginsRaw)) {
+    type Pick = { bare: string; marketplace: string; entry: Record<string, unknown> };
+    const picks: Pick[] = [];
+    for (const [composite, val] of Object.entries(pluginsRaw as Record<string, unknown>)) {
+      if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+      const at = composite.lastIndexOf('@');
+      if (at <= 0 || at === composite.length - 1) continue; // malformed key
+      const bare = composite.slice(0, at);
+      const marketplace = composite.slice(at + 1);
+      picks.push({ bare, marketplace, entry: val as Record<string, unknown> });
+    }
+    const bareCounts = new Map<string, number>();
+    for (const p of picks) {
+      bareCounts.set(p.bare, (bareCounts.get(p.bare) ?? 0) + 1);
+    }
+    for (const pick of picks) {
+      const collides = (bareCounts.get(pick.bare) ?? 0) > 1;
+      const registryName = collides ? `${pick.bare}-${pick.marketplace}` : pick.bare;
+      if (!isKebab(registryName)) continue;
+      const source: GlobalsPluginEntry['source'] = 'codex-marketplace';
+      const entry: GlobalsPluginEntry = {
+        source,
+        install: `codex plugin install ${pick.bare}`,
+        discover_path: `~/.codex/plugins/cache/${pick.marketplace}/${pick.bare}`,
+        harness: 'codex',
+      };
+      out.plugins[registryName] = entry;
+    }
+  }
+
+  // MCPs: `parsed.mcp_servers` is a record keyed by mcp id.
+  const mcpsRaw = parsed.mcp_servers;
+  if (mcpsRaw && typeof mcpsRaw === 'object' && !Array.isArray(mcpsRaw)) {
+    for (const [name, cfg] of Object.entries(mcpsRaw as Record<string, unknown>)) {
+      if (!isKebab(name)) continue;
+      if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
+      const cfgObj = cfg as Record<string, unknown>;
+      const discover = `~/.codex/config.toml#mcp_servers.${name}`;
+
+      const isHttp =
+        typeof cfgObj.url === 'string' && (cfgObj.url as string).length > 0;
+      if (isHttp) {
+        // codex http MCPs use `http_headers` for the header table and
+        // `bearer_token_env_var` for the auth secret. Both are recorded as
+        // presence-only.
+        const hasHeaders =
+          (typeof cfgObj.http_headers === 'object' &&
+            cfgObj.http_headers !== null &&
+            !Array.isArray(cfgObj.http_headers) &&
+            Object.keys(cfgObj.http_headers as Record<string, unknown>).length > 0) ||
+          typeof cfgObj.bearer_token_env_var === 'string';
+        out.mcps[name] = {
+          source: 'codex-config',
+          type: 'http',
+          url: cfgObj.url as string,
+          has_headers: hasHeaders,
+          discover_path: discover,
+          harness: 'codex',
+        };
+        continue;
+      }
+
+      if (typeof cfgObj.command !== 'string') continue;
+      const args = Array.isArray(cfgObj.args)
+        ? (cfgObj.args.filter((a) => typeof a === 'string') as string[])
+        : undefined;
+      // codex stores env-var declarations under `env_vars` (an array of names
+      // for the host env to forward) or `env` (an inline table). Either is a
+      // signal that the server needs env wiring; record presence only.
+      const hasEnv =
+        (Array.isArray(cfgObj.env_vars) && cfgObj.env_vars.length > 0) ||
+        (typeof cfgObj.env === 'object' &&
+          cfgObj.env !== null &&
+          !Array.isArray(cfgObj.env) &&
+          Object.keys(cfgObj.env as Record<string, unknown>).length > 0);
+      out.mcps[name] = {
+        source: 'codex-config',
+        type: 'stdio',
+        command: cfgObj.command,
+        ...(args && args.length > 0 ? { args } : {}),
+        has_env: hasEnv,
+        discover_path: discover,
+        harness: 'codex',
+      };
+    }
+  }
+
+  return out;
 }
 
 export function renderGlobalsYaml(snapshot: GlobalsRegistry): string {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ComponentSource, Target } from './types.js';
 import type { OutfitManifest, ModeManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
 import type { GlobalsRegistry } from './globals-schema.js';
+import { entryHarness } from './globals-schema.js';
 import { loadHarnessCatalog } from './ac/harness-catalog.js';
 
 export interface GlobalsResolutionMetadata {
@@ -146,8 +147,22 @@ function resolveGlobalsKind(
   registry: GlobalsRegistry,
   layers: Array<{ ownerLabel: string; block: { enable: EnableDisableBlock; disable: EnableDisableBlock } }>,
   warn: (msg: string) => void,
+  /**
+   * v0.8: when set, baseline + kept-set is restricted to entries whose
+   * harness matches. `undefined` (legacy) means all entries participate —
+   * preserves v0.7 semantics.
+   */
+  harnessFilter?: 'claude-code' | 'codex',
 ): { kept: string[]; dropped: string[]; unresolved: string[] } {
-  const baseline = new Set(Object.keys(registry[kind]));
+  const allEntries = registry[kind] as Record<string, { harness?: 'claude-code' | 'codex' }>;
+  // hooks entries don't carry a harness today; treat them as claude-code.
+  const baselineNames =
+    harnessFilter === undefined
+      ? Object.keys(allEntries)
+      : Object.entries(allEntries)
+          .filter(([, e]) => entryHarness(e) === harnessFilter)
+          .map(([k]) => k);
+  const baseline = new Set(baselineNames);
   const kept = new Set(baseline);
   const unresolved: string[] = [];
   const seenUnresolved = new Set<string>();
@@ -159,6 +174,18 @@ function resolveGlobalsKind(
     }
     for (const name of block.enable[kind] ?? []) {
       if (!baseline.has(name)) {
+        // When harness filtering is active, an `enable` reference to an entry
+        // belonging to the OTHER harness isn't really "unresolved" — it just
+        // doesn't apply to this session. We silently skip those (no warning,
+        // not tracked) so a single outfit can carry enable lists for both
+        // harnesses without spamming warnings on every launch.
+        if (
+          harnessFilter !== undefined &&
+          allEntries[name] !== undefined &&
+          entryHarness(allEntries[name]!) !== harnessFilter
+        ) {
+          continue;
+        }
         if (!seenUnresolved.has(name)) {
           unresolved.push(name);
           seenUnresolved.add(name);
@@ -220,11 +247,22 @@ export function resolve(opts: ResolveOptions): Resolution {
     for (const acc of accessories) {
       layers.push({ ownerLabel: `accessory "${acc.name}"`, block: pickBlock(acc as any) });
     }
-    globalsMetadata = {
-      plugins: resolveGlobalsKind('plugins', opts.globals, layers, warn),
-      mcps: resolveGlobalsKind('mcps', opts.globals, layers, warn),
-      hooks: resolveGlobalsKind('hooks', opts.globals, layers, warn),
-    };
+    // v0.8: scope globals filtering by harness. Only entries belonging to the
+    // active harness participate in kept/dropped sets. Other harnesses
+    // (gemini, copilot, apm, pi) get all-empty sets — there's nothing to
+    // filter for them today. claude-code and codex each see only their own
+    // registered entries.
+    const harnessFilter: 'claude-code' | 'codex' | 'none' =
+      harness === 'claude-code' ? 'claude-code' : harness === 'codex' ? 'codex' : 'none';
+    if (harnessFilter === 'none') {
+      globalsMetadata = emptyGlobalsMetadata();
+    } else {
+      globalsMetadata = {
+        plugins: resolveGlobalsKind('plugins', opts.globals, layers, warn, harnessFilter),
+        mcps: resolveGlobalsKind('mcps', opts.globals, layers, warn, harnessFilter),
+        hooks: resolveGlobalsKind('hooks', opts.globals, layers, warn, harnessFilter),
+      };
+    }
   }
 
   // No outfit, no mode, no accessories → identity (no filter).
