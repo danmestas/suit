@@ -329,9 +329,11 @@ describe('findAccessory accessory-as-role fall-through', () => {
     expect(result.manifest.include.skills).toEqual([]);
   });
 
-  it('synthesizes an accessory wrapping a rule', async () => {
-    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'acc-ft-rule-'));
-    await writeBuiltinComponent(builtinDir, 'rules', 'pr-policy', 'RULES.md', 'rules');
+  it('synthesizes an accessory wrapping a rule (RULE.md singular convention)', async () => {
+    // Wardrobe convention: rules/<name>/RULE.md (singular file, plural type).
+    // Mirrors SKILL.md / HOOK.md / AGENT.md / COMMAND.md pattern.
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'acc-ft-rule-singular-'));
+    await writeBuiltinComponent(builtinDir, 'rules', 'pr-policy', 'RULE.md', 'rules');
     const result = await findAccessory('pr-policy', {
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
@@ -339,6 +341,18 @@ describe('findAccessory accessory-as-role fall-through', () => {
     });
     expect(result.synthetic).toBe(true);
     expect(result.manifest.include.rules).toEqual(['pr-policy']);
+  });
+
+  it('also accepts RULES.md (plural) for back-compat', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'acc-ft-rule-plural-'));
+    await writeBuiltinComponent(builtinDir, 'rules', 'legacy-rule', 'RULES.md', 'rules');
+    const result = await findAccessory('legacy-rule', {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+    });
+    expect(result.synthetic).toBe(true);
+    expect(result.manifest.include.rules).toEqual(['legacy-rule']);
   });
 
   it('synthesizes an accessory wrapping an agent', async () => {
