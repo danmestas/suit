@@ -19,6 +19,15 @@ FLAGS
                        name resolves to a non-accessory component, it's treated as
                        a singleton role and force-included into the kept set.
 
+SCHEMA (v0.7+)
+  enable: / disable:   Outfit, mode, and accessory manifests may declare
+                       enable: { plugins: [...], mcps: [...], hooks: [...] } and
+                       disable: { ... } blocks naming user-scope globals.
+  globals.yaml         Per-machine snapshot at <wardrobe>/globals.yaml lists the
+                       installed plugins/MCPs/hooks. Generate with
+                       \`suit-build sync-globals\`; the resolver layers
+                       enable/disable over it to filter the harness home.
+
 ENVIRONMENT
   SUIT_CONTENT_PATH    override the default content directory (overrides clone)
 

@@ -178,6 +178,9 @@ function synthesizeAccessoryManifest(
     targets: componentTargets as AccessoryManifest['targets'],
     categories: [],
     include,
+    // v0.7+: synthetic accessories never enable/disable globals.
+    enable: { plugins: [], mcps: [], hooks: [] },
+    disable: { plugins: [], mcps: [], hooks: [] },
   } as AccessoryManifest;
 }
 

@@ -461,3 +461,84 @@ broken body
   // Note: TTY-with-no-outfit dispatches to the interactive picker (Phase D).
   // Picker behavior is exercised in picker.test.ts; runUp just calls runPicker.
 });
+
+// ─── globals.yaml e2e (v0.7 Phase D) ──────────────────────────────────────
+
+describe('runUp — globals.yaml + outfit.disable wiring (v0.7)', () => {
+  it('warns about unresolved enable references and proceeds without crashing', async () => {
+    const wardrobe = await mkWardrobe();
+    const proj = await mkProject();
+    const userDir = await mkdirT('suit-up-user-');
+
+    // Add a globals.yaml with one plugin and one mcp.
+    await fs.writeFile(
+      path.join(wardrobe, 'globals.yaml'),
+      `schemaVersion: 1
+generated_at: 2024-01-01T00:00:00.000Z
+machine: test-host
+plugins:
+  installed-plugin:
+    source: manual
+    install: fake
+    discover_path: ~/.claude/plugins/installed-plugin
+mcps:
+  installed-mcp:
+    source: claude-code-config
+    type: stdio
+    command: fake
+    has_env: false
+    discover_path: ~/.claude.json#mcpServers/installed-mcp
+hooks: {}
+`,
+    );
+
+    // Overwrite outfit to disable installed-plugin and try to enable a phantom one.
+    await fs.writeFile(
+      path.join(wardrobe, 'outfits', 'backend', 'outfit.md'),
+      `---
+name: backend
+version: 1.0.0
+type: outfit
+description: Backend dev work
+targets: [claude-code]
+categories: [tooling]
+disable:
+  plugins: [installed-plugin]
+enable:
+  plugins: [phantom-plugin]
+---
+backend body
+`,
+    );
+
+    const cap = capture();
+    const code = await runUp(
+      {
+        outfit: 'backend',
+        mode: null,
+        accessories: [],
+        force: false,
+        projectDir: proj,
+        contentDir: wardrobe,
+        userDir,
+        isTTY: false,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    // Globals filtering doesn't affect on-disk project state today (it shapes
+    // the launcher's HOME override). The e2e contract here: runUp loads the
+    // globals.yaml, resolver computes kept/dropped/unresolved, lockfile is
+    // written, exit code is 0 (no fatal error from unresolved name).
+    expect(code).toBe(0);
+
+    // Stderr carries the warning about phantom-plugin
+    const err = cap.err.join('');
+    expect(err).toMatch(/phantom-plugin/);
+    expect(err).toMatch(/not in globals\.yaml/);
+
+    // Lockfile got written — base flow succeeded
+    const lock = await readLockfile(proj);
+    expect(lock).not.toBeNull();
+  });
+});

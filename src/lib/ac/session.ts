@@ -29,6 +29,8 @@ import { resolveAndPersist } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
 import type { Target } from '../types.js';
 import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
+import type { GlobalsRegistry } from '../globals-schema.js';
+import { loadGlobalsRegistry } from '../globals-loader.js';
 import {
   prelaunchComposeClaudeCode,
   prelaunchComposeGemini,
@@ -100,6 +102,7 @@ interface PrelaunchInputs {
   resolutionArtifactPath?: string;
   realHome: string;
   apmPackageDir: string;
+  globals?: GlobalsRegistry | null;
 }
 
 interface PrelaunchEffects {
@@ -115,7 +118,7 @@ interface PrelaunchEffects {
  * in `runAc`.
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
-  const { target, outfit, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir } = opts;
+  const { target, outfit, mode, modeBody, resolutionArtifactPath, realHome, apmPackageDir, globals } = opts;
   const filtered = outfit !== undefined || mode !== undefined || opts.accessories.length > 0;
 
   switch (target) {
@@ -129,7 +132,14 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
           : target === 'gemini'
             ? prelaunchComposeGemini
             : prelaunchComposePi;
-      const r = await composer({ realHome, outfit, mode, modeBody });
+      const r = await composer({
+        realHome,
+        outfit,
+        mode,
+        accessories: opts.accessories,
+        modeBody,
+        globals,
+      });
       return { envOverrides: { HOME: r.tempHome }, cleanup: r.cleanup };
     }
     case 'apm': {
@@ -220,6 +230,20 @@ export async function runAcSession(
     env.AC_RESOLUTION_PATH = artifactPath;
   }
 
+  // v0.7+: load globals.yaml from the wardrobe builtin tier when present.
+  // Missing file is non-fatal (returns null) — the resolver and prelaunch path
+  // both treat null as "no globals filtering" and preserve v0.6 behavior.
+  let globals: GlobalsRegistry | null = null;
+  try {
+    globals = await loadGlobalsRegistry(builtinDir);
+  } catch (err) {
+    // Malformed globals.yaml — surface to stderr and proceed without filtering
+    // rather than refusing to launch the harness. The user's session is more
+    // important than perfect globals targeting.
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`suit: failed to load globals.yaml: ${msg}\n`);
+  }
+
   // Stage 3: harness-specific prelaunch composition.
   const effects = await prelaunchForTarget({
     target,
@@ -230,6 +254,7 @@ export async function runAcSession(
     resolutionArtifactPath,
     realHome: deps.homeDir ?? os.homedir(),
     apmPackageDir: deps.homeDir ?? process.cwd(),
+    globals,
   });
   Object.assign(env, effects.envOverrides);
   const cwd = effects.cwd ?? process.cwd();

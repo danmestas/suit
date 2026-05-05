@@ -644,3 +644,207 @@ describe('skillsKeepFromResolution', () => {
     expect(keep).toEqual(['a', 'c']);
   });
 });
+
+// ─── globals filtering (Phase D, v0.7) ─────────────────────────────────────
+//
+// These tests assert the layered enable/disable semantics over a globals.yaml
+// baseline. Layers are applied in CLI declaration order: outfit, mode, then
+// accessories[]. Within each layer `disable` runs before `enable`. The
+// metadata.globals shape is the single source-of-truth for downstream
+// symlink-farm filtering.
+
+const fakeGlobals = (
+  plugins: string[] = [],
+  mcps: string[] = [],
+  hooks: string[] = [],
+) => ({
+  schemaVersion: 1 as const,
+  generated_at: '2024-01-01T00:00:00.000Z',
+  machine: 'test',
+  plugins: Object.fromEntries(
+    plugins.map((n) => [
+      n,
+      { source: 'manual', install: 'fake', discover_path: `~/.claude/plugins/${n}` },
+    ]),
+  ),
+  mcps: Object.fromEntries(
+    mcps.map((n) => [
+      n,
+      {
+        source: 'claude-code-config',
+        type: 'stdio',
+        command: 'fake',
+        has_env: false,
+        discover_path: `~/.claude.json#mcpServers/${n}`,
+      },
+    ]),
+  ),
+  hooks: Object.fromEntries(
+    hooks.map((n) => [
+      n,
+      { source: 'claude-code-hooks', discover_path: `~/.claude/hooks/${n}` },
+    ]),
+  ),
+}) as any;
+
+describe('resolve — globals filtering (Phase D)', () => {
+  it('returns all-empty metadata.globals when no registry passed', () => {
+    const r = resolve({ catalog: [], harness: 'claude-code' });
+    expect(r.metadata.globals).toEqual({
+      plugins: { kept: [], dropped: [], unresolved: [] },
+      mcps: { kept: [], dropped: [], unresolved: [] },
+      hooks: { kept: [], dropped: [], unresolved: [] },
+    });
+  });
+
+  it('keeps all globals as baseline when no enable/disable layers', () => {
+    const globals = fakeGlobals(['p1', 'p2'], ['m1'], ['h1']);
+    const r = resolve({ catalog: [], harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1', 'p2']);
+    expect(r.metadata.globals.plugins.dropped).toEqual([]);
+    expect(r.metadata.globals.mcps.kept).toEqual(['m1']);
+    expect(r.metadata.globals.hooks.kept).toEqual(['h1']);
+  });
+
+  it('outfit.disable removes a plugin from kept', () => {
+    const globals = fakeGlobals(['p1', 'p2', 'p3']);
+    const outfit = {
+      name: 'p',
+      type: 'outfit',
+      categories: [],
+      skill_include: [],
+      skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['p2'], mcps: [], hooks: [] },
+    } as any;
+    const r = resolve({ catalog: [], outfit, harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1', 'p3']);
+    expect(r.metadata.globals.plugins.dropped).toEqual(['p2']);
+  });
+
+  it('mode.disable layered on top of outfit.disable accumulates', () => {
+    const globals = fakeGlobals(['p1', 'p2', 'p3']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['p1'], mcps: [], hooks: [] },
+    } as any;
+    const mode = {
+      name: 'm', type: 'mode', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['p2'], mcps: [], hooks: [] },
+    } as any;
+    const r = resolve({ catalog: [], outfit, mode, harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p3']);
+    expect(r.metadata.globals.plugins.dropped).toEqual(['p1', 'p2']);
+  });
+
+  it('accessory.enable re-adds a plugin disabled by outfit', () => {
+    const globals = fakeGlobals(['p1', 'p2']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['p2'], mcps: [], hooks: [] },
+    } as any;
+    const acc = {
+      name: 'a', type: 'accessory',
+      include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
+      enable: { plugins: ['p2'], mcps: [], hooks: [] },
+      disable: { plugins: [], mcps: [], hooks: [] },
+    } as any;
+    const r = resolve({ catalog: [], outfit, accessories: [acc], harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1', 'p2']);
+    expect(r.metadata.globals.plugins.dropped).toEqual([]);
+  });
+
+  it('disable referencing absent name is silent no-op (idempotent)', () => {
+    const globals = fakeGlobals(['p1']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['ghost', 'ghost'], mcps: [], hooks: [] }, // ghost not in registry; doubled in same layer
+    } as any;
+    const warns: string[] = [];
+    const r = resolve({ catalog: [], outfit, harness: 'claude-code', globals, warn: (m) => warns.push(m) });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1']);
+    expect(r.metadata.globals.plugins.unresolved).toEqual([]);
+    expect(warns).toEqual([]); // disable on absent → no warning
+  });
+
+  it('enable referencing name not in globals registry warns and tracks unresolved', () => {
+    const globals = fakeGlobals(['p1']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: ['mystery'], mcps: [], hooks: [] },
+      disable: { plugins: [], mcps: [], hooks: [] },
+    } as any;
+    const warns: string[] = [];
+    const r = resolve({ catalog: [], outfit, harness: 'claude-code', globals, warn: (m) => warns.push(m) });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1']);
+    expect(r.metadata.globals.plugins.unresolved).toEqual(['mystery']);
+    expect(warns.length).toBe(1);
+    expect(warns[0]).toMatch(/mystery/);
+    expect(warns[0]).toMatch(/outfit "p"/);
+  });
+
+  it('layer-order convergence: outfit.disable + mode.disable + accessory.enable', () => {
+    // Build a complex case: registry [a,b,c,d]; outfit disables [a,b];
+    // mode disables [c]; accessory1 enables [a]; accessory2 enables [c, d-already-kept].
+    // Expected kept: a (re-added), c (re-added), d (always kept). Dropped: b.
+    const globals = fakeGlobals(['a', 'b', 'c', 'd']);
+    const outfit = {
+      name: 'o', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['a', 'b'], mcps: [], hooks: [] },
+    } as any;
+    const mode = {
+      name: 'm', type: 'mode', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: ['c'], mcps: [], hooks: [] },
+    } as any;
+    const acc1 = {
+      name: 'acc1', type: 'accessory',
+      include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
+      enable: { plugins: ['a'], mcps: [], hooks: [] },
+      disable: { plugins: [], mcps: [], hooks: [] },
+    } as any;
+    const acc2 = {
+      name: 'acc2', type: 'accessory',
+      include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
+      enable: { plugins: ['c', 'd'], mcps: [], hooks: [] },
+      disable: { plugins: [], mcps: [], hooks: [] },
+    } as any;
+    const r = resolve({
+      catalog: [], outfit, mode, accessories: [acc1, acc2],
+      harness: 'claude-code', globals,
+    });
+    expect(r.metadata.globals.plugins.kept).toEqual(['a', 'c', 'd']);
+    expect(r.metadata.globals.plugins.dropped).toEqual(['b']);
+  });
+
+  it('disable wins within a single layer (disable runs before enable)', () => {
+    // Same layer disables and enables the same name → final state is enabled,
+    // because enable runs second within the layer. This is the contract.
+    const globals = fakeGlobals(['p1']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: ['p1'], mcps: [], hooks: [] },
+      disable: { plugins: ['p1'], mcps: [], hooks: [] },
+    } as any;
+    const r = resolve({ catalog: [], outfit, harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1']);
+  });
+
+  it('mcps and hooks filter independently from plugins', () => {
+    const globals = fakeGlobals(['p1'], ['m1', 'm2'], ['h1', 'h2']);
+    const outfit = {
+      name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
+      enable: { plugins: [], mcps: [], hooks: [] },
+      disable: { plugins: [], mcps: ['m1'], hooks: ['h2'] },
+    } as any;
+    const r = resolve({ catalog: [], outfit, harness: 'claude-code', globals });
+    expect(r.metadata.globals.plugins.kept).toEqual(['p1']);
+    expect(r.metadata.globals.mcps.kept).toEqual(['m2']);
+    expect(r.metadata.globals.hooks.kept).toEqual(['h1']);
+  });
+});

@@ -82,15 +82,6 @@ const ManifestBaseSchema = z
   })
   .strict();
 
-export const OutfitSchema = ManifestBaseSchema.extend({
-  type: z.literal('outfit'),
-  categories: z.array(z.string()).min(0),
-  skill_include: z.array(z.string()).default([]),
-  skill_exclude: z.array(z.string()).default([]),
-}).strict();
-
-export type OutfitManifest = z.infer<typeof OutfitSchema>;
-
 // Reusable include-block sub-schema. Both ModeSchema and AccessorySchema embed
 // this same shape so a Phase 3 mode can declare structured component bundles
 // alongside (or instead of) its body-only prompt overlay. Defaults to all-empty
@@ -106,6 +97,34 @@ const IncludeBlockSchema = z
   .strict()
   .default({ skills: [], rules: [], hooks: [], agents: [], commands: [] });
 
+// v0.7+: globals targeting block. Outfits, modes, and accessories may declare
+// `enable:` / `disable:` blocks naming user-scope plugins, MCP servers, and
+// hooks (registered in `globals.yaml`). The resolver layers these per-CLI
+// declaration order to derive a kept-set; the symlink-farm filters per-subdir
+// against that set so user-scope globals can be selectively turned off without
+// uninstalling them. Defaults to all-empty so v3 manifests round-trip unchanged.
+const EnableDisableBlockSchema = z
+  .object({
+    plugins: z.array(z.string()).default([]),
+    mcps: z.array(z.string()).default([]),
+    hooks: z.array(z.string()).default([]),
+  })
+  .strict()
+  .default({ plugins: [], mcps: [], hooks: [] });
+
+export type EnableDisableBlock = z.infer<typeof EnableDisableBlockSchema>;
+
+export const OutfitSchema = ManifestBaseSchema.extend({
+  type: z.literal('outfit'),
+  categories: z.array(z.string()).min(0),
+  skill_include: z.array(z.string()).default([]),
+  skill_exclude: z.array(z.string()).default([]),
+  enable: EnableDisableBlockSchema,
+  disable: EnableDisableBlockSchema,
+}).strict();
+
+export type OutfitManifest = z.infer<typeof OutfitSchema>;
+
 export const ModeSchema = ManifestBaseSchema.extend({
   type: z.literal('mode'),
   categories: z.array(z.string()).min(0),
@@ -115,6 +134,8 @@ export const ModeSchema = ManifestBaseSchema.extend({
   // continue to work — `include` defaults to all-empty arrays, and the
   // resolver's force-include phase becomes a no-op when every sub-array is empty.
   include: IncludeBlockSchema,
+  enable: EnableDisableBlockSchema,
+  disable: EnableDisableBlockSchema,
 }).strict();
 
 export type ModeManifest = z.infer<typeof ModeSchema>;
@@ -122,6 +143,8 @@ export type ModeManifest = z.infer<typeof ModeSchema>;
 export const AccessorySchema = ManifestBaseSchema.extend({
   type: z.literal('accessory'),
   include: IncludeBlockSchema,
+  enable: EnableDisableBlockSchema,
+  disable: EnableDisableBlockSchema,
 }).strict();
 
 export type AccessoryManifest = z.infer<typeof AccessorySchema>;
