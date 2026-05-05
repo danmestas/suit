@@ -243,16 +243,16 @@ extra context body for accessory
   });
 });
 
-describe('ac show mode (Phase 3 include block)', () => {
-  it('prints the include: block when the mode declares one', async () => {
-    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-mode-inc-'));
-    await fs.mkdir(path.join(builtinDir, 'modes'), { recursive: true });
+describe('ac show cut (include block)', () => {
+  it('prints the include: block when the cut declares one', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-cut-inc-'));
+    await fs.mkdir(path.join(builtinDir, 'cuts'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'modes', 'ticket-writing.md'),
+      path.join(builtinDir, 'cuts', 'ticket-writing.md'),
       `---
 name: ticket-writing
 version: 1.0.0
-type: mode
+type: cut
 description: Ticket writing focus
 targets: [claude-code]
 categories: [workflow]
@@ -265,7 +265,7 @@ Body.
 `,
     );
     const out: string[] = [];
-    await showCommand({ kind: 'mode', name: 'ticket-writing' }, {
+    await showCommand({ kind: 'cut', name: 'ticket-writing' }, {
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
       builtinDir,
@@ -277,36 +277,36 @@ Body.
     expect(text).toMatch(/hooks: ticket-validator/);
   });
 
-  it('omits the include: block when the mode is body-only (back-compat)', async () => {
-    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-mode-empty-'));
-    await fs.mkdir(path.join(builtinDir, 'modes'), { recursive: true });
+  it('omits the include: block when the cut is body-only (back-compat)', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-show-cut-empty-'));
+    await fs.mkdir(path.join(builtinDir, 'cuts'), { recursive: true });
     await fs.writeFile(
-      path.join(builtinDir, 'modes', 'focused.md'),
+      path.join(builtinDir, 'cuts', 'focused.md'),
       `---
 name: focused
 version: 1.0.0
-type: mode
+type: cut
 description: Single-task focus
 targets: [claude-code]
 categories: [tooling]
 ---
 
-Body framing focused mode.
+Body framing focused cut.
 `,
     );
     const out: string[] = [];
-    await showCommand({ kind: 'mode', name: 'focused' }, {
+    await showCommand({ kind: 'cut', name: 'focused' }, {
       projectDir: '/nonexistent',
       userDir: '/nonexistent',
       builtinDir,
       print: (l) => out.push(l),
     });
     const text = out.join('\n');
-    // No `include:` header for body-only modes — keep v0.3 output stable.
+    // No `include:` header for body-only cuts — keep v0.3-era output stable.
     expect(text).not.toMatch(/^include:/m);
-    // The mode prompt body section is still emitted.
-    expect(text).toMatch(/--- mode prompt body/);
-    expect(text).toMatch(/Body framing focused mode/);
+    // The cut prompt body section is still emitted.
+    expect(text).toMatch(/--- cut prompt body/);
+    expect(text).toMatch(/Body framing focused cut/);
   });
 });
 

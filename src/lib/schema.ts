@@ -60,7 +60,7 @@ const ManifestBaseSchema = z
     description: z.string().min(1),
     category: CategoryBlock.optional(),
     type: z.enum(['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp'] as const),
-    // (outfit / mode / accessory carry their own narrowed `type` literal in
+    // (outfit / cut / accessory carry their own narrowed `type` literal in
     // their respective extended schemas — they are not in the base list.)
     targets: z.array(z.enum(TARGETS as unknown as [Target, ...Target[]])).min(1),
     author: z.string().optional(),
@@ -82,8 +82,8 @@ const ManifestBaseSchema = z
   })
   .strict();
 
-// Reusable include-block sub-schema. Both ModeSchema and AccessorySchema embed
-// this same shape so a Phase 3 mode can declare structured component bundles
+// Reusable include-block sub-schema. Both CutSchema and AccessorySchema embed
+// this same shape so a cut can declare structured component bundles
 // alongside (or instead of) its body-only prompt overlay. Defaults to all-empty
 // arrays so authors only need to declare keys they care about.
 const IncludeBlockSchema = z
@@ -97,7 +97,7 @@ const IncludeBlockSchema = z
   .strict()
   .default({ skills: [], rules: [], hooks: [], agents: [], commands: [] });
 
-// v0.7+: globals targeting block. Outfits, modes, and accessories may declare
+// v0.7+: globals targeting block. Outfits, cuts, and accessories may declare
 // `enable:` / `disable:` blocks naming user-scope plugins, MCP servers, and
 // hooks (registered in `globals.yaml`). The resolver layers these per-CLI
 // declaration order to derive a kept-set; the symlink-farm filters per-subdir
@@ -125,12 +125,12 @@ export const OutfitSchema = ManifestBaseSchema.extend({
 
 export type OutfitManifest = z.infer<typeof OutfitSchema>;
 
-export const ModeSchema = ManifestBaseSchema.extend({
-  type: z.literal('mode'),
+export const CutSchema = ManifestBaseSchema.extend({
+  type: z.literal('cut'),
   categories: z.array(z.string()).min(0),
   skill_include: z.array(z.string()).default([]),
   skill_exclude: z.array(z.string()).default([]),
-  // Optional Phase 3 structured include block. Body-only modes (the v0.3 shape)
+  // Optional structured include block. Body-only cuts (the v0.3-era mode shape)
   // continue to work — `include` defaults to all-empty arrays, and the
   // resolver's force-include phase becomes a no-op when every sub-array is empty.
   include: IncludeBlockSchema,
@@ -138,7 +138,7 @@ export const ModeSchema = ManifestBaseSchema.extend({
   disable: EnableDisableBlockSchema,
 }).strict();
 
-export type ModeManifest = z.infer<typeof ModeSchema>;
+export type CutManifest = z.infer<typeof CutSchema>;
 
 export const AccessorySchema = ManifestBaseSchema.extend({
   type: z.literal('accessory'),
@@ -152,7 +152,7 @@ export type AccessoryManifest = z.infer<typeof AccessorySchema>;
 export const ManifestSchema = z.discriminatedUnion('type', [
   ManifestBaseSchema,
   OutfitSchema,
-  ModeSchema,
+  CutSchema,
   AccessorySchema,
 ]);
 

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ComponentSource, Target } from './types.js';
-import type { OutfitManifest, ModeManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
+import type { OutfitManifest, CutManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
 import type { GlobalsRegistry } from './globals-schema.js';
 import { entryHarness } from './globals-schema.js';
 import { loadHarnessCatalog } from './ac/harness-catalog.js';
@@ -18,10 +18,10 @@ export interface Resolution {
   harness: Target;
   skillsDrop: string[];
   skillsKeep: string[] | null;
-  modePrompt: string;
+  cutPrompt: string;
   metadata: {
     outfit: string | null;
-    mode: string | null;
+    cut: string | null;
     accessories: string[];
     categories: string[];
     globals: GlobalsResolutionMetadata;
@@ -31,14 +31,14 @@ export interface Resolution {
 export interface ResolveOptions {
   catalog: ComponentSource[];
   outfit?: OutfitManifest;
-  mode?: ModeManifest;
+  cut?: CutManifest;
   accessories?: AccessoryManifest[];
-  /** Mode body string (the markdown body of the mode component, used as prompt scaffolding). */
-  modeBody?: string;
+  /** Cut body string (the markdown body of the cut component, used as prompt scaffolding). */
+  cutBody?: string;
   harness: Target;
   /**
    * v0.7+: per-machine globals registry. When provided, `enable:` / `disable:`
-   * blocks on the active outfit/mode/accessories layer over this baseline to
+   * blocks on the active outfit/cut/accessories layer over this baseline to
    * compute kept-sets for plugins, mcps, and hooks. When `null` or omitted, no
    * globals filtering is applied — `metadata.globals` is empty.
    */
@@ -48,7 +48,7 @@ export interface ResolveOptions {
 }
 
 /**
- * Shape shared by mode and accessory include blocks. We accept any object that
+ * Shape shared by cut and accessory include blocks. We accept any object that
  * exposes the 5 sub-arrays; the strict shape is enforced by the schemas at
  * parse time, so this internal type just gives `validateIncludes` a uniform
  * input.
@@ -78,12 +78,12 @@ type IncludeBlock = {
  * is no `command` component type in the v0.3 schema, so we cannot validate
  * those names here. A future commands ADR will tighten this.
  *
- * `speaker` is the noun used in the error message — `mode "X" includes ...` vs
- * `accessory "X" includes ...` — so a Phase 3 mode-include miss reads
+ * `speaker` is the noun used in the error message — `cut "X" includes ...` vs
+ * `accessory "X" includes ...` — so a cut-include miss reads
  * differently from an accessory-include miss without forking the validator.
  */
 function validateIncludes(
-  speaker: 'mode' | 'accessory',
+  speaker: 'cut' | 'accessory',
   ownerName: string,
   inc: IncludeBlock,
   catalog: ComponentSource[],
@@ -133,7 +133,7 @@ function emptyGlobalsMetadata(): GlobalsResolutionMetadata {
  *
  * Semantics (ADR-0014 Phase D):
  *   1. Baseline = full set of registered names from globals.<kind>.
- *   2. For each layer in CLI declaration order (outfit, mode, then accessories
+ *   2. For each layer in CLI declaration order (outfit, cut, then accessories
  *      in array order), apply `disable` first, then `enable`.
  *   3. `disable` removes names from the kept set. Disabling something that's
  *      already absent is a silent no-op (idempotent).
@@ -211,25 +211,25 @@ function resolveGlobalsKind(
 }
 
 export function resolve(opts: ResolveOptions): Resolution {
-  const { catalog, outfit, mode, modeBody, harness } = opts;
+  const { catalog, outfit, cut, cutBody, harness } = opts;
   const accessories = opts.accessories ?? [];
   const warn = opts.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
   // Validate every include block up front. Strict-include semantics per
   // ADR-0010: bad references fail resolution rather than silently emit a
-  // partially-applied session. Mode include is validated with speaker="mode"
-  // so its error message reads `mode "X" includes ...`; accessories use
-  // speaker="accessory". We validate mode first so a typo in the mode is
+  // partially-applied session. Cut include is validated with speaker="cut"
+  // so its error message reads `cut "X" includes ...`; accessories use
+  // speaker="accessory". We validate cut first so a typo in the cut is
   // surfaced before any accessory-level error.
-  if (mode && mode.include) {
-    validateIncludes('mode', mode.name, mode.include, catalog);
+  if (cut && cut.include) {
+    validateIncludes('cut', cut.name, cut.include, catalog);
   }
   for (const acc of accessories) {
     validateIncludes('accessory', acc.name, acc.include, catalog);
   }
 
   // Compute globals kept/dropped/unresolved sets if a registry was provided.
-  // Layers are in CLI declaration order: outfit → mode → accessories[].
+  // Layers are in CLI declaration order: outfit → cut → accessories[].
   // Skipped entirely when `globals` is null/undefined to preserve v0.6 behavior.
   let globalsMetadata: GlobalsResolutionMetadata = emptyGlobalsMetadata();
   if (opts.globals) {
@@ -241,8 +241,8 @@ export function resolve(opts: ResolveOptions): Resolution {
     if (outfit) {
       layers.push({ ownerLabel: `outfit "${outfit.name}"`, block: pickBlock(outfit as any) });
     }
-    if (mode) {
-      layers.push({ ownerLabel: `mode "${mode.name}"`, block: pickBlock(mode as any) });
+    if (cut) {
+      layers.push({ ownerLabel: `cut "${cut.name}"`, block: pickBlock(cut as any) });
     }
     for (const acc of accessories) {
       layers.push({ ownerLabel: `accessory "${acc.name}"`, block: pickBlock(acc as any) });
@@ -265,17 +265,17 @@ export function resolve(opts: ResolveOptions): Resolution {
     }
   }
 
-  // No outfit, no mode, no accessories → identity (no filter).
-  if (!outfit && !mode && accessories.length === 0) {
+  // No outfit, no cut, no accessories → identity (no filter).
+  if (!outfit && !cut && accessories.length === 0) {
     return {
       schemaVersion: 1,
       harness,
       skillsDrop: [],
       skillsKeep: null,
-      modePrompt: '',
+      cutPrompt: '',
       metadata: {
         outfit: null,
-        mode: null,
+        cut: null,
         accessories: [],
         categories: [],
         globals: globalsMetadata,
@@ -285,22 +285,22 @@ export function resolve(opts: ResolveOptions): Resolution {
 
   // Effective categories: intersection if both, single if one.
   let effectiveCategories: Set<string> | null = null;
-  if (outfit && mode) {
+  if (outfit && cut) {
     const p = new Set(outfit.categories);
-    effectiveCategories = new Set(mode.categories.filter((c) => p.has(c)));
+    effectiveCategories = new Set(cut.categories.filter((c) => p.has(c)));
   } else if (outfit) {
     effectiveCategories = new Set(outfit.categories);
-  } else if (mode) {
-    effectiveCategories = new Set(mode.categories);
+  } else if (cut) {
+    effectiveCategories = new Set(cut.categories);
   }
 
   const includeNames = new Set([
     ...(outfit?.skill_include ?? []),
-    ...(mode?.skill_include ?? []),
+    ...(cut?.skill_include ?? []),
   ]);
   const excludeNames = new Set([
     ...(outfit?.skill_exclude ?? []),
-    ...(mode?.skill_exclude ?? []),
+    ...(cut?.skill_exclude ?? []),
   ]);
 
   const skillsDrop: string[] = [];
@@ -317,7 +317,7 @@ export function resolve(opts: ResolveOptions): Resolution {
     if (includeNames.has(c.manifest.name)) continue;
     // Universal default — uncategorized skills always load.
     if (skillCategory === undefined) continue;
-    // No outfit/mode but accessories present → no category filtering at all.
+    // No outfit/cut but accessories present → no category filtering at all.
     if (!effectiveCategories) continue;
     // Category match.
     if (effectiveCategories.has(skillCategory)) continue;
@@ -325,38 +325,38 @@ export function resolve(opts: ResolveOptions): Resolution {
     skillsDrop.push(c.manifest.name);
   }
 
-  // Force-include phase per ADR-0010 §3: layer overlays AFTER outfit + mode
+  // Force-include phase per ADR-0010 §3: layer overlays AFTER outfit + cut
   // category filtering and reverse the outfit's category-based drops. Order:
   //
-  //   1. mode.include (if the active mode declares one) — runs first so a
-  //      mode-bundled component is in the kept set before any accessory layers
+  //   1. cut.include (if the active cut declares one) — runs first so a
+  //      cut-bundled component is in the kept set before any accessory layers
   //      its own bundle on top.
   //   2. each accessory's include in CLI order.
   //
   // For pure force-include semantics this ordering is purely cosmetic: every
   // named skill is `delete`d from `dropSet`, and once it's out it stays out
-  // regardless of who runs next. The order DOES matter if both a mode and an
-  // accessory list the same skill — mode wins the "first to add" claim, the
+  // regardless of who runs next. The order DOES matter if both a cut and an
+  // accessory list the same skill — cut wins the "first to add" claim, the
   // accessory becomes a no-op, but the resulting kept-set is identical. Tests
   // assert this convergence to lock the contract.
-  // Defensive: callers may construct ModeManifest-shaped objects via `as any`
-  // (existing tests do) so `mode.include` may be undefined at runtime even
+  // Defensive: callers may construct CutManifest-shaped objects via `as any`
+  // (existing tests do) so `cut.include` may be undefined at runtime even
   // though the schema fills it in for parsed manifests. Treat undefined as the
   // empty default so back-compat callers continue to skip the force-include
   // phase entirely.
-  const modeInclude = mode?.include;
-  const hasModeIncludes = modeInclude
-    ? modeInclude.skills.length +
-        modeInclude.rules.length +
-        modeInclude.hooks.length +
-        modeInclude.agents.length +
-        modeInclude.commands.length >
+  const cutInclude = cut?.include;
+  const hasCutIncludes = cutInclude
+    ? cutInclude.skills.length +
+        cutInclude.rules.length +
+        cutInclude.hooks.length +
+        cutInclude.agents.length +
+        cutInclude.commands.length >
       0
     : false;
-  if (hasModeIncludes || accessories.length > 0) {
+  if (hasCutIncludes || accessories.length > 0) {
     const dropSet = new Set(skillsDrop);
-    if (modeInclude && hasModeIncludes) {
-      for (const skillName of modeInclude.skills) {
+    if (cutInclude && hasCutIncludes) {
+      for (const skillName of cutInclude.skills) {
         dropSet.delete(skillName);
       }
     }
@@ -374,10 +374,10 @@ export function resolve(opts: ResolveOptions): Resolution {
     harness,
     skillsDrop,
     skillsKeep: null,
-    modePrompt: modeBody ?? '',
+    cutPrompt: cutBody ?? '',
     metadata: {
       outfit: outfit?.name ?? null,
-      mode: mode?.name ?? null,
+      cut: cut?.name ?? null,
       accessories: accessories.map((a) => a.name),
       categories: effectiveCategories ? Array.from(effectiveCategories) : [],
       globals: globalsMetadata,
@@ -411,9 +411,9 @@ export interface ResolveAgainstHarnessOptions {
   target: Target;
   harnessHome: string;
   outfit?: OutfitManifest;
-  mode?: ModeManifest;
+  cut?: CutManifest;
   accessories?: AccessoryManifest[];
-  modeBody?: string;
+  cutBody?: string;
   globals?: GlobalsRegistry | null;
   warn?: (msg: string) => void;
 }
@@ -425,9 +425,9 @@ export async function resolveAgainstHarness(
   return resolve({
     catalog,
     outfit: opts.outfit,
-    mode: opts.mode,
+    cut: opts.cut,
     accessories: opts.accessories,
-    modeBody: opts.modeBody,
+    cutBody: opts.cutBody,
     harness: opts.target,
     globals: opts.globals,
     warn: opts.warn,

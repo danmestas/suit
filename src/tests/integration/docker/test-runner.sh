@@ -34,7 +34,7 @@ if [[ -f "$HOME/.claude/.credentials.json" ]] && command -v jq >/dev/null 2>&1; 
 fi
 
 ALL_HARNESSES=(claude codex gemini pi)
-SCENARIOS=(01-no-flags 02-outfit-only 03-mode-only 04-outfit-and-mode 05-no-filter)
+SCENARIOS=(01-no-flags 02-outfit-only 03-cut-only 04-outfit-and-cut 05-no-filter)
 
 HARNESS_FILTER=""
 DRY_RUN=false

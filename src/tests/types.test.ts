@@ -5,7 +5,7 @@ describe('COMPONENT_TYPES', () => {
   it('includes outfit', () => {
     expect(COMPONENT_TYPES).toContain('outfit');
   });
-  it('includes mode', () => {
-    expect(COMPONENT_TYPES).toContain('mode');
+  it('includes cut', () => {
+    expect(COMPONENT_TYPES).toContain('cut');
   });
 });

@@ -56,9 +56,9 @@ src/tests/integration/docker/run-realtime.sh --live-source
 # non-interactive smoke battery
 src/tests/integration/docker/run-realtime.sh --no-build -- bash -c '
   suit status &&
-  suit claude --outfit backend --mode focused -- --print "say PONG" &&
-  suit codex  --outfit backend --mode code    -- exec --skip-git-repo-check "say PONG" &&
-  suit pi     --outfit personal --mode design -- --provider openrouter --print "say PONG"
+  suit claude --outfit backend --cut focused -- --print "say PONG" &&
+  suit codex  --outfit backend --cut code    -- exec --skip-git-repo-check "say PONG" &&
+  suit pi     --outfit personal --cut design -- --provider openrouter --print "say PONG"
 '
 ```
 
@@ -85,8 +85,8 @@ End-to-end test scaffold that exercises `ac` against all 4 real harness CLIs ins
 |---|---|---|
 | 01 | no-flags | `AC_WRAPPED=1` set; `AC_RESOLUTION_PATH` unset |
 | 02 | outfit-only | `--outfit backend` sets a readable resolution JSON with `outfit=backend` |
-| 03 | mode-only | `--mode focused` sets resolution JSON with `mode=focused` and non-empty `mode_prompt` |
-| 04 | outfit-and-mode | Both outfit and mode are reflected in the resolution JSON |
+| 03 | cut-only | `--cut focused` sets resolution JSON with `cut=focused` and non-empty `cut_prompt` |
+| 04 | outfit-and-cut | Both outfit and cut are reflected in the resolution JSON |
 | 05 | no-filter | `--no-filter` bypasses resolution; `AC_RESOLUTION_PATH` unset |
 
 Harnesses: `claude`, `codex`, `gemini`, `pi`.

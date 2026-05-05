@@ -1,7 +1,7 @@
 /**
  * Interactive picker for `suit up` (Phase D of v0.5; ADR-0012).
  *
- * Prompts the user to pick an outfit (required), a mode (optional, blank skips),
+ * Prompts the user to pick an outfit (required), a cut (optional, blank skips),
  * and accessories (optional, multi-select via comma-separated numbers, blank
  * skips). Uses Node's built-in readline — no new dependency.
  *
@@ -10,13 +10,13 @@
  *
  * The picker reads only what's available in the resolved discovery chain
  * (project overlay → user overlay → builtin), reusing `listAllOutfits`,
- * `listAllModes`, `listAllAccessories` so the user sees exactly what
+ * `listAllCuts`, `listAllAccessories` so the user sees exactly what
  * `suit list <kind>` would show.
  */
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { listAllOutfits } from '../outfit.js';
-import { listAllModes } from '../mode.js';
+import { listAllCuts } from '../cut.js';
 import { listAllAccessories } from '../accessory.js';
 import { extractBlurb } from '../blurb.js';
 
@@ -28,7 +28,7 @@ export interface PickerDirs {
 
 export interface PickerResult {
   outfit: string;
-  mode: string | null;
+  cut: string | null;
   accessories: string[];
 }
 
@@ -50,7 +50,7 @@ export async function runPicker(
   const rl = readline.createInterface({ input, output });
   try {
     const outfits = await listAllOutfits(dirs);
-    const modes = await listAllModes(dirs);
+    const cuts = await listAllCuts(dirs);
     const accessories = await listAllAccessories(dirs);
 
     if (outfits.length === 0) {
@@ -76,25 +76,25 @@ export async function runPicker(
     }
     const outfit = outfits[outfitIdx]!.manifest.name;
 
-    // --- Mode (optional) ---
-    let mode: string | null = null;
-    if (modes.length > 0) {
-      deps.stdout('\nMode:         (pick one, or empty to skip)\n');
-      for (let i = 0; i < modes.length; i++) {
-        const m = modes[i]!;
+    // --- Cut (optional) ---
+    let cut: string | null = null;
+    if (cuts.length > 0) {
+      deps.stdout('\nCut:          (pick one, or empty to skip)\n');
+      for (let i = 0; i < cuts.length; i++) {
+        const m = cuts[i]!;
         deps.stdout(`  ${i + 1}. ${m.manifest.name.padEnd(14)} ${m.manifest.description}\n`);
         const blurb = extractBlurb(m.body, m.manifest.description);
         if (blurb !== m.manifest.description) {
           deps.stdout(`     ${' '.repeat(14)} ${blurb}\n`);
         }
       }
-      const modeChoice = (await prompt(rl, '> ')).trim();
-      if (modeChoice !== '') {
-        const modeIdx = parseChoice(modeChoice, modes.length);
-        if (modeIdx === null) {
-          throw new Error(`mode: invalid selection "${modeChoice}" (expected 1-${modes.length} or empty)`);
+      const cutChoice = (await prompt(rl, '> ')).trim();
+      if (cutChoice !== '') {
+        const cutIdx = parseChoice(cutChoice, cuts.length);
+        if (cutIdx === null) {
+          throw new Error(`cut: invalid selection "${cutChoice}" (expected 1-${cuts.length} or empty)`);
         }
-        mode = modes[modeIdx]!.manifest.name;
+        cut = cuts[cutIdx]!.manifest.name;
       }
     }
 
@@ -127,7 +127,7 @@ export async function runPicker(
     }
 
     deps.stdout('\n');
-    return { outfit, mode, accessories: selectedAccessories };
+    return { outfit, cut, accessories: selectedAccessories };
   } finally {
     rl.close();
   }

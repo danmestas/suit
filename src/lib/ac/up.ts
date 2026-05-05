@@ -1,7 +1,7 @@
 /**
  * `suit up` — project-state mutator (Phase B of v0.5; ADR-0012).
  *
- * Reads outfit / mode / accessories from the wardrobe content dir, runs the
+ * Reads outfit / cut / accessories from the wardrobe content dir, runs the
  * standard resolver, calls every per-target adapter's `emit()` to produce
  * `EmittedFile[]`, applies a target-specific project prefix (`.claude/` for
  * claude-code, `.gemini/` for gemini, etc. — see TARGET_PROJECT_PREFIX), and
@@ -19,7 +19,7 @@ import type { Target } from '../types.js';
 import type { EmittedFile, ComponentSource } from '../types.js';
 import { discoverComponents } from '../discover.js';
 import { findOutfit } from '../outfit.js';
-import { findMode } from '../mode.js';
+import { findCut } from '../cut.js';
 import { findAccessory } from '../accessory.js';
 import { resolve, skillsKeepFromResolution } from '../resolution.js';
 import { getAdapter } from '../../adapters/index.js';
@@ -40,14 +40,14 @@ import { loadGlobalsRegistry } from '../globals-loader.js';
 
 export interface RunUpArgs {
   outfit: string | null;
-  mode: string | null;
+  cut: string | null;
   accessories: string[];
   force: boolean;
   /** Project root — files are written here; lockfile lives at <projectDir>/.suit/lock.json. */
   projectDir: string;
   /** Wardrobe content dir (built-in catalog). */
   contentDir: string;
-  /** User overlay dir for outfits/modes/accessories overrides. */
+  /** User overlay dir for outfits/cuts/accessories overrides. */
   userDir: string;
   /** Whether stdin is a TTY (for picker dispatch in Phase D). */
   isTTY: boolean;
@@ -130,14 +130,14 @@ function projectPathRedirect(emitPath: string): string {
 }
 
 /**
- * Render the outfit's body (and any active mode body) into the marker block
+ * Render the outfit's body (and any active cut body) into the marker block
  * that goes into CLAUDE.md. The block is what `suit off` strips back out.
  *
  * Format:
  *   <!-- suit:outfit:NAME -->
  *   <outfit body>
- *   ## Mode: <mode-name>     ← only when --mode active and modeBody non-empty
- *   <mode body>
+ *   ## Cut: <cut-name>       ← only when --cut active and cutBody non-empty
+ *   <cut body>
  *   <!-- /suit:outfit:NAME -->
  *
  * Accessory bodies aren't included today — accessories are usually small
@@ -147,12 +147,12 @@ function projectPathRedirect(emitPath: string): string {
 function renderOutfitBlock(
   outfitName: string,
   outfitBody: string,
-  modeBody: string | undefined,
+  cutBody: string | undefined,
   _accessoryCount: number,
 ): string {
   const parts = [outfitBody.trim()];
-  if (modeBody && modeBody.trim().length > 0) {
-    parts.push('', modeBody.trim());
+  if (cutBody && cutBody.trim().length > 0) {
+    parts.push('', cutBody.trim());
   }
   return `<!-- suit:outfit:${outfitName} -->\n${parts.join('\n')}\n<!-- /suit:outfit:${outfitName} -->`;
 }
@@ -180,11 +180,11 @@ interface PendingFile {
  */
 function unionTargets(
   outfitTargets: Target[],
-  modeTargets: Target[] | undefined,
+  cutTargets: Target[] | undefined,
   accessoryTargetsList: Target[][],
 ): Target[] {
   const set = new Set<Target>(outfitTargets);
-  if (modeTargets) for (const t of modeTargets) set.add(t);
+  if (cutTargets) for (const t of cutTargets) set.add(t);
   for (const list of accessoryTargetsList) for (const t of list) set.add(t);
   return Array.from(set);
 }
@@ -281,9 +281,9 @@ function dedupeByPath(files: PendingFile[]): PendingFile[] {
 }
 
 
-function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; mode: string | null; accessories: string[] }): boolean {
+function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; cut: string | null; accessories: string[] }): boolean {
   if (a.outfit !== b.outfit) return false;
-  if (a.mode !== b.mode) return false;
+  if (a.cut !== b.cut) return false;
   if (a.accessories.length !== b.accessories.length) return false;
   for (let i = 0; i < a.accessories.length; i++) {
     if (a.accessories[i] !== b.accessories[i]) return false;
@@ -307,7 +307,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     }
     try {
       const picked = await runPicker(dirs, deps);
-      args = { ...args, outfit: picked.outfit, mode: picked.mode, accessories: picked.accessories };
+      args = { ...args, outfit: picked.outfit, cut: picked.cut, accessories: picked.accessories };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       deps.stderr(`suit up: ${msg}\n`);
@@ -322,16 +322,16 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   }
   const outfitName = args.outfit;
 
-  // Stage 1: load outfit, mode, accessories using the standard discovery chain.
+  // Stage 1: load outfit, cut, accessories using the standard discovery chain.
   const foundOutfit = await findOutfit(outfitName, dirs);
   const outfitManifest = foundOutfit.manifest;
 
-  let modeManifest;
-  let modeBody: string | undefined;
-  if (args.mode) {
-    const found = await findMode(args.mode, dirs);
-    modeManifest = found.manifest;
-    modeBody = found.body;
+  let cutManifest;
+  let cutBody: string | undefined;
+  if (args.cut) {
+    const found = await findCut(args.cut, dirs);
+    cutManifest = found.manifest;
+    cutBody = found.body;
   }
 
   const accessoryManifests = [];
@@ -347,7 +347,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   // Stage 3: compute the harness target union.
   const targets = unionTargets(
     outfitManifest.targets,
-    modeManifest?.targets,
+    cutManifest?.targets,
     accessoryManifests.map((a) => a.targets),
   );
 
@@ -372,9 +372,9 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   const canonicalResolution = resolve({
     catalog,
     outfit: outfitManifest,
-    mode: modeManifest,
+    cut: cutManifest,
     accessories: accessoryManifests,
-    modeBody,
+    cutBody,
     harness: targets[0],
     globals,
     warn: (msg) => deps.stderr(`${msg}\n`),
@@ -414,7 +414,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   // when claude-code is one of the resolved targets (otherwise the block
   // would be irrelevant — Claude is the one harness that reads CLAUDE.md).
   if (targets.includes('claude-code') && foundOutfit.body.trim().length > 0) {
-    const blockContent = renderOutfitBlock(outfitName, foundOutfit.body, modeBody, accessoryManifests.length);
+    const blockContent = renderOutfitBlock(outfitName, foundOutfit.body, cutBody, accessoryManifests.length);
     pending.push({
       path: '.claude/CLAUDE.md',
       content: blockContent,
@@ -428,7 +428,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   const priorLock = await readLockfile(args.projectDir);
   const newResolution = {
     outfit: outfitManifest.name,
-    mode: modeManifest?.name ?? null,
+    cut: cutManifest?.name ?? null,
     accessories: accessoryManifests.map((a) => a.name),
   };
 
@@ -536,10 +536,10 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   return 0;
 }
 
-function formatResolution(r: { outfit: string | null; mode: string | null; accessories: string[] }): string {
+function formatResolution(r: { outfit: string | null; cut: string | null; accessories: string[] }): string {
   const parts: string[] = [];
   parts.push(`outfit=${r.outfit ?? '(none)'}`);
-  parts.push(`mode=${r.mode ?? '(none)'}`);
+  parts.push(`cut=${r.cut ?? '(none)'}`);
   parts.push(`accessories=[${r.accessories.join(', ')}]`);
   return parts.join(', ');
 }

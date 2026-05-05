@@ -46,7 +46,7 @@ if [[ "${REAL_MODE:-false}" == "true" ]]; then
     pi)                 REAL_CMD=(pi --provider openrouter --print "reply with just the four characters PING and stop") ;;
     *) echo "FAIL: unknown harness $harness"; exit 1 ;;
   esac
-  output=$(node "$TSX" "$AC" "$harness" --no-filter --outfit backend --mode focused -- "${REAL_CMD[@]:1}" 2>&1)
+  output=$(node "$TSX" "$AC" "$harness" --no-filter --outfit backend --cut focused -- "${REAL_CMD[@]:1}" 2>&1)
   exit_code=$?
   if [[ $exit_code -ne 0 ]]; then
     echo "FAIL: ac+real exited $exit_code"
@@ -64,8 +64,8 @@ fi
 # Install stub on PATH only for the non-real stub test
 export PATH="$SHIM_DIR:$PATH"
 
-# Run with --no-filter AND outfit/mode flags — resolution should still be skipped
-node "$TSX" "$AC" "$harness" --no-filter --outfit backend --mode focused -- ping 2>/dev/null
+# Run with --no-filter AND outfit/cut flags — resolution should still be skipped
+node "$TSX" "$AC" "$harness" --no-filter --outfit backend --cut focused -- ping 2>/dev/null
 stub_exit=$?
 
 if [[ $stub_exit -ne 0 ]]; then

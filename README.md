@@ -1,12 +1,14 @@
 # suit
 
-Multi-harness AI agent configurator. Suit up your harness with outfits and modes — one tool for Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, and Pi.
+Multi-harness AI agent configurator. Suit up your harness with outfits, cuts, and accessories — one tool for Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, and Pi.
 
 ## Status
 
+**v0.9.0** — vocabulary rename: `mode` → `cut`. Resolver semantics unchanged; clean break per [ADR-0016](docs/adr/0016-rename-mode-to-cut.md).
+
 **v0.5.0** — adds `suit up` / `suit off` / `suit current` for project-state mutation alongside the existing stateless launcher. See [ADR-0012](docs/adr/0012-suit-up-and-suit-off.md).
 
-**v0.4.0** — major composition-model rename: persona → outfit, with new accessory primitive and mode-include-block. See [CHANGELOG](CHANGELOG.md).
+**v0.4.0** — major composition-model rename: persona → outfit, with new accessory primitive. See [CHANGELOG](CHANGELOG.md).
 
 **v0.3.0** — dropped legacy path support (`~/.config/agent-config/`, `.agent-config/`).
 
@@ -31,9 +33,9 @@ npm install -g @agent-ops/suit
 # Point at any suit-compatible content repo (one-time setup per machine)
 suit init https://github.com/your-username/your-config
 
-# In any project, dress it with an outfit + mode (+ optional accessories):
+# In any project, dress it with an outfit + cut (+ optional accessories):
 cd ~/projects/foo
-suit up --outfit backend --mode focused
+suit up --outfit backend --cut focused
 # or, on a TTY, just `suit up` and pick from a numbered list
 
 # Now use your harnesses normally — they pick up the dressed config:
@@ -46,13 +48,13 @@ suit current                    # shows applied resolution + file count + drift
 suit off                        # cleanly removes everything suit applied
 
 # Switch outfits in the same project: undress first, then redress.
-suit off && suit up --outfit frontend --mode design
+suit off && suit up --outfit frontend --cut design
 ```
 
 That's the daily-driver flow. For one-off "try this outfit for a single query without dressing the project" cases, the stateless launcher still works:
 
 ```bash
-suit claude --outfit backend --mode focused -- --print "say hi"
+suit claude --outfit backend --cut focused -- --print "say hi"
 suit codex --outfit backend --accessory tracing -- exec --skip-git-repo-check "say hi"
 suit claude --no-filter                   # bypass filtering for one session
 ```
@@ -61,7 +63,7 @@ Discover what's available:
 
 ```bash
 suit list outfits
-suit list modes
+suit list cuts
 suit list accessories
 suit status
 suit sync                       # pull latest from your content repo
@@ -69,7 +71,7 @@ suit sync                       # pull latest from your content repo
 
 For the deeper walkthrough — content tier resolution, authoring, refuse-when-dirty semantics, drift detection — see [USAGE.md](docs/USAGE.md).
 
-## Dev mode (point at a local content repo)
+## Local content repo (point suit at a checkout)
 
 If you're maintaining a content repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
 
@@ -83,7 +85,7 @@ suit claude --outfit backend
 
 ## How it works
 
-`suit` reads YAML-frontmatter outfit and mode definitions, computes a per-session resolution (which skills to keep, which to drop, what mode prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
+`suit` reads YAML-frontmatter outfit and cut definitions, computes a per-session resolution (which skills to keep, which to drop, what cut prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
 
 For Codex and Copilot (which read `AGENTS.md` and `copilot-instructions.md` from the project root), `suit` invokes `suit-build docs` to generate filtered markdown into a tempdir and runs the harness with that as the working directory.
 

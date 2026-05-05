@@ -56,7 +56,7 @@ describe('parseAcArgs', () => {
   });
 
   it('throws when --accessory is followed by another flag instead of a value', () => {
-    expect(() => parseAcArgs(['claude', '--accessory', '--mode', 'focused'])).toThrow(/--accessory/);
+    expect(() => parseAcArgs(['claude', '--accessory', '--cut', 'focused'])).toThrow(/--accessory/);
   });
 });
 

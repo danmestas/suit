@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Claude Code plugins, MCP servers, and (eventually) hooks at user scope.
  *
  * Phase B (suit v0.7 / wardrobe v4): introduces the snapshot format. Phase D
- * wires the resolver to consume this so outfits/modes/accessories can target
+ * wires the resolver to consume this so outfits/cuts/accessories can target
  * globals by name.
  *
  * v0.8 extends the registry to additional harnesses (currently codex). Plugin

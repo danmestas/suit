@@ -20,12 +20,12 @@ const skill = (name: string, category: string | undefined): ComponentSource => (
 });
 
 describe('resolve', () => {
-  it('returns full catalog when no outfit or mode is given', () => {
+  it('returns full catalog when no outfit or cut is given', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
     const r = resolve({ catalog, harness: 'claude-code' });
     expect(r.skillsKeep).toBeNull();
     expect(r.skillsDrop).toEqual([]);
-    expect(r.modePrompt).toBe('');
+    expect(r.cutPrompt).toBe('');
   });
 
   it('drops skills outside outfit categories', () => {
@@ -81,7 +81,7 @@ describe('resolve', () => {
     expect(r.skillsDrop).toContain('a');
   });
 
-  it('outfit ∩ mode categories', () => {
+  it('outfit ∩ cut categories', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow'), skill('c', 'philosophy')];
     const outfit = {
       name: 'p',
@@ -90,35 +90,35 @@ describe('resolve', () => {
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const mode = {
+    const cut = {
       name: 'm',
-      type: 'mode',
+      type: 'cut',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const r = resolve({ catalog, outfit, mode, harness: 'claude-code' });
-    expect(r.skillsDrop).toContain('b'); // in outfit but not in mode
+    const r = resolve({ catalog, outfit, cut, harness: 'claude-code' });
+    expect(r.skillsDrop).toContain('b'); // in outfit but not in cut
     expect(r.skillsDrop).toContain('c'); // in neither
     expect(r.skillsDrop).not.toContain('a'); // in both
   });
 
-  it('mode body becomes mode_prompt', () => {
+  it('cut body becomes cut_prompt', () => {
     const catalog = [skill('a', 'tooling')];
-    const mode = {
+    const cut = {
       name: 'm',
-      type: 'mode',
+      type: 'cut',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
     } as any;
     const r = resolve({
       catalog,
-      mode,
-      modeBody: 'You are in focused mode.\n',
+      cut,
+      cutBody: 'You are in focused cut.\n',
       harness: 'claude-code',
     });
-    expect(r.modePrompt).toBe('You are in focused mode.\n');
+    expect(r.cutPrompt).toBe('You are in focused cut.\n');
   });
 
   it('emits resolved metadata', () => {
@@ -143,8 +143,8 @@ describe('writeResolutionArtifact', () => {
       harness: 'claude-code',
       skillsDrop: ['a'],
       skillsKeep: null,
-      modePrompt: '',
-      metadata: { outfit: null, mode: null, categories: [] },
+      cutPrompt: '',
+      metadata: { outfit: null, cut: null, categories: [] },
     };
     const filepath = await writeResolutionArtifact(r);
     expect(filepath).toMatch(/resolution\.json$/);
@@ -160,8 +160,8 @@ describe('writeResolutionArtifact', () => {
       harness: 'claude-code',
       skillsDrop: [],
       skillsKeep: null,
-      modePrompt: '',
-      metadata: { outfit: null, mode: null, categories: [] },
+      cutPrompt: '',
+      metadata: { outfit: null, cut: null, categories: [] },
     };
     const filepath = await writeResolutionArtifact(r);
     expect(filepath.startsWith(os.tmpdir())).toBe(true);
@@ -399,7 +399,7 @@ describe('resolve with accessories', () => {
   });
 });
 
-describe('resolve with mode include (Phase 3)', () => {
+describe('resolve with cut include (Phase 3)', () => {
   // Reuse a small catalog with extra component types so strict-include
   // validation can succeed/fail on each branch.
   const catalogWithExtras = (): ComponentSource[] => [
@@ -444,10 +444,10 @@ describe('resolve with mode include (Phase 3)', () => {
     },
   ];
 
-  // Helpers to construct mode and accessory manifests inline. The cast to any
+  // Helpers to construct cut and accessory manifests inline. The cast to any
   // mirrors the existing accessory-block tests above and keeps the test
   // surface focused on resolve() behavior, not on schema parsing.
-  const modeWithInclude = (
+  const cutWithInclude = (
     name: string,
     categories: string[],
     include: Partial<{
@@ -460,7 +460,7 @@ describe('resolve with mode include (Phase 3)', () => {
   ) => ({
     name,
     version: '1.0.0',
-    type: 'mode' as const,
+    type: 'cut' as const,
     description: '',
     targets: ['claude-code'],
     categories,
@@ -501,100 +501,100 @@ describe('resolve with mode include (Phase 3)', () => {
     },
   } as any);
 
-  it('mode without include block resolves identically to before (back-compat)', () => {
+  it('cut without include block resolves identically to before (back-compat)', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
-    // Hand-build a "v0.3-shaped" mode manifest with the include block defaulted
-    // to all-empty arrays — this is what ModeSchema.parse() emits today for any
-    // body-only mode in the wardrobe.
-    const mode = {
+    // Hand-build a "v0.3-era-shaped" cut manifest with the include block defaulted
+    // to all-empty arrays — this is what CutSchema.parse() emits today for any
+    // body-only cut in the wardrobe.
+    const cut = {
       name: 'm',
-      type: 'mode',
+      type: 'cut',
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
       include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
     } as any;
-    const r = resolve({ catalog, mode, harness: 'claude-code' });
+    const r = resolve({ catalog, cut, harness: 'claude-code' });
     expect(r.skillsDrop).toContain('b');
     expect(r.skillsDrop).not.toContain('a');
-    expect(r.metadata.mode).toBe('m');
+    expect(r.metadata.cut).toBe('m');
   });
 
-  it('mode.include.skills force-includes a skill the category filter would have dropped', () => {
+  it('cut.include.skills force-includes a skill the category filter would have dropped', () => {
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
-    const mode = modeWithInclude('m', ['tooling'], { skills: ['b'] });
-    const r = resolve({ catalog, mode, harness: 'claude-code' });
+    const cut = cutWithInclude('m', ['tooling'], { skills: ['b'] });
+    const r = resolve({ catalog, cut, harness: 'claude-code' });
     expect(r.skillsDrop).not.toContain('b');
-    expect(r.metadata.mode).toBe('m');
+    expect(r.metadata.cut).toBe('m');
   });
 
-  it('throws on missing skill reference in mode include', () => {
+  it('throws on missing skill reference in cut include', () => {
     const catalog = [skill('a', 'tooling')];
-    const mode = modeWithInclude('ticket-writing', ['tooling'], {
+    const cut = cutWithInclude('ticket-writing', ['tooling'], {
       skills: ['linear-method'],
     });
     expect(() =>
-      resolve({ catalog, mode, harness: 'claude-code' }),
-    ).toThrow(/mode "ticket-writing" includes skill "linear-method" not found in wardrobe/);
+      resolve({ catalog, cut, harness: 'claude-code' }),
+    ).toThrow(/cut "ticket-writing" includes skill "linear-method" not found in wardrobe/);
   });
 
-  it('throws on missing rule reference in mode include', () => {
+  it('throws on missing rule reference in cut include', () => {
     const catalog = catalogWithExtras();
-    const mode = modeWithInclude('m', ['workflow'], {
+    const cut = cutWithInclude('m', ['workflow'], {
       rules: ['no-such-rule'],
     });
     expect(() =>
-      resolve({ catalog, mode, harness: 'claude-code' }),
-    ).toThrow(/mode "m" includes rule "no-such-rule" not found in wardrobe/);
+      resolve({ catalog, cut, harness: 'claude-code' }),
+    ).toThrow(/cut "m" includes rule "no-such-rule" not found in wardrobe/);
   });
 
-  it('throws on missing hook reference in mode include', () => {
+  it('throws on missing hook reference in cut include', () => {
     const catalog = catalogWithExtras();
-    const mode = modeWithInclude('m', ['workflow'], {
+    const cut = cutWithInclude('m', ['workflow'], {
       hooks: ['nonexistent-hook'],
     });
     expect(() =>
-      resolve({ catalog, mode, harness: 'claude-code' }),
-    ).toThrow(/mode "m" includes hook "nonexistent-hook" not found in wardrobe/);
+      resolve({ catalog, cut, harness: 'claude-code' }),
+    ).toThrow(/cut "m" includes hook "nonexistent-hook" not found in wardrobe/);
   });
 
-  it('throws on missing agent reference in mode include', () => {
+  it('throws on missing agent reference in cut include', () => {
     const catalog = catalogWithExtras();
-    const mode = modeWithInclude('m', ['workflow'], {
+    const cut = cutWithInclude('m', ['workflow'], {
       agents: ['no-such-agent'],
     });
     expect(() =>
-      resolve({ catalog, mode, harness: 'claude-code' }),
-    ).toThrow(/mode "m" includes agent "no-such-agent" not found in wardrobe/);
+      resolve({ catalog, cut, harness: 'claude-code' }),
+    ).toThrow(/cut "m" includes agent "no-such-agent" not found in wardrobe/);
   });
 
-  it('error speaker is "mode" (not "accessory") when a mode include is bad', () => {
+  it('error speaker is "cut" (not "accessory") when a cut include is bad', () => {
     const catalog = catalogWithExtras();
-    const mode = modeWithInclude('ticket-writing', ['workflow'], {
+    const cut = cutWithInclude('ticket-writing', ['workflow'], {
       skills: ['linear-method'],
     });
-    expect(() => resolve({ catalog, mode, harness: 'claude-code' })).toThrow(
-      /mode "ticket-writing"/,
+    expect(() => resolve({ catalog, cut, harness: 'claude-code' })).toThrow(
+      /cut "ticket-writing"/,
     );
-    expect(() => resolve({ catalog, mode, harness: 'claude-code' })).not.toThrow(
+    expect(() => resolve({ catalog, cut, harness: 'claude-code' })).not.toThrow(
       /accessory "ticket-writing"/,
     );
   });
 
-  it('passes when every mode include reference exists in the catalog', () => {
+  it('passes when every cut include reference exists in the catalog', () => {
     const catalog = catalogWithExtras();
-    const mode = modeWithInclude('m', ['workflow'], {
+    const cut = cutWithInclude('m', ['workflow'], {
       skills: ['a'],
       rules: ['pr-policy'],
       hooks: ['trace'],
       agents: ['code-reviewer'],
     });
-    const r = resolve({ catalog, mode, harness: 'claude-code' });
-    expect(r.metadata.mode).toBe('m');
+    const r = resolve({ catalog, cut, harness: 'claude-code' });
+    expect(r.metadata.cut).toBe('m');
   });
 
-  it('mode include + accessory include both apply, mode runs first then accessory', () => {
-    // Outfit categories=[tooling]; mode adds 'b' (workflow); accessory adds 'c'
+  it('cut include + accessory include both apply, cut runs first then accessory', () => {
+    // Outfit categories=[tooling]; cut adds 'b' (workflow); accessory adds 'c'
     // (workflow). Without overlays, both b and c would be dropped.
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow'), skill('c', 'workflow')];
     const outfit = {
@@ -604,17 +604,17 @@ describe('resolve with mode include (Phase 3)', () => {
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const mode = modeWithInclude('m', ['tooling'], { skills: ['b'] });
+    const cut = cutWithInclude('m', ['tooling'], { skills: ['b'] });
     const acc = accessoryWithInclude('extras', { skills: ['c'] });
-    const r = resolve({ catalog, outfit, mode, accessories: [acc], harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, cut, accessories: [acc], harness: 'claude-code' });
     expect(r.skillsDrop).not.toContain('b');
     expect(r.skillsDrop).not.toContain('c');
-    expect(r.metadata.mode).toBe('m');
+    expect(r.metadata.cut).toBe('m');
     expect(r.metadata.accessories).toEqual(['extras']);
   });
 
-  it('mode include and accessory include naming the same skill converge to the same kept-set (last-wins is a no-op for force-include)', () => {
-    // Both layers list 'b'. Documented order is mode-first, accessory-second;
+  it('cut include and accessory include naming the same skill converge to the same kept-set (last-wins is a no-op for force-include)', () => {
+    // Both layers list 'b'. Documented order is cut-first, accessory-second;
     // since force-include is set-deletion, the resulting drop-set is identical
     // regardless of order — this test locks that semantic.
     const catalog = [skill('a', 'tooling'), skill('b', 'workflow')];
@@ -625,9 +625,9 @@ describe('resolve with mode include (Phase 3)', () => {
       skill_include: [],
       skill_exclude: [],
     } as any;
-    const mode = modeWithInclude('m', ['tooling'], { skills: ['b'] });
+    const cut = cutWithInclude('m', ['tooling'], { skills: ['b'] });
     const acc = accessoryWithInclude('extras', { skills: ['b'] });
-    const r = resolve({ catalog, outfit, mode, accessories: [acc], harness: 'claude-code' });
+    const r = resolve({ catalog, outfit, cut, accessories: [acc], harness: 'claude-code' });
     expect(r.skillsDrop).not.toContain('b');
   });
 });
@@ -648,7 +648,7 @@ describe('skillsKeepFromResolution', () => {
 // ─── globals filtering (Phase D, v0.7) ─────────────────────────────────────
 //
 // These tests assert the layered enable/disable semantics over a globals.yaml
-// baseline. Layers are applied in CLI declaration order: outfit, mode, then
+// baseline. Layers are applied in CLI declaration order: outfit, cut, then
 // accessories[]. Within each layer `disable` runs before `enable`. The
 // metadata.globals shape is the single source-of-truth for downstream
 // symlink-farm filtering.
@@ -722,19 +722,19 @@ describe('resolve — globals filtering (Phase D)', () => {
     expect(r.metadata.globals.plugins.dropped).toEqual(['p2']);
   });
 
-  it('mode.disable layered on top of outfit.disable accumulates', () => {
+  it('cut.disable layered on top of outfit.disable accumulates', () => {
     const globals = fakeGlobals(['p1', 'p2', 'p3']);
     const outfit = {
       name: 'p', type: 'outfit', categories: [], skill_include: [], skill_exclude: [],
       enable: { plugins: [], mcps: [], hooks: [] },
       disable: { plugins: ['p1'], mcps: [], hooks: [] },
     } as any;
-    const mode = {
-      name: 'm', type: 'mode', categories: [], skill_include: [], skill_exclude: [],
+    const cut = {
+      name: 'm', type: 'cut', categories: [], skill_include: [], skill_exclude: [],
       enable: { plugins: [], mcps: [], hooks: [] },
       disable: { plugins: ['p2'], mcps: [], hooks: [] },
     } as any;
-    const r = resolve({ catalog: [], outfit, mode, harness: 'claude-code', globals });
+    const r = resolve({ catalog: [], outfit, cut, harness: 'claude-code', globals });
     expect(r.metadata.globals.plugins.kept).toEqual(['p3']);
     expect(r.metadata.globals.plugins.dropped).toEqual(['p1', 'p2']);
   });
@@ -787,9 +787,9 @@ describe('resolve — globals filtering (Phase D)', () => {
     expect(warns[0]).toMatch(/outfit "p"/);
   });
 
-  it('layer-order convergence: outfit.disable + mode.disable + accessory.enable', () => {
+  it('layer-order convergence: outfit.disable + cut.disable + accessory.enable', () => {
     // Build a complex case: registry [a,b,c,d]; outfit disables [a,b];
-    // mode disables [c]; accessory1 enables [a]; accessory2 enables [c, d-already-kept].
+    // cut disables [c]; accessory1 enables [a]; accessory2 enables [c, d-already-kept].
     // Expected kept: a (re-added), c (re-added), d (always kept). Dropped: b.
     const globals = fakeGlobals(['a', 'b', 'c', 'd']);
     const outfit = {
@@ -797,8 +797,8 @@ describe('resolve — globals filtering (Phase D)', () => {
       enable: { plugins: [], mcps: [], hooks: [] },
       disable: { plugins: ['a', 'b'], mcps: [], hooks: [] },
     } as any;
-    const mode = {
-      name: 'm', type: 'mode', categories: [], skill_include: [], skill_exclude: [],
+    const cut = {
+      name: 'm', type: 'cut', categories: [], skill_include: [], skill_exclude: [],
       enable: { plugins: [], mcps: [], hooks: [] },
       disable: { plugins: ['c'], mcps: [], hooks: [] },
     } as any;
@@ -815,7 +815,7 @@ describe('resolve — globals filtering (Phase D)', () => {
       disable: { plugins: [], mcps: [], hooks: [] },
     } as any;
     const r = resolve({
-      catalog: [], outfit, mode, accessories: [acc1, acc2],
+      catalog: [], outfit, cut, accessories: [acc1, acc2],
       harness: 'claude-code', globals,
     });
     expect(r.metadata.globals.plugins.kept).toEqual(['a', 'c', 'd']);

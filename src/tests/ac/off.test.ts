@@ -86,7 +86,7 @@ describe('runOff — happy path', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1, e2],
     };
     await writeLockfile(proj, lock);
@@ -134,7 +134,7 @@ describe('runOff — file missing on disk', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [present, ghost],
     };
     await writeLockfile(proj, lock);
@@ -166,7 +166,7 @@ describe('runOff — drift refusal', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1, e2, e3],
     };
     await writeLockfile(proj, lock);
@@ -207,7 +207,7 @@ describe('runOff — --force', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1, e2],
     };
     await writeLockfile(proj, lock);
@@ -246,7 +246,7 @@ describe('runOff — parent directory cleanup', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1],
     };
     await writeLockfile(proj, lock);
@@ -274,7 +274,7 @@ describe('runOff — .suit/ dir cleanup', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1],
     };
     await writeLockfile(proj, lock);
@@ -296,7 +296,7 @@ describe('runOff — .suit/ dir cleanup', () => {
     const lock: Lockfile = {
       schemaVersion: 1,
       appliedAt: new Date().toISOString(),
-      resolution: { outfit: 'backend', mode: null, accessories: [] },
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
       files: [e1],
     };
     await writeLockfile(proj, lock);

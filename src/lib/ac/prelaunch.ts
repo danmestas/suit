@@ -140,15 +140,15 @@ import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.j
 import { composeHarnessHome } from './symlink-farm.js';
 import { composeCodexHome } from './codex-home.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
-import type { OutfitManifest, ModeManifest, AccessoryManifest } from '../schema.js';
+import type { OutfitManifest, CutManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;
   outfit?: OutfitManifest;
-  mode?: ModeManifest;
+  cut?: CutManifest;
   accessories?: AccessoryManifest[];
-  modeBody?: string;
+  cutBody?: string;
   /** v0.7+: optional globals registry for plugin/mcp filtering. */
   globals?: GlobalsRegistry | null;
 }
@@ -165,12 +165,12 @@ async function composeWithHomeOverride(
     target,
     harnessHome: opts.realHome,
     outfit: opts.outfit,
-    mode: opts.mode,
+    cut: opts.cut,
     accessories: opts.accessories,
-    modeBody: opts.modeBody,
+    cutBody: opts.cutBody,
     globals: opts.globals,
   });
-  const skillsKeep = opts.outfit || opts.mode
+  const skillsKeep = opts.outfit || opts.cut
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name); // no filter → keep all
   // Only forward plugins/mcps filtering when a globals registry was provided —
@@ -213,8 +213,8 @@ export interface ApmPrelaunchOptions {
   /** APM package root, typically process.cwd() of the user's invocation. */
   packageDir: string;
   outfit?: OutfitManifest;
-  mode?: ModeManifest;
-  modeBody?: string;
+  cut?: CutManifest;
+  cutBody?: string;
 }
 
 /**
@@ -232,10 +232,10 @@ export async function prelaunchComposeApm(opts: ApmPrelaunchOptions): Promise<{
     target: 'apm',
     harnessHome: opts.packageDir,
     outfit: opts.outfit,
-    mode: opts.mode,
-    modeBody: opts.modeBody,
+    cut: opts.cut,
+    cutBody: opts.cutBody,
   });
-  const skillsKeep = opts.outfit || opts.mode
+  const skillsKeep = opts.outfit || opts.cut
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name);
 

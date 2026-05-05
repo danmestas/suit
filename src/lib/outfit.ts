@@ -4,7 +4,7 @@ import matter from 'gray-matter';
 import { OutfitSchema, type OutfitManifest } from './schema.js';
 
 export interface DiscoveryDirs {
-  /** Project-scoped: <cwd>/.suit/outfits/ (or modes/). */
+  /** Project-scoped: <cwd>/.suit/outfits/ (or cuts/). */
   projectDir: string;
   /** User-scoped: ~/.config/suit/. */
   userDir: string;
@@ -32,8 +32,8 @@ async function listOutfitFilenames(dir: string): Promise<string[]> {
   //   userDir:    <userDir>/outfits/<name>.md
   //   builtinDir: <builtinDir>/outfits/<name>/outfit.md
   // The caller ensures each `dir` is rooted appropriately before invoking.
-  // For listing, we just glob *.md and *.{outfit,mode}.md and dirs containing outfit.md.
-  // This helper is shared with mode.ts in pattern.
+  // For listing, we just glob *.md and *.{outfit,cut}.md and dirs containing outfit.md.
+  // This helper is shared with cut.ts in pattern.
   const out: string[] = [];
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });

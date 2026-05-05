@@ -1,5 +1,5 @@
 import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
-import { listAllModes, findMode } from '../mode.js';
+import { listAllCuts, findCut } from '../cut.js';
 import { listAllAccessories, findAccessory } from '../accessory.js';
 import { getHarnessPresence } from './harness-presence.js';
 import { extractBlurb } from '../blurb.js';
@@ -14,7 +14,7 @@ export interface ListOptions {
 }
 
 export async function listCommand(
-  what: 'outfits' | 'modes' | 'accessories',
+  what: 'outfits' | 'cuts' | 'accessories',
   deps: IntrospectDeps,
   opts: ListOptions = {},
 ): Promise<void> {
@@ -39,10 +39,10 @@ export async function listCommand(
     }
     return;
   }
-  if (what === 'modes') {
-    const all = await listAllModes(deps);
+  if (what === 'cuts') {
+    const all = await listAllCuts(deps);
     if (all.length === 0) {
-      deps.print('(no modes found)');
+      deps.print('(no cuts found)');
       return;
     }
     for (const m of all) {
@@ -70,10 +70,10 @@ export async function listCommand(
 }
 
 export interface ShowOptions {
-  kind: 'outfit' | 'mode' | 'accessory' | 'effective';
+  kind: 'outfit' | 'cut' | 'accessory' | 'effective';
   name?: string;
   outfit?: string;
-  mode?: string;
+  cut?: string;
 }
 
 export async function showCommand(
@@ -98,9 +98,9 @@ export async function showCommand(
     }
     return;
   }
-  if (opts.kind === 'mode') {
-    if (!opts.name) throw new Error('ac show mode <name>: name required');
-    const f = await findMode(opts.name, deps);
+  if (opts.kind === 'cut') {
+    if (!opts.name) throw new Error('ac show cut <name>: name required');
+    const f = await findCut(opts.name, deps);
     deps.print(`name: ${f.manifest.name}`);
     deps.print(`version: ${f.manifest.version}`);
     deps.print(`source: ${f.source} (${f.filepath})`);
@@ -109,10 +109,10 @@ export async function showCommand(
     deps.print(`categories: ${f.manifest.categories.join(', ')}`);
     deps.print(`skill_include: ${(f.manifest.skill_include ?? []).join(', ')}`);
     deps.print(`skill_exclude: ${(f.manifest.skill_exclude ?? []).join(', ')}`);
-    // Phase 3: print the structured `include:` block when the mode declares one
-    // (any non-empty sub-array). Body-only modes — the v0.3 default — have all
-    // five sub-arrays empty and we omit the section entirely so their `show`
-    // output is unchanged.
+    // Print the structured `include:` block when the cut declares one
+    // (any non-empty sub-array). Body-only cuts — the v0.3-era mode default —
+    // have all five sub-arrays empty and we omit the section entirely so their
+    // `show` output is unchanged.
     const inc = f.manifest.include;
     const hasIncludes =
       inc.skills.length +
@@ -130,7 +130,7 @@ export async function showCommand(
       deps.print(`  commands: ${inc.commands.join(', ')}`);
     }
     deps.print('');
-    deps.print('--- mode prompt body (injected as additional context when active) ---');
+    deps.print('--- cut prompt body (injected as additional context when active) ---');
     deps.print(f.body.trim());
     return;
   }

@@ -1,18 +1,18 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { ModeSchema, type ModeManifest } from './schema.js';
+import { CutSchema, type CutManifest } from './schema.js';
 import type { DiscoveryDirs } from './outfit.js';
 
-export interface FoundMode {
-  manifest: ModeManifest;
+export interface FoundCut {
+  manifest: CutManifest;
   body: string;
   source: 'project' | 'user' | 'builtin';
   filepath: string;
 }
 
 const TIERS: Array<keyof DiscoveryDirs> = ['projectDir', 'userDir', 'builtinDir'];
-const TIER_NAMES: Record<keyof DiscoveryDirs, FoundMode['source']> = {
+const TIER_NAMES: Record<keyof DiscoveryDirs, FoundCut['source']> = {
   projectDir: 'project',
   userDir: 'user',
   builtinDir: 'builtin',
@@ -21,27 +21,27 @@ const TIER_NAMES: Record<keyof DiscoveryDirs, FoundMode['source']> = {
 function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
   switch (tier) {
     case 'projectDir':
-      return [path.join(dirs.projectDir, '.suit', 'modes')];
+      return [path.join(dirs.projectDir, '.suit', 'cuts')];
     case 'userDir':
-      return [path.join(dirs.userDir, 'modes')];
+      return [path.join(dirs.userDir, 'cuts')];
     case 'builtinDir':
-      return [path.join(dirs.builtinDir, 'modes')];
+      return [path.join(dirs.builtinDir, 'cuts')];
   }
 }
 
-async function listModeFilenames(dir: string): Promise<string[]> {
+async function listCutFilenames(dir: string): Promise<string[]> {
   const out: string[] = [];
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const e of entries) {
       if (e.isFile() && e.name.endsWith('.md')) out.push(path.join(dir, e.name));
       else if (e.isDirectory()) {
-        const candidate = path.join(dir, e.name, 'mode.md');
+        const candidate = path.join(dir, e.name, 'cut.md');
         try {
           await fs.access(candidate);
           out.push(candidate);
         } catch {
-          // not a mode dir
+          // not a cut dir
         }
       }
     }
@@ -51,15 +51,15 @@ async function listModeFilenames(dir: string): Promise<string[]> {
   return out;
 }
 
-export async function findMode(name: string, dirs: DiscoveryDirs): Promise<FoundMode> {
+export async function findCut(name: string, dirs: DiscoveryDirs): Promise<FoundCut> {
   const seen: string[] = [];
   for (const tier of TIERS) {
     for (const root of resolveTierRoots(tier, dirs)) {
-      const files = await listModeFilenames(root);
+      const files = await listCutFilenames(root);
       for (const filepath of files) {
         const raw = await fs.readFile(filepath, 'utf8');
         const parsed = matter(raw);
-        const result = ModeSchema.safeParse(parsed.data);
+        const result = CutSchema.safeParse(parsed.data);
         if (!result.success) continue;
         seen.push(result.data.name);
         if (result.data.name === name) {
@@ -74,19 +74,19 @@ export async function findMode(name: string, dirs: DiscoveryDirs): Promise<Found
     }
   }
   throw new Error(
-    `mode not found: "${name}". Available: ${seen.length === 0 ? '(none)' : seen.join(', ')}`,
+    `cut not found: "${name}". Available: ${seen.length === 0 ? '(none)' : seen.join(', ')}`,
   );
 }
 
-export async function listAllModes(dirs: DiscoveryDirs): Promise<FoundMode[]> {
-  const found = new Map<string, FoundMode>();
+export async function listAllCuts(dirs: DiscoveryDirs): Promise<FoundCut[]> {
+  const found = new Map<string, FoundCut>();
   for (const tier of TIERS) {
     for (const root of resolveTierRoots(tier, dirs)) {
-      const files = await listModeFilenames(root);
+      const files = await listCutFilenames(root);
       for (const filepath of files) {
         const raw = await fs.readFile(filepath, 'utf8');
         const parsed = matter(raw);
-        const result = ModeSchema.safeParse(parsed.data);
+        const result = CutSchema.safeParse(parsed.data);
         if (!result.success) continue;
         if (!found.has(result.data.name)) {
           found.set(result.data.name, {

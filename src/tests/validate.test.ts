@@ -201,7 +201,7 @@ describe('TAXONOMY.md path resolution', () => {
   });
 });
 
-describe('outfit/mode validation', () => {
+describe('outfit/cut validation', () => {
   it('rejects outfit with category not in TAXONOMY', async () => {
     const errors = await validateAll(
       [
@@ -250,16 +250,16 @@ describe('outfit/mode validation', () => {
     expect(errors.some((e) => e.message.includes('definitelyNotARealSkill'))).toBe(true);
   });
 
-  it('rejects mode body > 4096 bytes', async () => {
+  it('rejects cut body > 4096 bytes', async () => {
     const longBody = 'x'.repeat(4097);
     const errors = await validateAll(
       [
         {
-          relativeDir: 'modes/long',
+          relativeDir: 'cuts/long',
           manifest: {
             name: 'long',
             version: '1.0.0',
-            type: 'mode',
+            type: 'cut',
             description: 't',
             targets: ['claude-code'],
             categories: ['tooling'],

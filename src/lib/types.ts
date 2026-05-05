@@ -1,4 +1,4 @@
-export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'mode', 'accessory'] as const;
+export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'cut', 'accessory'] as const;
 export type ComponentType = typeof COMPONENT_TYPES[number];
 
 export const TARGETS = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'] as const;
@@ -64,7 +64,7 @@ export interface ComponentManifest {
   before?: string[];
   after?: string[];
   overrides?: Partial<Record<Target, Record<string, unknown>>>;
-  // outfit / mode specific
+  // outfit / cut specific
   categories?: string[];
   skill_include?: string[];
   skill_exclude?: string[];

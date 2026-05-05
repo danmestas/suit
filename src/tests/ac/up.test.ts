@@ -20,7 +20,7 @@ async function mkdirT(prefix: string): Promise<string> {
 }
 
 /**
- * Build a minimal wardrobe content tree containing one outfit, one mode, one
+ * Build a minimal wardrobe content tree containing one outfit, one cut, one
  * accessory, and two skills. Targets default to `claude-code` so the
  * claude-code adapter is exercised.
  */
@@ -41,13 +41,13 @@ backend body
 `,
   );
 
-  await fs.mkdir(path.join(root, 'modes', 'focused'), { recursive: true });
+  await fs.mkdir(path.join(root, 'cuts', 'focused'), { recursive: true });
   await fs.writeFile(
-    path.join(root, 'modes', 'focused', 'mode.md'),
+    path.join(root, 'cuts', 'focused', 'cut.md'),
     `---
 name: focused
 version: 1.0.0
-type: mode
+type: cut
 description: deep focus
 targets: [claude-code]
 categories: [tooling]
@@ -139,7 +139,7 @@ describe('runUp — basic apply', () => {
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: 'focused',
+        cut: 'focused',
         accessories: [],
         force: false,
         projectDir: proj,
@@ -158,7 +158,7 @@ describe('runUp — basic apply', () => {
     expect(lock).not.toBeNull();
     expect(lock!.resolution).toEqual({
       outfit: 'backend',
-      mode: 'focused',
+      cut: 'focused',
       accessories: [],
     });
     expect(lock!.files.length).toBeGreaterThan(0);
@@ -184,7 +184,7 @@ describe('runUp — basic apply', () => {
     // Stdout reports applied resolution and lockfile path.
     const out = cap.out.join('');
     expect(out).toMatch(/outfit=backend/);
-    expect(out).toMatch(/mode=focused/);
+    expect(out).toMatch(/cut=focused/);
     expect(out).toMatch(/Lockfile:/);
   });
 
@@ -204,7 +204,7 @@ describe('runUp — basic apply', () => {
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: null,
+        cut: null,
         accessories: [],
         force: false,
         projectDir: proj,
@@ -226,12 +226,12 @@ describe('runUp — basic apply', () => {
     const proj = await mkProject();
     const userDir = await mkdirT('suit-up-user-');
 
-    // First apply: outfit=backend, mode=focused.
+    // First apply: outfit=backend, cut=focused.
     const c1 = capture();
     await runUp(
       {
         outfit: 'backend',
-        mode: 'focused',
+        cut: 'focused',
         accessories: [],
         force: false,
         projectDir: proj,
@@ -243,12 +243,12 @@ describe('runUp — basic apply', () => {
     );
     expect(await readLockfile(proj)).not.toBeNull();
 
-    // Second apply: same outfit, no mode → different resolution.
+    // Second apply: same outfit, no cut → different resolution.
     const c2 = capture();
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: null,
+        cut: null,
         accessories: [],
         force: false,
         projectDir: proj,
@@ -278,7 +278,7 @@ describe('runUp — basic apply', () => {
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: null,
+        cut: null,
         accessories: [],
         force: true,
         projectDir: proj,
@@ -307,7 +307,7 @@ describe('runUp — basic apply', () => {
     await runUp(
       {
         outfit: 'backend',
-        mode: 'focused',
+        cut: 'focused',
         accessories: [],
         force: false,
         projectDir: proj,
@@ -322,7 +322,7 @@ describe('runUp — basic apply', () => {
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: null,
+        cut: null,
         accessories: [],
         force: true,
         projectDir: proj,
@@ -335,7 +335,7 @@ describe('runUp — basic apply', () => {
 
     expect(code).toBe(0);
     const lock = await readLockfile(proj);
-    expect(lock!.resolution.mode).toBeNull();
+    expect(lock!.resolution.cut).toBeNull();
   });
 
   it('re-applying the same resolution is idempotent', async () => {
@@ -347,7 +347,7 @@ describe('runUp — basic apply', () => {
     await runUp(
       {
         outfit: 'backend',
-        mode: 'focused',
+        cut: 'focused',
         accessories: [],
         force: false,
         projectDir: proj,
@@ -368,7 +368,7 @@ describe('runUp — basic apply', () => {
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: 'focused',
+        cut: 'focused',
         accessories: [],
         force: false,
         projectDir: proj,
@@ -393,14 +393,14 @@ describe('runUp — basic apply', () => {
     const proj = await mkProject();
     const userDir = await mkdirT('suit-up-user-');
 
-    // Add a mode that includes a non-existent skill — resolve() should refuse.
-    await fs.mkdir(path.join(wardrobe, 'modes', 'broken'), { recursive: true });
+    // Add a cut that includes a non-existent skill — resolve() should refuse.
+    await fs.mkdir(path.join(wardrobe, 'cuts', 'broken'), { recursive: true });
     await fs.writeFile(
-      path.join(wardrobe, 'modes', 'broken', 'mode.md'),
+      path.join(wardrobe, 'cuts', 'broken', 'cut.md'),
       `---
 name: broken
 version: 1.0.0
-type: mode
+type: cut
 description: invalid include
 targets: [claude-code]
 categories: []
@@ -417,7 +417,7 @@ broken body
       await runUp(
         {
           outfit: 'backend',
-          mode: 'broken',
+          cut: 'broken',
           accessories: [],
           force: false,
           projectDir: proj,
@@ -443,7 +443,7 @@ broken body
     const code = await runUp(
       {
         outfit: null,
-        mode: null,
+        cut: null,
         accessories: [],
         force: false,
         projectDir: proj,
@@ -515,7 +515,7 @@ backend body
     const code = await runUp(
       {
         outfit: 'backend',
-        mode: null,
+        cut: null,
         accessories: [],
         force: false,
         projectDir: proj,

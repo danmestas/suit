@@ -37,7 +37,7 @@ export async function runCurrent(args: RunCurrentArgs, deps: RunCurrentDeps): Pr
   // Resolution + apply timestamp.
   const r = lock.resolution;
   deps.stdout(`outfit:       ${r.outfit ?? '(none)'}\n`);
-  deps.stdout(`mode:         ${r.mode ?? '(none)'}\n`);
+  deps.stdout(`cut:          ${r.cut ?? '(none)'}\n`);
   deps.stdout(`accessories:  [${r.accessories.join(', ')}]\n`);
   deps.stdout(`applied at:   ${lock.appliedAt}\n`);
   deps.stdout(`files:        ${lock.files.length}\n`);

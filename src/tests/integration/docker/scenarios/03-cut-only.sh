@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# 04-outfit-and-mode.sh <harness>
-# Verifies: --outfit backend --mode focused sets AC_RESOLUTION_PATH;
-#           resolution JSON has both metadata.outfit == "backend"
-#           and metadata.mode == "focused".
+# 03-cut-only.sh <harness>
+# Verifies: --cut focused sets AC_RESOLUTION_PATH; resolution JSON has
+#           metadata.cut == "focused" and a non-empty cut_prompt.
 set -uo pipefail
 
 harness="${1:?harness name required}"
@@ -45,7 +44,7 @@ if [[ "${REAL_MODE:-false}" == "true" ]]; then
     pi)                 REAL_CMD=(pi --provider openrouter --print "reply with just the four characters PING and stop") ;;
     *) echo "FAIL: unknown harness $harness"; exit 1 ;;
   esac
-  output=$(node "$TSX" "$AC" "$harness" --outfit backend --mode focused -- "${REAL_CMD[@]:1}" 2>&1)
+  output=$(node "$TSX" "$AC" "$harness" --cut focused -- "${REAL_CMD[@]:1}" 2>&1)
   exit_code=$?
   if [[ $exit_code -ne 0 ]]; then
     echo "FAIL: ac+real exited $exit_code"
@@ -63,7 +62,7 @@ fi
 # Install stub on PATH only for the non-real stub test
 export PATH="$SHIM_DIR:$PATH"
 
-node "$TSX" "$AC" "$harness" --outfit backend --mode focused -- ping 2>/dev/null
+node "$TSX" "$AC" "$harness" --cut focused -- ping 2>/dev/null
 stub_exit=$?
 
 if [[ $stub_exit -ne 0 ]]; then
@@ -74,7 +73,7 @@ fi
 ac_resolution_path=$(grep "^AC_RESOLUTION_PATH=" "$CAPTURED_ENV_FILE" | cut -d= -f2-)
 
 if [[ -z "$ac_resolution_path" ]]; then
-  echo "FAIL: AC_RESOLUTION_PATH not set with --outfit backend --mode focused"
+  echo "FAIL: AC_RESOLUTION_PATH not set with --cut focused"
   cat "$CAPTURED_ENV_FILE"
   exit 1
 fi
@@ -84,21 +83,17 @@ if [[ ! -f "$ac_resolution_path" ]]; then
   exit 1
 fi
 
-persona_name=$(jq -r '.metadata.outfit // empty' "$ac_resolution_path" 2>/dev/null || true)
-mode_name=$(jq -r '.metadata.mode // empty' "$ac_resolution_path" 2>/dev/null || true)
+cut_name=$(jq -r '.metadata.cut // empty' "$ac_resolution_path" 2>/dev/null || true)
+cut_prompt=$(jq -r '.cutPrompt // empty' "$ac_resolution_path" 2>/dev/null || true)
 
-failures=()
-
-if [[ "$persona_name" != "backend" ]]; then
-  failures+=("expected metadata.outfit=backend, got: $persona_name")
+if [[ "$cut_name" != "focused" ]]; then
+  echo "FAIL: expected metadata.cut=focused, got: $cut_name"
+  jq . "$ac_resolution_path" 2>/dev/null || cat "$ac_resolution_path"
+  exit 1
 fi
 
-if [[ "$mode_name" != "focused" ]]; then
-  failures+=("expected metadata.mode=focused, got: $mode_name")
-fi
-
-if [[ ${#failures[@]} -gt 0 ]]; then
-  echo "FAIL: ${failures[*]}"
+if [[ -z "$cut_prompt" ]]; then
+  echo "FAIL: cutPrompt is empty — expected non-empty prompt for 'focused' cut"
   jq . "$ac_resolution_path" 2>/dev/null || cat "$ac_resolution_path"
   exit 1
 fi

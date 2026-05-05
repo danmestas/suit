@@ -63,7 +63,7 @@ function parseInitArgs(rest: string[]): { url: string | null; force: boolean } {
 
 interface UpArgs {
   outfit: string | null;
-  mode: string | null;
+  cut: string | null;
   accessories: string[];
   force: boolean;
   err: string | null;
@@ -73,13 +73,13 @@ interface UpArgs {
  * Parse `suit up` args. Surface the first parse error via `err` so the caller
  * can print it consistently with the rest of the CLI rather than throwing.
  *
- * Recognized flags: `--outfit X`, `--mode Y`, `--accessory A` (repeatable), `--force`.
+ * Recognized flags: `--outfit X`, `--cut Y`, `--accessory A` (repeatable), `--force`.
  * The `=` form (`--outfit=X`) is also accepted for muscle-memory parity with
  * other CLIs.
  */
 function parseUpArgs(rest: string[]): UpArgs {
   let outfit: string | null = null;
-  let mode: string | null = null;
+  let cut: string | null = null;
   const accessories: string[] = [];
   let force = false;
   let err: string | null = null;
@@ -114,13 +114,13 @@ function parseUpArgs(rest: string[]): UpArgs {
       }
       outfit = r.value;
       i = r.next;
-    } else if (flag === '--mode') {
+    } else if (flag === '--cut') {
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) {
-        err = err ?? 'suit up: --mode requires a value';
+        err = err ?? 'suit up: --cut requires a value';
         continue;
       }
-      mode = r.value;
+      cut = r.value;
       i = r.next;
     } else if (flag === '--accessory') {
       const r = takeValue(flag, i, eqValue);
@@ -134,7 +134,7 @@ function parseUpArgs(rest: string[]): UpArgs {
       err = err ?? `suit up: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, mode, accessories, force, err };
+  return { outfit, cut, accessories, force, err };
 }
 
 async function main(): Promise<number> {
@@ -182,8 +182,8 @@ async function main(): Promise<number> {
 
   if (cmd === 'list') {
     const what = argv[1];
-    if (what !== 'outfits' && what !== 'modes' && what !== 'accessories') {
-      process.stderr.write('suit list: expected "outfits", "modes", or "accessories"\n');
+    if (what !== 'outfits' && what !== 'cuts' && what !== 'accessories') {
+      process.stderr.write('suit list: expected "outfits", "cuts", or "accessories"\n');
       return 2;
     }
     const rest = argv.slice(2);
@@ -206,15 +206,15 @@ async function main(): Promise<number> {
 
   if (cmd === 'show') {
     const kind = argv[1];
-    if (kind !== 'outfit' && kind !== 'mode' && kind !== 'accessory' && kind !== 'effective') {
+    if (kind !== 'outfit' && kind !== 'cut' && kind !== 'accessory' && kind !== 'effective') {
       process.stderr.write(
-        'suit show: expected "outfit <name>" | "mode <name>" | "accessory <name>" | "effective ..."\n',
+        'suit show: expected "outfit <name>" | "cut <name>" | "accessory <name>" | "effective ..."\n',
       );
       return 2;
     }
     const name = argv[2];
     await showCommand(
-      { kind: kind as 'outfit' | 'mode' | 'accessory' | 'effective', name },
+      { kind: kind as 'outfit' | 'cut' | 'accessory' | 'effective', name },
       { ...dirs, print: (l) => process.stdout.write(l + '\n') },
     );
     return 0;
@@ -236,7 +236,7 @@ async function main(): Promise<number> {
     return runUp(
       {
         outfit: parsed.outfit,
-        mode: parsed.mode,
+        cut: parsed.cut,
         accessories: parsed.accessories,
         force: parsed.force,
         projectDir: dirs.projectDir,
