@@ -93,7 +93,7 @@ async function emitHook(component: ComponentSource): Promise<EmittedFile[]> {
     fragment.hooks[event] ??= [];
     (fragment.hooks[event] as unknown[]).push({
       matcher: def.matcher ?? '*',
-      hooks: [{ type: 'command', command: `\${CLAUDE_PROJECT_DIR}/${def.command}` }],
+      hooks: [{ type: 'command', command: `\${CLAUDE_PROJECT_DIR}/.claude/${def.command}` }],
     });
     const scriptPath = path.join(dir, def.command);
     const scriptExists = await fs.stat(scriptPath).then(() => true).catch(() => false);
