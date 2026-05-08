@@ -53,6 +53,47 @@ describe('OutfitSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts a compose field with venn-diagram expressions', () => {
+    const result = OutfitSchema.safeParse({
+      name: 'quick',
+      version: '0.1.0',
+      type: 'outfit',
+      description: 'Composed generalist',
+      targets: ['claude-code'],
+      categories: ['workflow'],
+      compose: ['implementer + planner + reviewer'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.compose).toEqual(['implementer + planner + reviewer']);
+    }
+  });
+
+  it('defaults compose to an empty array when omitted (back-compat)', () => {
+    const result = OutfitSchema.parse({
+      name: 'backend',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+    });
+    expect(result.compose).toEqual([]);
+  });
+
+  it('rejects compose entries that are not strings', () => {
+    const result = OutfitSchema.safeParse({
+      name: 'bad',
+      version: '0.1.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+      compose: [123],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('findOutfit (3-tier discovery)', () => {

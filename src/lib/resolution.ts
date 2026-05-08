@@ -288,6 +288,77 @@ function computeEffectiveCategories(
 }
 
 /**
+ * Resolve a single compose-expression operand to a set of skill names.
+ *
+ * Two operand shapes:
+ *   - `tag:<name>` — selects every skill in the catalog whose freeform `tags`
+ *     array contains <name>. Lets authors subtract by topic without naming
+ *     individual skills.
+ *   - bare identifier — treated as an outfit name; returns that outfit's
+ *     `skill_include` list. Unknown outfit names resolve to the empty set
+ *     (forward-compat: a typo or future-outfit reference doesn't crash
+ *     the build).
+ */
+function resolveComposeOperand(token: string, catalog: ComponentSource[]): string[] {
+  if (token.startsWith('tag:')) {
+    const tag = token.slice(4);
+    return catalog
+      .filter((c) => c.manifest.type === 'skill')
+      .filter((c) => (c.manifest.tags ?? []).includes(tag))
+      .map((c) => c.manifest.name);
+  }
+  const found = catalog.find(
+    (c) => c.manifest.type === 'outfit' && c.manifest.name === token,
+  );
+  if (!found) return [];
+  return ((found.manifest as OutfitManifest).skill_include ?? []);
+}
+
+/**
+ * Resolve `compose:` expressions on an outfit into add/remove sets.
+ *
+ * Tokenize each expression on whitespace; consume tokens left-to-right with the
+ * current operator (default `+`). `+` adds the operand's skills to the include
+ * set and removes them from the exclude set; `-` does the opposite. Multiple
+ * compose expressions on one outfit accumulate.
+ *
+ * Returns the deltas to merge into the outfit's existing skill_include /
+ * skill_exclude. Caller is responsible for that merge — keeping the function
+ * pure makes the operator semantics easier to reason about and test in
+ * isolation.
+ */
+function resolveComposeOperators(
+  composeExprs: string[],
+  catalog: ComponentSource[],
+): { include: Set<string>; exclude: Set<string> } {
+  const include = new Set<string>();
+  const exclude = new Set<string>();
+  for (const expr of composeExprs) {
+    const tokens = expr.split(/\s+/).filter(Boolean);
+    let op: '+' | '-' = '+';
+    for (const tok of tokens) {
+      if (tok === '+' || tok === '-') {
+        op = tok;
+        continue;
+      }
+      const skills = resolveComposeOperand(tok, catalog);
+      if (op === '+') {
+        for (const s of skills) {
+          include.add(s);
+          exclude.delete(s);
+        }
+      } else {
+        for (const s of skills) {
+          exclude.add(s);
+          include.delete(s);
+        }
+      }
+    }
+  }
+  return { include, exclude };
+}
+
+/**
  * Compute the initial skillsDrop list via category filtering. Forced excludes
  * win first; forced includes rescue specific names; uncategorized skills always
  * load; otherwise drop unless the skill's primary category intersects the
@@ -299,13 +370,19 @@ function computeSkillsDrop(
   cut: CutManifest | undefined,
   effectiveCategories: Set<string> | null,
 ): string[] {
-  const includeNames = new Set([
+  const composeResolved = outfit?.compose && outfit.compose.length > 0
+    ? resolveComposeOperators(outfit.compose, catalog)
+    : { include: new Set<string>(), exclude: new Set<string>() };
+
+  const includeNames = new Set<string>([
     ...(outfit?.skill_include ?? []),
     ...(cut?.skill_include ?? []),
+    ...composeResolved.include,
   ]);
-  const excludeNames = new Set([
+  const excludeNames = new Set<string>([
     ...(outfit?.skill_exclude ?? []),
     ...(cut?.skill_exclude ?? []),
+    ...composeResolved.exclude,
   ]);
 
   const skillsDrop: string[] = [];

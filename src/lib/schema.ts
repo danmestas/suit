@@ -119,6 +119,13 @@ export const OutfitSchema = ManifestBaseSchema.extend({
   categories: z.array(z.string()).min(0),
   skill_include: z.array(z.string()).default([]),
   skill_exclude: z.array(z.string()).default([]),
+  // v0.10+: venn-diagram composition. Each entry is an expression like
+  // "implementer + planner - tag:research" — the resolver tokenizes on
+  // whitespace, treats `+`/`-` as operators, and resolves bare names as
+  // outfit references (using their skill_include) and `tag:<name>` as
+  // a selector over skills' freeform `tags` array. Defaults to empty so
+  // pre-v0.10 outfits round-trip unchanged.
+  compose: z.array(z.string()).default([]),
   enable: EnableDisableBlockSchema,
   disable: EnableDisableBlockSchema,
 }).strict();
