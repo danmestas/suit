@@ -5,7 +5,7 @@ import path from 'node:path';
 import { resolve, writeResolutionArtifact, resolveAndPersist, resolveAgainstHarness, skillsKeepFromResolution } from '../lib/resolution.ts';
 import type { ComponentSource } from '../lib/types.ts';
 
-const skill = (name: string, category: string | undefined): ComponentSource => ({
+const skill = (name: string, category: string | undefined, tags?: string[]): ComponentSource => ({
   relativeDir: `skills/${name}`,
   dir: `/tmp/skills/${name}`,
   body: '',
@@ -16,6 +16,29 @@ const skill = (name: string, category: string | undefined): ComponentSource => (
     description: '',
     targets: ['claude-code'],
     ...(category ? { category: { primary: category } } : {}),
+    ...(tags ? { tags } : {}),
+  } as any,
+});
+
+const outfitSrc = (
+  name: string,
+  skillInclude: string[] = [],
+  skillExclude: string[] = [],
+): ComponentSource => ({
+  relativeDir: `outfits/${name}`,
+  dir: `/tmp/outfits/${name}`,
+  body: '',
+  manifest: {
+    name,
+    version: '0.1.0',
+    type: 'outfit',
+    description: '',
+    targets: ['claude-code'],
+    categories: ['workflow'],
+    skill_include: skillInclude,
+    skill_exclude: skillExclude,
+    enable: { plugins: [], mcps: [], hooks: [] },
+    disable: { plugins: [], mcps: [], hooks: [] },
   } as any,
 });
 
@@ -133,6 +156,112 @@ describe('resolve', () => {
     const r = resolve({ catalog, outfit, harness: 'claude-code' });
     expect(r.metadata.outfit).toBe('p');
     expect(r.metadata.categories).toContain('tooling');
+  });
+
+  // Venn-diagram composition operators on the outfit `compose:` field.
+  // Skills/accessories/hooks compose as sets via +, -, and tag:<name> selectors.
+  // Operands are outfit names from the catalog or tag:<name> for arbitrary skill tags.
+  describe('compose field (venn algebra)', () => {
+    it('+ operator unions skill_include from referenced outfits', () => {
+      const catalog = [
+        skill('s1', 'workflow'),
+        skill('s2', 'workflow'),
+        skill('s3', 'workflow'),
+        skill('s4', 'workflow'),
+        outfitSrc('implementer', ['s1', 's2']),
+        outfitSrc('planner', ['s3']),
+      ];
+      const outfit = {
+        name: 'quick',
+        type: 'outfit',
+        categories: ['workflow'],
+        skill_include: [],
+        skill_exclude: [],
+        compose: ['implementer + planner'],
+      } as any;
+      const r = resolve({ catalog, outfit, harness: 'claude-code' });
+      // s1, s2, s3 are unioned in via compose; s4 is not referenced anywhere
+      expect(r.skillsDrop).not.toContain('s1');
+      expect(r.skillsDrop).not.toContain('s2');
+      expect(r.skillsDrop).not.toContain('s3');
+    });
+
+    it('- operator removes skills present in the subtrahend outfit', () => {
+      const catalog = [
+        skill('keep', 'workflow'),
+        skill('drop', 'workflow'),
+        outfitSrc('implementer', ['keep', 'drop']),
+        outfitSrc('exclude-pack', ['drop']),
+      ];
+      const outfit = {
+        name: 'lean',
+        type: 'outfit',
+        categories: ['workflow'],
+        skill_include: [],
+        skill_exclude: [],
+        compose: ['implementer - exclude-pack'],
+      } as any;
+      const r = resolve({ catalog, outfit, harness: 'claude-code' });
+      expect(r.skillsDrop).not.toContain('keep');
+      expect(r.skillsDrop).toContain('drop');
+    });
+
+    it('tag:<name> selector matches skills via freeform tags array', () => {
+      const catalog = [
+        skill('skill-a', 'workflow', ['planning', 'design']),
+        skill('skill-b', 'workflow', ['execution']),
+        outfitSrc('implementer', ['skill-a', 'skill-b']),
+      ];
+      const outfit = {
+        name: 'lean',
+        type: 'outfit',
+        categories: ['workflow'],
+        skill_include: [],
+        skill_exclude: [],
+        compose: ['implementer - tag:planning'],
+      } as any;
+      const r = resolve({ catalog, outfit, harness: 'claude-code' });
+      // skill-a is tagged 'planning' so it's subtracted; skill-b stays
+      expect(r.skillsDrop).toContain('skill-a');
+      expect(r.skillsDrop).not.toContain('skill-b');
+    });
+
+    it('unknown outfit operand is silently treated as empty (forward-compat)', () => {
+      const catalog = [
+        skill('s1', 'workflow'),
+        outfitSrc('implementer', ['s1']),
+      ];
+      const outfit = {
+        name: 'x',
+        type: 'outfit',
+        categories: ['workflow'],
+        skill_include: [],
+        skill_exclude: [],
+        compose: ['implementer + nonexistent'],
+      } as any;
+      const r = resolve({ catalog, outfit, harness: 'claude-code' });
+      expect(r.skillsDrop).not.toContain('s1');
+    });
+
+    it('multiple compose expressions accumulate', () => {
+      const catalog = [
+        skill('a', 'workflow'),
+        skill('b', 'workflow'),
+        outfitSrc('one', ['a']),
+        outfitSrc('two', ['b']),
+      ];
+      const outfit = {
+        name: 'both',
+        type: 'outfit',
+        categories: ['workflow'],
+        skill_include: [],
+        skill_exclude: [],
+        compose: ['one', 'two'],
+      } as any;
+      const r = resolve({ catalog, outfit, harness: 'claude-code' });
+      expect(r.skillsDrop).not.toContain('a');
+      expect(r.skillsDrop).not.toContain('b');
+    });
   });
 });
 
