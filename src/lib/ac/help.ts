@@ -6,7 +6,7 @@ USAGE
   suit up --outfit <name> [--cut <name>] [--accessory <name>]... [--force]
   suit off [--force]
   suit current
-  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]...
+  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run]
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
@@ -53,9 +53,14 @@ EXAMPLES
   # 'prepare' emits a stateless bundle to a tempdir and prints its path on
   # stdout. The caller (e.g. a multi-worker spawn wrapper) launches its own
   # agent against the bundle and owns cleanup (rm -rf) when done.
-  BUNDLE=\$(suit prepare --outfit backend --target claude-code)
+  BUNDLE=\$(suit prepare --outfit backend --target claude --quiet)
   claude --add-dir "\$BUNDLE" -- ...
   rm -rf "\$BUNDLE"
+
+  # --target accepts 'claude' as an alias for 'claude-code'. --quiet drops the
+  # trailing newline so wrapper-side capture is exact. --dry-run lists files
+  # that WOULD be emitted, without writing a tempdir.
+  suit prepare --outfit backend --target claude --dry-run
 
 See https://github.com/danmestas/suit for full docs.
 `;

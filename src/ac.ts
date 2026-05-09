@@ -144,7 +144,23 @@ interface PrepareArgs {
   cut: string | null;
   accessories: string[];
   target: Target | null;
+  quiet: boolean;
+  dryRun: boolean;
   err: string | null;
+}
+
+/**
+ * Short-form aliases accepted on `--target`. Internal type stays canonical
+ * (`claude-code`); aliases are resolved at parse time so callers/wrappers
+ * can write the harness binary's name (`claude`) without hand-mapping.
+ */
+const TARGET_ALIASES: Record<string, Target> = {
+  claude: 'claude-code',
+};
+
+function resolveTargetArg(raw: string): Target | null {
+  if (TARGET_ALIASES[raw]) return TARGET_ALIASES[raw];
+  return TARGETS.includes(raw as Target) ? (raw as Target) : null;
 }
 
 /**
@@ -152,13 +168,35 @@ interface PrepareArgs {
  * scope the bundle to a single harness. Per ADR (#36), `prepare` is
  * single-target on the first cut — multi-target opens questions about
  * combined-prefix bundle layouts that don't have answers yet.
+ *
+ * Singleton flags (`--outfit`, `--cut`, `--target`, `--quiet`, `--dry-run`)
+ * reject duplicates: `--outfit a --outfit b` errors rather than silently
+ * taking the last value, which masked caller bugs in programmatic invocations.
+ * `--accessory` is repeatable by design; same value passed twice is deduped
+ * with a warning to stderr.
  */
 function parsePrepareArgs(rest: string[]): PrepareArgs {
   let outfit: string | null = null;
   let cut: string | null = null;
   const accessories: string[] = [];
+  const accessorySeen = new Set<string>();
   let target: Target | null = null;
+  let quiet = false;
+  let dryRun = false;
   let err: string | null = null;
+
+  // Track which singleton flags have been seen so duplicates can be rejected
+  // explicitly rather than silently last-wins. Repeatable flags
+  // (`--accessory`) use a separate de-dup set above.
+  const seenSingletons = new Set<string>();
+  function rejectIfDuplicate(flag: string): boolean {
+    if (seenSingletons.has(flag)) {
+      err = err ?? `suit prepare: ${flag} passed multiple times`;
+      return true;
+    }
+    seenSingletons.add(flag);
+    return false;
+  }
 
   function takeValue(_flag: string, i: number, eqValue: string | undefined): { value: string | null; next: number } {
     if (eqValue !== undefined) return { value: eqValue, next: i };
@@ -179,11 +217,13 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
       eqValue = arg.slice(eq + 1);
     }
     if (flag === '--outfit') {
+      if (rejectIfDuplicate(flag)) continue;
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) { err = err ?? 'suit prepare: --outfit requires a value'; continue; }
       outfit = r.value;
       i = r.next;
     } else if (flag === '--cut') {
+      if (rejectIfDuplicate(flag)) continue;
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) { err = err ?? 'suit prepare: --cut requires a value'; continue; }
       cut = r.value;
@@ -191,22 +231,36 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
     } else if (flag === '--accessory') {
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) { err = err ?? 'suit prepare: --accessory requires a value'; continue; }
-      accessories.push(r.value);
+      if (accessorySeen.has(r.value)) {
+        process.stderr.write(`suit prepare: --accessory ${r.value} passed multiple times; deduplicating\n`);
+      } else {
+        accessorySeen.add(r.value);
+        accessories.push(r.value);
+      }
       i = r.next;
     } else if (flag === '--target') {
+      if (rejectIfDuplicate(flag)) continue;
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) { err = err ?? 'suit prepare: --target requires a value'; continue; }
-      if (!TARGETS.includes(r.value as Target)) {
-        err = err ?? `suit prepare: unknown --target "${r.value}" (known: ${TARGETS.join(', ')})`;
+      const resolved = resolveTargetArg(r.value);
+      if (resolved === null) {
+        const knownAliases = Object.keys(TARGET_ALIASES).join(', ');
+        err = err ?? `suit prepare: unknown --target "${r.value}" (known: ${TARGETS.join(', ')}; aliases: ${knownAliases})`;
         continue;
       }
-      target = r.value as Target;
+      target = resolved;
       i = r.next;
+    } else if (flag === '--quiet') {
+      if (rejectIfDuplicate(flag)) continue;
+      quiet = true;
+    } else if (flag === '--dry-run') {
+      if (rejectIfDuplicate(flag)) continue;
+      dryRun = true;
     } else {
       err = err ?? `suit prepare: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, cut, accessories, target, err };
+  return { outfit, cut, accessories, target, quiet, dryRun, err };
 }
 
 async function main(): Promise<number> {
@@ -358,6 +412,8 @@ async function main(): Promise<number> {
         projectDir: dirs.projectDir,
         contentDir: paths.contentDir,
         userDir: paths.userOverlayDir,
+        quiet: parsed.quiet,
+        dryRun: parsed.dryRun,
       },
       {
         stdout: (s) => process.stdout.write(s),
