@@ -6,7 +6,7 @@ USAGE
   suit up --outfit <name> [--cut <name>] [--accessory <name>]... [--force]
   suit off [--force]
   suit current
-  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>]
+  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>] [--shape project|sidecar] [--project <path>]
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
@@ -67,6 +67,14 @@ EXAMPLES
   # 'suit show bundle <path>' pretty-prints the resulting .suit-bundle.json.
   BUNDLE=\$(suit prepare --outfit backend --target claude --label "worker-3" --quiet)
   suit show bundle "\$BUNDLE"
+
+  # --shape sidecar emits a side-loadable bundle + a generated 'launch' script.
+  # The caller does cwd=\$PROJECT && exec \$BUNDLE/launch — one line. Loads
+  # the project's own CLAUDE.md natively (cwd auto-discovery) plus the bundle's
+  # dressing via flags. Solves the 'project CLAUDE.md silently not loaded'
+  # gap in the project-shape recipe.
+  BUNDLE=\$(suit prepare --shape sidecar --outfit backend --target claude --project ~/projects/foo --quiet)
+  exec "\$BUNDLE/launch"
 
 See https://github.com/danmestas/suit for full docs.
 `;

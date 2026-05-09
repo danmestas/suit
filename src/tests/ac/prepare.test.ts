@@ -414,3 +414,209 @@ describe('runPrepare', () => {
     expect(stdout).not.toMatch(/\.suit-bundle\.json/);
   });
 });
+
+describe('runPrepare --shape sidecar', () => {
+  it('emits SYSTEM_PROMPT.md (concat of CLAUDE.md content) instead of separate files', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    const code = await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        shape: 'sidecar',
+        projectPath: projectDir,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    // Sidecar layout: SYSTEM_PROMPT.md exists, root CLAUDE.md and
+    // .claude/CLAUDE.md DO NOT (folded into SYSTEM_PROMPT.md).
+    const sysPrompt = await fs.readFile(path.join(bundle, 'SYSTEM_PROMPT.md'), 'utf8');
+    expect(sysPrompt.length).toBeGreaterThan(0);
+    // Outfit body marker should be in the concatenated content.
+    expect(sysPrompt).toMatch(/<!-- suit:outfit:backend -->/);
+
+    // Root CLAUDE.md should be absent.
+    let rootClaudeExists = false;
+    try {
+      await fs.stat(path.join(bundle, 'CLAUDE.md'));
+      rootClaudeExists = true;
+    } catch {
+      rootClaudeExists = false;
+    }
+    expect(rootClaudeExists).toBe(false);
+
+    // .claude/CLAUDE.md should be absent.
+    let dotClaudeExists = false;
+    try {
+      await fs.stat(path.join(bundle, '.claude', 'CLAUDE.md'));
+      dotClaudeExists = true;
+    } catch {
+      dotClaudeExists = false;
+    }
+    expect(dotClaudeExists).toBe(false);
+  });
+
+  it('emits an executable launch script with the recipe', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        shape: 'sidecar',
+        projectPath: projectDir,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    const launchPath = path.join(bundle, 'launch');
+    const launchStat = await fs.stat(launchPath);
+    expect(launchStat.isFile()).toBe(true);
+    // 0o755 — executable for user/group/world.
+    expect(launchStat.mode & 0o111).not.toBe(0);
+
+    const script = await fs.readFile(launchPath, 'utf8');
+    expect(script.startsWith('#!/usr/bin/env bash\n')).toBe(true);
+    expect(script).toMatch(/exec claude/);
+    expect(script).toMatch(/--append-system-prompt-file/);
+    expect(script).toMatch(/--add-dir/);
+    // Project path should appear (single-quoted) in the cd line.
+    expect(script).toMatch(new RegExp(`cd '${projectDir.replace(/\//g, '\\/')}'`));
+  });
+
+  it('records shape=sidecar in .suit-bundle.json metadata', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        shape: 'sidecar',
+        projectPath: projectDir,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    const meta = JSON.parse(await fs.readFile(path.join(bundle, '.suit-bundle.json'), 'utf8'));
+    expect(meta.shape).toBe('sidecar');
+  });
+
+  it('rejects --shape sidecar with non-claude-code target', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    const code = await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'codex',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        shape: 'sidecar',
+        projectPath: projectDir,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(2);
+    expect(cap.err.join('')).toMatch(/--shape sidecar only supported for --target claude-code/);
+  });
+
+  it('rejects --shape sidecar without --project', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    const code = await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        shape: 'sidecar',
+        // projectPath intentionally omitted
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(2);
+    expect(cap.err.join('')).toMatch(/--shape sidecar requires --project/);
+  });
+
+  it('default shape (project) leaves CLAUDE.md and .claude/CLAUDE.md as separate files', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        // No shape — defaults to 'project'.
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    // Project shape: CLAUDE.md and .claude/CLAUDE.md are separate, no SYSTEM_PROMPT.md.
+    expect((await fs.stat(path.join(bundle, 'CLAUDE.md'))).isFile()).toBe(true);
+    expect((await fs.stat(path.join(bundle, '.claude', 'CLAUDE.md'))).isFile()).toBe(true);
+    let sysExists = false;
+    try {
+      await fs.stat(path.join(bundle, 'SYSTEM_PROMPT.md'));
+      sysExists = true;
+    } catch {
+      sysExists = false;
+    }
+    expect(sysExists).toBe(false);
+  });
+});
