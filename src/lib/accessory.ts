@@ -46,7 +46,7 @@ function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): strin
  * AccessoryManifest whose include block contains a single-element array for
  * the matching field. This eliminates 1-skill wrapper-accessory boilerplate.
  */
-type FallthroughKind = 'skill' | 'hook' | 'rule' | 'agent' | 'command';
+export type FallthroughKind = 'skill' | 'hook' | 'rule' | 'agent' | 'command';
 
 interface FallthroughDef {
   kind: FallthroughKind;
@@ -279,4 +279,69 @@ export async function listAllAccessories(dirs: DiscoveryDirs): Promise<FoundAcce
   return Array.from(found.values()).sort((a, b) =>
     a.manifest.name.localeCompare(b.manifest.name),
   );
+}
+
+export interface ResolvableName {
+  name: string;
+  /** 'accessory' = authored bundle wins; otherwise synthetic from a singleton. */
+  kind: 'accessory' | FallthroughKind;
+  source: FoundAccessory['source'];
+}
+
+/**
+ * Enumerate every name that `--accessory <name>` resolves successfully. Unions
+ * the authored accessory bundles with the per-name fall-through targets
+ * (skills, hooks, rules, agents, commands). Authored bundles win over
+ * fall-through on collision; first-tier wins on intra-kind collision.
+ *
+ * Used by `suit list accessories --resolvable` to surface the full
+ * pass-to-`--accessory` surface in one place — agents driving suit don't
+ * have to mentally union six listings.
+ */
+export async function listAllResolvableNames(
+  dirs: DiscoveryDirs,
+): Promise<ResolvableName[]> {
+  const found = new Map<string, ResolvableName>();
+
+  // Authored accessories first — they win precedence (ADR-0013 §Decision).
+  for (const a of await listAllAccessories(dirs)) {
+    if (!found.has(a.manifest.name)) {
+      found.set(a.manifest.name, { name: a.manifest.name, kind: 'accessory', source: a.source });
+    }
+  }
+
+  // Then each fall-through topDir, in the same precedence order the resolver
+  // uses (skill > hook > rule > agent > command). First-tier wins per kind;
+  // an authored accessory still beats any fall-through with the same name.
+  for (const ft of FALLTHROUGHS) {
+    for (const tier of TIERS) {
+      for (const root of fallthroughTierRoots(tier, dirs, ft.topDir)) {
+        let entries: import('node:fs').Dirent[];
+        try {
+          entries = await fs.readdir(root, { withFileTypes: true });
+        } catch {
+          continue;
+        }
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          if (found.has(entry.name)) continue; // already resolved at higher precedence
+          // Confirm the dir actually has one of the kind's manifest files.
+          let hit = false;
+          for (const fname of ft.filenames) {
+            try {
+              await fs.access(path.join(root, entry.name, fname));
+              hit = true;
+              break;
+            } catch {
+              // try next filename
+            }
+          }
+          if (!hit) continue;
+          found.set(entry.name, { name: entry.name, kind: ft.kind, source: TIER_NAMES[tier] });
+        }
+      }
+    }
+  }
+
+  return Array.from(found.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
