@@ -314,9 +314,15 @@ async function main(): Promise<number> {
     }
     const rest = argv.slice(2);
     let verbose = false;
+    let resolvable = false;
     for (const a of rest) {
       if (a === '-v' || a === '--verbose') {
         verbose = true;
+      } else if (a === '--resolvable' || a === '--include-fall-through') {
+        // Only meaningful for `list accessories`; --resolvable on outfits/cuts
+        // is silently ignored rather than rejected, to keep the flag surface
+        // forgiving for tab-completion habits.
+        resolvable = true;
       } else {
         process.stderr.write(`suit list: unrecognized argument "${a}"\n`);
         return 2;
@@ -325,7 +331,7 @@ async function main(): Promise<number> {
     await listCommand(
       what,
       { ...dirs, print: (l) => process.stdout.write(l + '\n') },
-      { verbose },
+      { verbose, resolvable },
     );
     return 0;
   }

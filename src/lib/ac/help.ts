@@ -11,7 +11,7 @@ USAGE
   suit sync
   suit status
   suit doctor
-  suit list <outfits|cuts|accessories>
+  suit list <outfits|cuts|accessories> [-v|--verbose] [--resolvable]
   suit show <outfit|cut|accessory> <name>
 
 FLAGS

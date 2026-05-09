@@ -347,3 +347,134 @@ describe('ac doctor', () => {
     }
   });
 });
+
+describe('ac list accessories --resolvable', () => {
+  async function mkResolvableWardrobe(prefix: string): Promise<string> {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+
+    // Authored accessory `philosophy` — the canonical type.
+    await fs.mkdir(path.join(builtinDir, 'accessories', 'philosophy'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'accessories', 'philosophy', 'accessory.md'),
+      `---
+name: philosophy
+type: accessory
+description: a real authored accessory
+targets: [claude-code]
+---
+philosophy body
+`,
+    );
+
+    // Synthetic-source skill `tdd` — fall-through target.
+    await fs.mkdir(path.join(builtinDir, 'skills', 'tdd'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'skills', 'tdd', 'SKILL.md'),
+      `---
+name: tdd
+type: skill
+description: test driven development
+targets: [claude-code]
+categories: [discipline]
+---
+tdd body
+`,
+    );
+
+    // Synthetic-source rule `pr-policy` — fall-through target.
+    await fs.mkdir(path.join(builtinDir, 'rules', 'pr-policy'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'rules', 'pr-policy', 'RULE.md'),
+      `---
+name: pr-policy
+type: rules
+description: pr policy rule
+targets: [claude-code]
+scope: project
+---
+pr-policy body
+`,
+    );
+
+    return builtinDir;
+  }
+
+  it('flat list unions accessories + fall-through targets with kind annotations', async () => {
+    const builtinDir = await mkResolvableWardrobe('ac-resolvable-');
+    const out: string[] = [];
+    await listCommand(
+      'accessories',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+      { resolvable: true },
+    );
+
+    const text = out.join('\n');
+    expect(text).toMatch(/philosophy\s+\[accessory\]\s+\(builtin\)/);
+    expect(text).toMatch(/tdd\s+\[skill\]\s+\(builtin\)/);
+    expect(text).toMatch(/pr-policy\s+\[rule\]\s+\(builtin\)/);
+
+    // No two-section split (no "authored:" / "synthetic:" headers).
+    expect(text).not.toMatch(/authored:/i);
+    expect(text).not.toMatch(/synthetic:/i);
+
+    // Sorted alphabetically.
+    const names = out.map((l) => l.split(/\s+/)[0]);
+    expect(names).toEqual([...names].sort());
+  });
+
+  it('without --resolvable, only authored accessories listed', async () => {
+    const builtinDir = await mkResolvableWardrobe('ac-resolvable-default-');
+    const out: string[] = [];
+    await listCommand(
+      'accessories',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+    );
+
+    const text = out.join('\n');
+    expect(text).toMatch(/philosophy/);
+    expect(text).not.toMatch(/\btdd\b/);
+    expect(text).not.toMatch(/pr-policy/);
+  });
+
+  it('on name collision, authored accessory wins over fall-through (annotated [accessory])', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-resolvable-collide-'));
+
+    // Both an authored accessory AND a skill named `same`.
+    await fs.mkdir(path.join(builtinDir, 'accessories', 'same'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'accessories', 'same', 'accessory.md'),
+      `---
+name: same
+type: accessory
+description: authored bundle
+targets: [claude-code]
+---
+authored body
+`,
+    );
+    await fs.mkdir(path.join(builtinDir, 'skills', 'same'), { recursive: true });
+    await fs.writeFile(
+      path.join(builtinDir, 'skills', 'same', 'SKILL.md'),
+      `---
+name: same
+type: skill
+description: shadowed skill
+targets: [claude-code]
+categories: [tooling]
+---
+shadowed body
+`,
+    );
+
+    const out: string[] = [];
+    await listCommand(
+      'accessories',
+      { projectDir: '/nonexistent', userDir: '/nonexistent', builtinDir, print: (l) => out.push(l) },
+      { resolvable: true },
+    );
+
+    // Single row; kind is [accessory] (authored wins).
+    expect(out.filter((l) => l.startsWith('same')).length).toBe(1);
+    expect(out.find((l) => l.startsWith('same'))).toMatch(/\[accessory\]/);
+  });
+});

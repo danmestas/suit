@@ -1,6 +1,6 @@
 import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
 import { listAllCuts, findCut } from '../cut.js';
-import { listAllAccessories, findAccessory } from '../accessory.js';
+import { listAllAccessories, listAllResolvableNames, findAccessory } from '../accessory.js';
 import { getHarnessPresence } from './harness-presence.js';
 import { extractBlurb } from '../blurb.js';
 
@@ -11,6 +11,13 @@ export interface IntrospectDeps extends DiscoveryDirs {
 export interface ListOptions {
   /** When true, print a blurb sub-line under each row. */
   verbose?: boolean;
+  /**
+   * `list accessories --resolvable`: include every name that
+   * `--accessory <name>` would resolve, not just authored bundles. Synthetic
+   * fall-through targets (skills, hooks, rules, agents, commands) are
+   * marked with their kind in the output.
+   */
+  resolvable?: boolean;
 }
 
 export async function listCommand(
@@ -54,7 +61,20 @@ export async function listCommand(
     }
     return;
   }
-  // accessories
+  // accessories — `--resolvable` widens to the full pass-to-`--accessory`
+  // surface (authored bundles + fall-through skills/hooks/rules/agents/commands)
+  // as a single flat list with kind annotations.
+  if (opts.resolvable === true) {
+    const resolvable = await listAllResolvableNames(deps);
+    if (resolvable.length === 0) {
+      deps.print('(no resolvable names found)');
+      return;
+    }
+    for (const r of resolvable) {
+      deps.print(`${r.name.padEnd(28)} [${r.kind}] (${r.source})`);
+    }
+    return;
+  }
   const all = await listAllAccessories(deps);
   if (all.length === 0) {
     deps.print('(no accessories found)');
