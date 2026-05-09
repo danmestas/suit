@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ import { runStatus } from './lib/ac/status.js';
 import { runUp } from './lib/ac/up.js';
 import { runOff } from './lib/ac/off.js';
 import { runCurrent } from './lib/ac/current.js';
-import { runPrepare } from './lib/ac/prepare.js';
+import { runPrepare, BUNDLE_METADATA_FILENAME } from './lib/ac/prepare.js';
 import { helpText } from './lib/ac/help.js';
 import { resolveSuitPaths } from './lib/paths.js';
 import { KNOWN_HARNESSES } from './lib/ac/harness-presence.js';
@@ -146,6 +147,7 @@ interface PrepareArgs {
   target: Target | null;
   quiet: boolean;
   dryRun: boolean;
+  label: string | null;
   err: string | null;
 }
 
@@ -183,6 +185,7 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
   let target: Target | null = null;
   let quiet = false;
   let dryRun = false;
+  let label: string | null = null;
   let err: string | null = null;
 
   // Track which singleton flags have been seen so duplicates can be rejected
@@ -256,11 +259,65 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
     } else if (flag === '--dry-run') {
       if (rejectIfDuplicate(flag)) continue;
       dryRun = true;
+    } else if (flag === '--label') {
+      if (rejectIfDuplicate(flag)) continue;
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --label requires a value'; continue; }
+      label = r.value;
+      i = r.next;
     } else {
       err = err ?? `suit prepare: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, cut, accessories, target, quiet, dryRun, err };
+  return { outfit, cut, accessories, target, quiet, dryRun, label, err };
+}
+
+/**
+ * Pretty-print a bundle's `.suit-bundle.json` metadata. Reads the file at
+ * `<bundlePath>/.suit-bundle.json` and prints key:value lines plus the
+ * accessories array. Returns exit 1 if the file is missing or malformed,
+ * since either case means the bundle wasn't produced by `suit prepare` (or
+ * predates the metadata-file feature).
+ */
+async function showBundle(
+  bundlePath: string,
+  io: { stdout: (s: string) => void; stderr: (s: string) => void },
+): Promise<number> {
+  const metaPath = path.join(bundlePath, BUNDLE_METADATA_FILENAME);
+  let raw: string;
+  try {
+    raw = await fs.readFile(metaPath, 'utf8');
+  } catch {
+    io.stderr(`suit show bundle: not a suit bundle (no ${BUNDLE_METADATA_FILENAME} at ${bundlePath})\n`);
+    return 1;
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch (e) {
+    io.stderr(`suit show bundle: malformed metadata at ${metaPath}: ${e instanceof Error ? e.message : String(e)}\n`);
+    return 1;
+  }
+
+  // Print the well-known fields in a stable order; anything else (forward-
+  // compatible additions) prints after, so older suits don't drop unknown keys.
+  const KNOWN = ['schemaVersion', 'outfit', 'cut', 'accessories', 'target', 'label', 'suitVersion', 'generatedAt'];
+  for (const key of KNOWN) {
+    if (!(key in parsed)) continue;
+    const v = parsed[key];
+    if (Array.isArray(v)) {
+      io.stdout(`${key}: ${v.length === 0 ? '(none)' : v.join(', ')}\n`);
+    } else if (v === null) {
+      io.stdout(`${key}: (none)\n`);
+    } else {
+      io.stdout(`${key}: ${v}\n`);
+    }
+  }
+  for (const key of Object.keys(parsed)) {
+    if (KNOWN.includes(key)) continue;
+    io.stdout(`${key}: ${JSON.stringify(parsed[key])}\n`);
+  }
+  return 0;
 }
 
 async function main(): Promise<number> {
@@ -338,9 +395,21 @@ async function main(): Promise<number> {
 
   if (cmd === 'show') {
     const kind = argv[1];
+    if (kind === 'bundle') {
+      const bundlePath = argv[2];
+      if (!bundlePath) {
+        process.stderr.write('suit show bundle <path>: path required\n');
+        return 2;
+      }
+      const code = await showBundle(bundlePath, {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      });
+      return code;
+    }
     if (kind !== 'outfit' && kind !== 'cut' && kind !== 'accessory' && kind !== 'effective') {
       process.stderr.write(
-        'suit show: expected "outfit <name>" | "cut <name>" | "accessory <name>" | "effective ..."\n',
+        'suit show: expected "outfit <name>" | "cut <name>" | "accessory <name>" | "effective ..." | "bundle <path>"\n',
       );
       return 2;
     }
@@ -420,6 +489,8 @@ async function main(): Promise<number> {
         userDir: paths.userOverlayDir,
         quiet: parsed.quiet,
         dryRun: parsed.dryRun,
+        ...(parsed.label !== null ? { label: parsed.label } : {}),
+        suitVersion: readVersion(),
       },
       {
         stdout: (s) => process.stdout.write(s),

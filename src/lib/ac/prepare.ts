@@ -34,6 +34,16 @@
  *   - `--dry-run`: composes the bundle but skips the writer entirely. Stdout
  *     emits one tab-separated line per pending file (`<path>\t<size>\t<source>`)
  *     so callers can preview without committing to disk.
+ *   - `--label <string>`: stamps the bundle with a caller-provided label
+ *     (e.g. "agent-harness/bones-worker-3"). Surfaces in `.suit-bundle.json`
+ *     for registry surveys and `suit show bundle <path>`.
+ *
+ * Bundle introspection:
+ *   Every bundle gets a `.suit-bundle.json` at its root carrying
+ *   `{ schemaVersion, outfit, cut, accessories, target, label?, suitVersion,
+ *   generatedAt }`. This is metadata only — no `.suit/` dir is written, no
+ *   lockfile, no preflight. Callers can `cat $BUNDLE/.suit-bundle.json | jq`
+ *   or use `suit show bundle <path>` for pretty-printed output.
  */
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -63,7 +73,37 @@ export interface RunPrepareArgs {
    * Useful for previewing what an outfit/cut/accessory combination produces.
    */
   dryRun?: boolean;
+  /**
+   * Caller-provided human-readable label for the bundle. Recorded in
+   * `.suit-bundle.json` for registry surveys and operator debugging. The
+   * label is purely informational — it does NOT affect composition, the
+   * bundle path, or any resolver behavior.
+   */
+  label?: string;
+  /**
+   * Suit's own version string (typically read from package.json by the CLI
+   * entrypoint). Recorded in `.suit-bundle.json` so consumers can correlate
+   * a bundle on disk with the suit binary that produced it.
+   */
+  suitVersion?: string;
 }
+
+export interface SuitBundleMetadata {
+  schemaVersion: 1;
+  outfit: string;
+  cut: string | null;
+  accessories: string[];
+  target: Target;
+  /** Optional caller-provided label. */
+  label?: string;
+  /** suit version when the bundle was emitted. */
+  suitVersion?: string;
+  /** ISO-8601 UTC timestamp. */
+  generatedAt: string;
+}
+
+/** File at the bundle root carrying composition metadata. */
+export const BUNDLE_METADATA_FILENAME = '.suit-bundle.json';
 
 export interface RunPrepareDeps {
   stdout: (s: string) => void;
@@ -135,6 +175,24 @@ export async function runPrepare(
   for (const f of composed.pending) {
     await writer.write({ path: f.path, content: f.content, mode: f.mode });
   }
+
+  // Stamp the bundle with introspection metadata. Single file at bundle root —
+  // not a `.suit/` dir, since prepare is intentionally stateless. Consumers
+  // can `cat $BUNDLE/.suit-bundle.json | jq` or use `suit show bundle <path>`.
+  const metadata: SuitBundleMetadata = {
+    schemaVersion: 1,
+    outfit: args.outfit,
+    cut: args.cut,
+    accessories: args.accessories,
+    target: args.target,
+    ...(args.label !== undefined ? { label: args.label } : {}),
+    ...(args.suitVersion !== undefined ? { suitVersion: args.suitVersion } : {}),
+    generatedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(
+    path.join(tempdir, BUNDLE_METADATA_FILENAME),
+    JSON.stringify(metadata, null, 2) + '\n',
+  );
 
   // --quiet drops the trailing newline so callers can `BUNDLE=$(suit prepare
   // ... --quiet)` without a stray `\n` in the capture. Without --quiet we

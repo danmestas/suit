@@ -318,4 +318,99 @@ describe('runPrepare', () => {
     // No stderr in success path.
     expect(cap.err.join('')).toBe('');
   });
+
+  it('stamps the bundle with .suit-bundle.json carrying composition metadata', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    const code = await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        suitVersion: '9.9.9-test',
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    const metaPath = path.join(bundle, '.suit-bundle.json');
+    const raw = await fs.readFile(metaPath, 'utf8');
+    const meta = JSON.parse(raw);
+
+    expect(meta.schemaVersion).toBe(1);
+    expect(meta.outfit).toBe('backend');
+    expect(meta.cut).toBeNull();
+    expect(meta.accessories).toEqual([]);
+    expect(meta.target).toBe('claude-code');
+    expect(meta.suitVersion).toBe('9.9.9-test');
+    expect(typeof meta.generatedAt).toBe('string');
+    // ISO-8601 timestamp.
+    expect(new Date(meta.generatedAt).toISOString()).toBe(meta.generatedAt);
+    // No `label` key when none provided (clean omission, not null).
+    expect('label' in meta).toBe(false);
+  });
+
+  it('records --label verbatim in the metadata when provided', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        label: 'agent-harness/bones-worker-3',
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    const bundle = cap.out.join('').trim();
+    cleanupQueue.push(bundle);
+
+    const meta = JSON.parse(await fs.readFile(path.join(bundle, '.suit-bundle.json'), 'utf8'));
+    expect(meta.label).toBe('agent-harness/bones-worker-3');
+  });
+
+  it('with --dry-run, does NOT emit .suit-bundle.json (no bundle is written)', async () => {
+    const wardrobe = await mkWardrobe();
+    const projectDir = await mkdirT('suit-prepare-proj-');
+    const userDir = await mkdirT('suit-prepare-user-');
+    const cap = capture();
+
+    await runPrepare(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        target: 'claude-code',
+        projectDir,
+        contentDir: wardrobe,
+        userDir,
+        dryRun: true,
+        label: 'should-not-appear',
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    // Dry-run output is the file list — shouldn't include the metadata file
+    // since the metadata is only written by the writer phase, which dry-run skips.
+    const stdout = cap.out.join('');
+    expect(stdout).not.toMatch(/\.suit-bundle\.json/);
+  });
 });
