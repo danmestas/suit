@@ -15,28 +15,17 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Target } from '../types.js';
-import type { EmittedFile, ComponentSource } from '../types.js';
-import { discoverComponents } from '../discover.js';
-import { findOutfit } from '../outfit.js';
-import { findCut } from '../cut.js';
-import { findAccessory } from '../accessory.js';
-import { resolve, skillsKeepFromResolution } from '../resolution.js';
-import { getAdapter } from '../../adapters/index.js';
-import { loadRepoConfig } from '../config.js';
-import { ProjectWriter, isAdditivePath } from '../writer.js';
+import { ProjectWriter } from '../writer.js';
 import {
   LOCKFILE_PATH,
   readLockfile,
   writeLockfile,
-  sha256OfBuffer,
   sha256OfFile,
   type Lockfile,
   type LockEntry,
 } from '../lockfile.js';
 import { runPicker } from './picker.js';
-import { isJsonMergeable, mergeJsonBuffers } from '../merge.js';
-import { loadGlobalsRegistry } from '../globals-loader.js';
+import { composeBundle, countFilesByTarget, type PendingFile } from './compose.js';
 
 export interface RunUpArgs {
   outfit: string | null;
@@ -59,227 +48,19 @@ export interface RunUpDeps {
 }
 
 /**
- * Per-target prefix applied to adapter-emitted relative paths when writing into
- * a project tree. The build flow (suit-build) emits into `dist/<target>/` so
- * paths like `skills/foo/SKILL.md` are unambiguous. For project-state mutation
- * those paths need to land in the harness's project location.
+ * Per-target file-count helper for the post-apply report. Imported via
+ * `countFilesByTarget` from compose.ts. The full prefix table also lives there.
  *
- * Notes per harness:
- *   - claude-code: skills/agents/etc. live under `.claude/`. CLAUDE.md lives at
- *     project root for project scope (see claude-code adapter — that path
- *     stays as-emitted, no prefix needed). The adapter emits `CLAUDE.md`
- *     (project-scope) or `.claude/CLAUDE.md` (user-scope); both work after the
- *     prefix.
+ * Per-harness emit conventions (notes for callers, not enforced here):
+ *   - claude-code: skills/agents/etc. land under `.claude/`. Adapter emits
+ *     `CLAUDE.md` (project-scope) or `.claude/CLAUDE.md` (user-scope) for
+ *     rules; both end up at the right path after the prefix.
  *   - codex: emits `AGENTS.md` at project root, no prefix.
- *   - copilot: emits `copilot-instructions.md`, also expected at root (or
- *     `.github/copilot-instructions.md` per author config — out of scope).
- *   - gemini: skills live under `.gemini/`; rules go to `GEMINI.md` (project)
- *     or `.gemini/GEMINI.md` (user). The adapter already emits the latter as
- *     `.gemini/GEMINI.md`, so only the bare-skill paths need the prefix.
+ *   - copilot: emits `copilot-instructions.md` at root.
+ *   - gemini: skills live under `.gemini/`.
  *   - pi: adapter already emits paths starting with `.pi/`; no prefix.
- *   - apm: APM packages live under per-package dirs. The state-mutator model
- *     for APM is unclear (the launcher's prelaunchComposeApm assumes the
- *     project IS the APM package). Phase B leaves APM unprefixed; the lockfile
- *     records the as-emitted path. If the wardrobe declares apm targets, the
- *     dressed project tree will receive the package dirs at root.
+ *   - apm: state-mutator model unclear; package dirs land at root unprefixed.
  */
-const TARGET_PROJECT_PREFIX: Record<Target, string> = {
-  'claude-code': '.claude',
-  gemini: '.gemini',
-  pi: '', // adapter already emits with `.pi/` prefix
-  codex: '',
-  copilot: '',
-  apm: '',
-};
-
-/**
- * Paths the claude-code adapter emits that should NOT be prefixed with
- * `.claude/`. These are project-root files (CLAUDE.md project-scope) or
- * already-prefixed files (.claude/CLAUDE.md user-scope, .claude/settings*).
- * Anything else from claude-code (skills/, agents/, hooks/) gets the prefix.
- */
-function applyTargetPrefix(target: Target, emittedPath: string): string {
-  const prefix = TARGET_PROJECT_PREFIX[target];
-  if (!prefix) return emittedPath;
-  // Already-prefixed paths from the adapter (e.g. claude-code's
-  // `.claude/CLAUDE.md` user-scope, `.claude/settings.fragment.json`) stay put.
-  if (emittedPath === prefix || emittedPath.startsWith(`${prefix}/`)) {
-    return emittedPath;
-  }
-  // Project-root files emitted at the top of the dist tree (CLAUDE.md,
-  // GEMINI.md, AGENTS.md, copilot-instructions.md, .mcp.fragment.json, etc.)
-  // also stay put — they're meant to live at the project root.
-  if (!emittedPath.includes('/')) return emittedPath;
-  return `${prefix}/${emittedPath}`;
-}
-
-/**
- * Map an emit-time path (what an adapter produced) to the on-disk path the
- * project filesystem should hold. Today's only redirect is the Claude Code
- * settings fragment → `settings.local.json` so Claude reads it natively
- * (the launcher's TempdirWriter keeps the fragment name; suit-build merges
- * it into a real settings.json before exec'ing the harness).
- *
- * Mirror of writer.ts's `PROJECT_PATH_REDIRECTS`. Kept here so up.ts's
- * preflight + lockfile use the same on-disk paths the writer will produce.
- */
-function projectPathRedirect(emitPath: string): string {
-  if (emitPath === '.claude/settings.fragment.json') return '.claude/settings.local.json';
-  if (emitPath === '.gemini/settings.fragment.json') return '.gemini/settings.json';
-  return emitPath;
-}
-
-/**
- * Render the outfit's body (and any active cut body) into the marker block
- * that goes into CLAUDE.md. The block is what `suit off` strips back out.
- *
- * Format:
- *   <!-- suit:outfit:NAME -->
- *   <outfit body>
- *   ## Cut: <cut-name>       ← only when --cut active and cutBody non-empty
- *   <cut body>
- *   <!-- /suit:outfit:NAME -->
- *
- * Accessory bodies aren't included today — accessories are usually small
- * configurations (a hook, a rule), not narrative content. If accessory bodies
- * matter in practice, append them here behind a similar header.
- */
-function renderOutfitBlock(
-  outfitName: string,
-  outfitBody: string,
-  cutBody: string | undefined,
-  _accessoryCount: number,
-): string {
-  const parts = [outfitBody.trim()];
-  if (cutBody && cutBody.trim().length > 0) {
-    parts.push('', cutBody.trim());
-  }
-  return `<!-- suit:outfit:${outfitName} -->\n${parts.join('\n')}\n<!-- /suit:outfit:${outfitName} -->`;
-}
-
-interface PendingFile {
-  path: string;
-  content: string | Buffer;
-  /** Unix file permission mode (octal). */
-  mode?: number;
-  sha256: string;
-  sourceComponent: string;
-  /**
-   * Lockfile removal strategy. Defaults to 'replace' (suit owns the whole
-   * file). 'additive' means the content is a marker-wrapped block that gets
-   * appended into possibly-user-authored files (CLAUDE.md), and the recorded
-   * sha256 is the BLOCK hash, not the whole-file hash.
-   */
-  lockMode?: 'replace' | 'additive';
-}
-
-/**
- * Resolve the union of harness targets across the active component set.
- * `resolve()` itself only takes one target at a time, so for the multi-harness
- * fan-out we iterate.
- */
-function unionTargets(
-  outfitTargets: Target[],
-  cutTargets: Target[] | undefined,
-  accessoryTargetsList: Target[][],
-): Target[] {
-  const set = new Set<Target>(outfitTargets);
-  if (cutTargets) for (const t of cutTargets) set.add(t);
-  for (const list of accessoryTargetsList) for (const t of list) set.add(t);
-  return Array.from(set);
-}
-
-/**
- * Emit every kept component's files for a single target. Returns absolute
- * project-rooted paths (with the target prefix applied) plus per-file sha256
- * and a sourceComponent label.
- *
- * The kept-component set is computed by `resolve()`'s skillsDrop list — every
- * skill not in skillsDrop is kept. Non-skill components (rules, hooks, agents,
- * mcp, plugin) are not filtered by category and are always emitted when their
- * target matches.
- */
-async function emitForTarget(
-  target: Target,
-  catalog: ComponentSource[],
-  skillsDrop: string[],
-  projectDir: string,
-  repoConfig: Record<string, Record<string, unknown>>,
-): Promise<PendingFile[]> {
-  const adapter = getAdapter(target);
-  if (!adapter) {
-    throw new Error(`suit up: no adapter registered for target "${target}"`);
-  }
-  const dropSet = new Set(skillsDrop);
-  // Filter the catalog to: components whose targets include this target AND
-  // (if it's a skill) whose name is not dropped by the resolver.
-  const eligible = catalog.filter((c) => {
-    if (!c.manifest.targets.includes(target)) return false;
-    if (!adapter.supports(c)) return false;
-    if (c.manifest.type === 'skill' && dropSet.has(c.manifest.name)) return false;
-    return true;
-  });
-
-  const ctx = {
-    config: (repoConfig[target] ?? {}) as Record<string, unknown>,
-    allComponents: eligible,
-    repoRoot: projectDir,
-  };
-
-  const out: PendingFile[] = [];
-  for (const c of eligible) {
-    const emitted: EmittedFile[] = await adapter.emit(c, ctx);
-    for (const file of emitted) {
-      const projectRelative = applyTargetPrefix(target, file.path);
-      const buf = typeof file.content === 'string' ? Buffer.from(file.content) : file.content;
-      out.push({
-        path: projectRelative,
-        content: file.content,
-        mode: file.mode,
-        sha256: sha256OfBuffer(buf),
-        sourceComponent: c.relativeDir,
-      });
-    }
-  }
-  return out;
-}
-
-function dedupeByPath(files: PendingFile[]): PendingFile[] {
-  const byPath = new Map<string, PendingFile>();
-  for (const f of files) {
-    const prior = byPath.get(f.path);
-    if (!prior) {
-      byPath.set(f.path, f);
-      continue;
-    }
-    // Same content from two emits → identity, take either.
-    if (prior.sha256 === f.sha256) continue;
-
-    // Different content. Fragment files (e.g. .claude/settings.fragment.json,
-    // codex hooks.json) are designed to be merged: each component contributes
-    // its own slice (a hook event, an mcp server, etc.). Deep-merge the JSON.
-    if (isJsonMergeable(f.path)) {
-      const merged = mergeJsonBuffers(prior.content, f.content);
-      byPath.set(f.path, {
-        path: f.path,
-        content: merged,
-        sha256: sha256OfBuffer(merged),
-        sourceComponent: `${prior.sourceComponent} + ${f.sourceComponent}`,
-        mode: prior.mode ?? f.mode,
-      });
-      continue;
-    }
-
-    // Non-mergeable file emitted twice with different bytes → real authoring
-    // bug. Refuse.
-    throw new Error(
-      `suit up: two emitted files collide at "${f.path}" with different contents ` +
-        `(sources: "${prior.sourceComponent}" vs "${f.sourceComponent}")`,
-    );
-  }
-  return Array.from(byPath.values());
-}
-
 
 function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; cut: string | null; accessories: string[] }): boolean {
   if (a.outfit !== b.outfit) return false;
@@ -320,109 +101,25 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     deps.stderr('suit up: --outfit is required\n');
     return 2;
   }
-  const outfitName = args.outfit;
 
-  // Stage 1: load outfit, cut, accessories using the standard discovery chain.
-  const foundOutfit = await findOutfit(outfitName, dirs);
-  const outfitManifest = foundOutfit.manifest;
-
-  let cutManifest;
-  let cutBody: string | undefined;
-  if (args.cut) {
-    const found = await findCut(args.cut, dirs);
-    cutManifest = found.manifest;
-    cutBody = found.body;
-  }
-
-  const accessoryManifests = [];
-  for (const accName of args.accessories) {
-    const found = await findAccessory(accName, dirs);
-    accessoryManifests.push(found.manifest);
-  }
-
-  // Stage 2: discover the wardrobe catalog (built-in content dir is the source
-  // of truth for the dressed project — not the user's existing ~/.claude/...).
-  const catalog = await discoverComponents(args.contentDir);
-
-  // Stage 3: compute the harness target union.
-  const targets = unionTargets(
-    outfitManifest.targets,
-    cutManifest?.targets,
-    accessoryManifests.map((a) => a.targets),
+  // Stages 1-5b run through the shared composeBundle helper (also used by
+  // `suit prepare`). Returns the final pending file list with redirects
+  // applied, the explicit `.claude/CLAUDE.md` outfit-body block injected,
+  // and any ADDITIVE_PATHS entries marker-wrapped. Errors propagate — the
+  // top-level CLI catch turns them into stderr + exit 1.
+  const composed = await composeBundle(
+    {
+      outfit: args.outfit,
+      cut: args.cut,
+      accessories: args.accessories,
+      projectDir: args.projectDir,
+      contentDir: args.contentDir,
+      userDir: args.userDir,
+    },
+    { stderr: deps.stderr },
   );
-
-  // Stage 4: optionally load globals.yaml from the wardrobe builtin tier.
-  // Missing file is non-fatal — the resolver receives `null` and skips
-  // globals filtering entirely (preserves v0.6 behavior pre-Phase-B-merge).
-  let globals = null;
-  try {
-    globals = await loadGlobalsRegistry(args.contentDir);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    deps.stderr(`suit up: failed to load globals.yaml: ${msg}\n`);
-    return 1;
-  }
-
-  // Stage 5: resolve once per target (resolve() requires a single target so it
-  // can compute the kept-skill set deterministically; the kept set is target-
-  // independent today, but the per-target call keeps the door open for future
-  // target-specific resolution rules without changing this caller).
-  // We still compute it once and reuse — categories/include logic is target-
-  // independent — but we run resolve() with the first target as canonical.
-  const canonicalResolution = resolve({
-    catalog,
-    outfit: outfitManifest,
-    cut: cutManifest,
-    accessories: accessoryManifests,
-    cutBody,
-    harness: targets[0],
-    globals,
-    warn: (msg) => deps.stderr(`${msg}\n`),
-  });
-
-  // Stage 5: load repo config and emit per target.
-  const repoConfig = await loadRepoConfig(args.projectDir);
-  const allFiles: PendingFile[] = [];
-  for (const target of targets) {
-    const targetFiles = await emitForTarget(
-      target,
-      catalog,
-      canonicalResolution.skillsDrop,
-      args.projectDir,
-      repoConfig as Record<string, Record<string, unknown>>,
-    );
-    allFiles.push(...targetFiles);
-  }
-
-  const pending = dedupeByPath(allFiles);
-
-  // Apply path redirects so preflight + lockfile + writer all agree on the
-  // on-disk path. Today's only redirect is settings.fragment.json →
-  // settings.local.json so Claude reads the hooks block natively (the launcher
-  // path keeps the fragment name because suit-build's prelaunch handles it).
-  for (const f of pending) {
-    f.path = projectPathRedirect(f.path);
-  }
-
-  // Inject the outfit's body as an additive CLAUDE.md block. This is the
-  // user-facing rules surface — the outfit body becomes the content inside
-  // a `<!-- suit:outfit:NAME -->...<!-- /suit:outfit:NAME -->` marker block
-  // that ProjectWriter appends into any existing CLAUDE.md, and `suit off`
-  // strips back out without touching surrounding user content.
-  //
-  // We only do this when the outfit body has non-trivial content, and only
-  // when claude-code is one of the resolved targets (otherwise the block
-  // would be irrelevant — Claude is the one harness that reads CLAUDE.md).
-  if (targets.includes('claude-code') && foundOutfit.body.trim().length > 0) {
-    const blockContent = renderOutfitBlock(outfitName, foundOutfit.body, cutBody, accessoryManifests.length);
-    pending.push({
-      path: '.claude/CLAUDE.md',
-      content: blockContent,
-      sha256: sha256OfBuffer(blockContent),
-      sourceComponent: `outfits/${outfitName}`,
-      lockMode: 'additive',
-    });
-  }
+  const { pending, targets } = composed;
+  const newResolution = composed.resolution;
 
   // Stage 5b: marker-wrap any pending file whose path lives in writer's
   // ADDITIVE_PATHS but whose entry isn't already lockMode='additive'. Without
@@ -458,11 +155,6 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
 
   // Stage 6: refuse-when-dirty preflight.
   const priorLock = await readLockfile(args.projectDir);
-  const newResolution = {
-    outfit: outfitManifest.name,
-    cut: cutManifest?.name ?? null,
-    accessories: accessoryManifests.map((a) => a.name),
-  };
 
   if (priorLock && !args.force && !sameResolution(priorLock.resolution, newResolution)) {
     const prior = formatResolution(priorLock.resolution);
@@ -537,20 +229,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   await writeLockfile(args.projectDir, lock);
 
   // Stage 9: report.
-  const filesByTarget = new Map<Target, number>();
-  // Recount emit-per-target for the report (pending is post-dedupe; we recount
-  // by re-grouping using the targets we walked). Cheaper: just recompute from
-  // the per-target buckets we already had.
-  // Simple approach — count files whose path starts with a target prefix.
-  for (const target of targets) {
-    const prefix = TARGET_PROJECT_PREFIX[target];
-    let count = 0;
-    for (const f of pending) {
-      if (prefix && (f.path === prefix || f.path.startsWith(`${prefix}/`))) count++;
-      else if (!prefix) count++; // unprefixed targets get every unprefixed file (best-effort)
-    }
-    filesByTarget.set(target, count);
-  }
+  const filesByTarget = countFilesByTarget(pending, targets);
 
   deps.stdout(`Resolved: ${formatResolution(newResolution)}\n`);
   deps.stdout(`Applied to ${args.projectDir}:\n`);
@@ -560,10 +239,6 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   }
   deps.stdout(`  total: ${pending.length} file${pending.length === 1 ? '' : 's'}\n`);
   deps.stdout(`Lockfile: ${path.join(args.projectDir, LOCKFILE_PATH)}\n`);
-
-  // Suppress unused warning — skillsKeep is reserved for a future report that
-  // shows which skills were kept vs dropped by the resolver.
-  void skillsKeepFromResolution;
 
   return 0;
 }

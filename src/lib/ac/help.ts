@@ -6,6 +6,7 @@ USAGE
   suit up --outfit <name> [--cut <name>] [--accessory <name>]... [--force]
   suit off [--force]
   suit current
+  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]...
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
@@ -48,6 +49,13 @@ EXAMPLES
   suit claude --outfit backend --accessory tracing --accessory pr-policy
   suit claude --outfit backend --accessory test-driven-development   # any skill works
   suit codex --outfit frontend -- --resume sess-123
+
+  # 'prepare' emits a stateless bundle to a tempdir and prints its path on
+  # stdout. The caller (e.g. a multi-worker spawn wrapper) launches its own
+  # agent against the bundle and owns cleanup (rm -rf) when done.
+  BUNDLE=\$(suit prepare --outfit backend --target claude-code)
+  claude --add-dir "\$BUNDLE" -- ...
+  rm -rf "\$BUNDLE"
 
 See https://github.com/danmestas/suit for full docs.
 `;
