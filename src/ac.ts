@@ -149,6 +149,8 @@ interface PrepareArgs {
   quiet: boolean;
   dryRun: boolean;
   label: string | null;
+  shape: 'project' | 'sidecar' | null;
+  projectPath: string | null;
   err: string | null;
 }
 
@@ -187,6 +189,8 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
   let quiet = false;
   let dryRun = false;
   let label: string | null = null;
+  let shape: 'project' | 'sidecar' | null = null;
+  let projectPath: string | null = null;
   let err: string | null = null;
 
   // Track which singleton flags have been seen so duplicates can be rejected
@@ -266,11 +270,27 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
       if (r.value === null) { err = err ?? 'suit prepare: --label requires a value'; continue; }
       label = r.value;
       i = r.next;
+    } else if (flag === '--shape') {
+      if (rejectIfDuplicate(flag)) continue;
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --shape requires a value'; continue; }
+      if (r.value !== 'project' && r.value !== 'sidecar') {
+        err = err ?? `suit prepare: --shape must be 'project' or 'sidecar' (got "${r.value}")`;
+        continue;
+      }
+      shape = r.value;
+      i = r.next;
+    } else if (flag === '--project') {
+      if (rejectIfDuplicate(flag)) continue;
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --project requires a value'; continue; }
+      projectPath = r.value;
+      i = r.next;
     } else {
       err = err ?? `suit prepare: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, cut, accessories, target, quiet, dryRun, label, err };
+  return { outfit, cut, accessories, target, quiet, dryRun, label, shape, projectPath, err };
 }
 
 /**
@@ -494,6 +514,8 @@ async function main(): Promise<number> {
         quiet: parsed.quiet,
         dryRun: parsed.dryRun,
         ...(parsed.label !== null ? { label: parsed.label } : {}),
+        ...(parsed.shape !== null ? { shape: parsed.shape } : {}),
+        ...(parsed.projectPath !== null ? { projectPath: parsed.projectPath } : {}),
         suitVersion: readVersion(),
       },
       {
