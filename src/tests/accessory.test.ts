@@ -84,9 +84,9 @@ describe('AccessorySchema', () => {
     const result = AccessorySchema.safeParse({
       name: 'tracing',
       type: 'accessory',
-      description: 'x',
+      version: '1.0.0',
       targets: ['claude-code'],
-      // version missing
+      // description missing
     });
     expect(result.success).toBe(false);
   });

@@ -56,7 +56,12 @@ const LicenseField = z.union([z.string(), LicenseAttribution]);
 const ManifestBaseSchema = z
   .object({
     name: z.string().regex(NAME_RE, 'name must be kebab-case lowercase'),
-    version: z.string().regex(SEMVER_RE, 'version must be valid semver'),
+    // Optional documentation field. Authors may declare a semver string for
+    // human-readable provenance, but no code path consumes it — there is no
+    // version-based cache, no semver compare, and the lockfile records names,
+    // not versions. Validated when present so a malformed value still fails
+    // loud; absent is fine. See issue #37.
+    version: z.string().regex(SEMVER_RE, 'version must be valid semver').optional(),
     description: z.string().min(1),
     category: CategoryBlock.optional(),
     type: z.enum(['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp'] as const),
