@@ -117,6 +117,108 @@ describe('runCurrent', () => {
     expect(cap.out.join('')).toMatch(/missing/);
   });
 
+  it('reports no drift for additive entries when the marker block matches', async () => {
+    // Repro for #38 — additive entries (CLAUDE.md and friends) record the
+    // BLOCK sha, not the whole-file sha (lockfile.ts §LockEntryMode). `suit
+    // current` must extract the marker block before hashing or it always
+    // reports drift on a freshly-applied additive entry.
+    const proj = await mkProject();
+    const filePath = '.claude/CLAUDE.md';
+    await fs.mkdir(path.dirname(path.join(proj, filePath)), { recursive: true });
+    const block =
+      '<!-- suit:outfit:engineer -->\nrules go here\n<!-- /suit:outfit:engineer -->';
+    // The on-disk file may sit alongside user-authored content; the recorded
+    // block sha is independent of any surrounding content.
+    await fs.writeFile(
+      path.join(proj, filePath),
+      `# my notes\n\n${block}\n`,
+    );
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: '2026-05-04T19:06:54Z',
+      resolution: { outfit: 'engineer', cut: null, accessories: [] },
+      files: [
+        {
+          path: filePath,
+          sha256: sha256OfBuffer(block),
+          sourceComponent: 'outfits/engineer',
+          mode: 'additive',
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runCurrent(
+      { projectDir: proj },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+    expect(cap.out.join('')).not.toMatch(/drift detected/);
+  });
+
+  it('reports drift for additive entries when the block was hand-edited', async () => {
+    const proj = await mkProject();
+    const filePath = '.claude/CLAUDE.md';
+    await fs.mkdir(path.dirname(path.join(proj, filePath)), { recursive: true });
+    const original =
+      '<!-- suit:outfit:engineer -->\noriginal\n<!-- /suit:outfit:engineer -->';
+    const edited =
+      '<!-- suit:outfit:engineer -->\nedited\n<!-- /suit:outfit:engineer -->';
+    await fs.writeFile(path.join(proj, filePath), `${edited}\n`);
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: '2026-05-04T19:06:54Z',
+      resolution: { outfit: 'engineer', cut: null, accessories: [] },
+      files: [
+        {
+          path: filePath,
+          sha256: sha256OfBuffer(original),
+          sourceComponent: 'outfits/engineer',
+          mode: 'additive',
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    await runCurrent(
+      { projectDir: proj },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.out.join('')).toMatch(/drift detected/);
+  });
+
+  it('reports drift for additive entries when the block was stripped out', async () => {
+    const proj = await mkProject();
+    const filePath = '.claude/CLAUDE.md';
+    await fs.mkdir(path.dirname(path.join(proj, filePath)), { recursive: true });
+    await fs.writeFile(path.join(proj, filePath), 'user removed the suit block\n');
+    const block =
+      '<!-- suit:outfit:engineer -->\nrules\n<!-- /suit:outfit:engineer -->';
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: '2026-05-04T19:06:54Z',
+      resolution: { outfit: 'engineer', cut: null, accessories: [] },
+      files: [
+        {
+          path: filePath,
+          sha256: sha256OfBuffer(block),
+          sourceComponent: 'outfits/engineer',
+          mode: 'additive',
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    await runCurrent(
+      { projectDir: proj },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.out.join('')).toMatch(/drift detected/);
+  });
+
   it('truncates long file lists with "... and N more"', async () => {
     const proj = await mkProject();
     const files = [];

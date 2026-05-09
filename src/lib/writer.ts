@@ -142,6 +142,7 @@ const ADDITIVE_PATHS = new Set<string>([
 ]);
 
 const SUIT_BLOCK_RE = /(?:^|\n)<!-- suit:outfit:[^>]+ -->\n[\s\S]*?\n<!-- \/suit:outfit:[^>]+ -->\n?/g;
+const SUIT_BLOCK_EXTRACT_RE = /<!-- suit:outfit:[^>]+ -->\n[\s\S]*?\n<!-- \/suit:outfit:[^>]+ -->/;
 
 export function isAdditivePath(relPath: string): boolean {
   return ADDITIVE_PATHS.has(relPath);
@@ -160,6 +161,18 @@ export function isAdditivePath(relPath: string): boolean {
  */
 export function stripSuitBlocks(content: string): string {
   return content.replace(SUIT_BLOCK_RE, '').replace(/\n{3,}/g, '\n\n').trimStart();
+}
+
+/**
+ * Return the suit-outfit marker block from `content` exactly as it was written
+ * (including the open/close markers), or null if no block is present. Used by
+ * `suit off` and `suit current` to verify the block sha recorded for additive
+ * lockfile entries — the lockfile stores sha of this exact substring, not of
+ * the whole file (lockfile.ts §LockEntryMode).
+ */
+export function extractSuitBlockFull(content: string): string | null {
+  const m = content.match(SUIT_BLOCK_EXTRACT_RE);
+  return m ? m[0] : null;
 }
 
 export class ProjectWriter implements Writer {

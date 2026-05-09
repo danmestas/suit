@@ -13,27 +13,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LOCKFILE_PATH, deleteLockfile, readLockfile, sha256OfBuffer, sha256OfFile } from '../lockfile.js';
-import { stripSuitBlocks } from '../writer.js';
-
-/**
- * Find the suit-outfit marker block in `content` and return its body
- * (the text between the open and close markers, exclusive). Returns null if
- * no block is present.
- */
-function extractSuitBlockBody(content: string): string | null {
-  const m = content.match(/<!-- suit:outfit:[^>]+ -->\n([\s\S]*?)\n<!-- \/suit:outfit:[^>]+ -->/);
-  return m ? m[1]! : null;
-}
-
-/**
- * Reconstruct the full marker-wrapped block string for sha verification — the
- * lockfile records the hash of `content`, which is the full
- * `<!-- ... -->\nbody\n<!-- ... -->` string (matches what up.ts wrote).
- */
-function extractSuitBlockFull(content: string): string | null {
-  const m = content.match(/<!-- suit:outfit:[^>]+ -->\n[\s\S]*?\n<!-- \/suit:outfit:[^>]+ -->/);
-  return m ? m[0]! : null;
-}
+import { extractSuitBlockFull, stripSuitBlocks } from '../writer.js';
 
 export interface RunOffArgs {
   projectDir: string;
