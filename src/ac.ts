@@ -4,7 +4,8 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runAc } from './lib/ac/run.js';
-import { listCommand, showCommand, doctorCommand } from './lib/ac/introspect.js';
+import { listCommand, showCommand } from './lib/ac/introspect.js';
+import { runDoctor } from './lib/ac/doctor.js';
 import { runInit } from './lib/ac/init.js';
 import { runSync } from './lib/ac/sync.js';
 import { runStatus } from './lib/ac/status.js';
@@ -422,7 +423,10 @@ async function main(): Promise<number> {
   }
 
   if (cmd === 'doctor') {
-    return doctorCommand({
+    return runDoctor({
+      projectDir: dirs.projectDir,
+      contentDir: paths.contentDir,
+      userDir: paths.userOverlayDir,
       harnesses: KNOWN_HARNESSES,
       print: (l) => process.stdout.write(l + '\n'),
     });

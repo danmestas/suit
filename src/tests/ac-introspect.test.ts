@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { listCommand, showCommand, doctorCommand } from '../lib/ac/introspect.ts';
+import { listCommand, showCommand } from '../lib/ac/introspect.ts';
+import { runDoctor } from '../lib/ac/doctor.ts';
 
 describe('ac list', () => {
   it('lists all outfits', async () => {
@@ -311,39 +312,152 @@ Body framing focused cut.
 });
 
 describe('ac doctor', () => {
-  it('reports binary missing for unknown bin names (now falls back to harness as bin)', async () => {
+  // Standard "minimal valid" deps shape: a tempdir for content/project/user
+  // so checks have somewhere to look. Tests override individual fields to
+  // exercise specific behaviors.
+  async function mkDoctorDeps(harnesses: string[]): Promise<{
+    deps: Parameters<typeof runDoctor>[0];
+    out: string[];
+    cleanup: () => Promise<void>;
+  }> {
     const out: string[] = [];
-    // Unknown harness now treated as bin name verbatim → not found → exit 1
-    const code = await doctorCommand({
-      harnesses: ['__nonexistent_harness_ac_test__'],
-      print: (l) => out.push(l),
-    });
-    expect(code).toBe(1);
-    expect(out.join('\n')).toMatch(/✗.*__nonexistent_harness_ac_test__/);
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'doctor-proj-'));
+    const userDir = await fs.mkdtemp(path.join(os.tmpdir(), 'doctor-user-'));
+    const contentDir = await fs.mkdtemp(path.join(os.tmpdir(), 'doctor-content-'));
+    return {
+      deps: {
+        projectDir,
+        userDir,
+        contentDir,
+        harnesses,
+        print: (l: string) => out.push(l),
+      },
+      out,
+      cleanup: async () => {
+        await fs.rm(projectDir, { recursive: true, force: true }).catch(() => {});
+        await fs.rm(userDir, { recursive: true, force: true }).catch(() => {});
+        await fs.rm(contentDir, { recursive: true, force: true }).catch(() => {});
+      },
+    };
+  }
+
+  it('reports ✗ + exit 1 for missing harness binaries', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps(['__nonexistent_harness_ac_test__']);
+    try {
+      const code = await runDoctor(deps);
+      expect(code).toBe(1);
+      expect(out.join('\n')).toMatch(/✗\s+harness: __nonexistent_harness_ac_test__/);
+    } finally {
+      await cleanup();
+    }
   });
 
-  it('returns 0 with no harnesses to check', async () => {
-    const out: string[] = [];
-    const code = await doctorCommand({
-      harnesses: [],
-      print: (l) => out.push(l),
-    });
-    expect(code).toBe(0);
+  it('exit 0 when no harnesses requested and other checks pass', async () => {
+    const { deps, cleanup } = await mkDoctorDeps([]);
+    try {
+      const code = await runDoctor(deps);
+      expect(code).toBe(0);
+    } finally {
+      await cleanup();
+    }
   });
 
-  it('formats ✓ / ✗ lines correctly', async () => {
-    const out: string[] = [];
-    const code = await doctorCommand({
-      harnesses: ['pi'],
-      print: (l) => out.push(l),
-    });
-    const text = out.join('\n');
-    expect(text).toMatch(/pi/);
-    // pi will not be on PATH in test env → ✗ + exit 1
-    if (code !== 0) {
-      expect(text).toMatch(/✗.*pi/);
-    } else {
-      expect(text).toMatch(/✓.*pi/);
+  it('reports ✓ for the content path when it exists', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps([]);
+    try {
+      await runDoctor(deps);
+      expect(out.join('\n')).toMatch(/✓\s+content path\s+/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports ✗ for the content path when missing', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps([]);
+    try {
+      // Override contentDir to a path that doesn't exist.
+      deps.contentDir = '/nonexistent/path/for/doctor-test';
+      const code = await runDoctor(deps);
+      expect(code).toBe(1);
+      expect(out.join('\n')).toMatch(/✗\s+content path\s+/);
+      expect(out.join('\n')).toMatch(/does not exist/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports drift when ~/.claude.json is newer than wardrobe globals.yaml', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps([]);
+    const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), 'doctor-home-'));
+    const realHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      // globals.yaml: old
+      const globalsPath = path.join(deps.contentDir, 'globals.yaml');
+      await fs.writeFile(globalsPath, 'schemaVersion: 1\nplugins: {}\nmcps: {}\nhooks: {}\n');
+      const past = new Date(Date.now() - 30 * 86400000);
+      await fs.utimes(globalsPath, past, past);
+
+      // ~/.claude.json: now
+      await fs.writeFile(path.join(fakeHome, '.claude.json'), '{}\n');
+
+      await runDoctor(deps);
+      expect(out.join('\n')).toMatch(/⚠\s+globals \(claude\)\s+drift/);
+    } finally {
+      process.env.HOME = realHome;
+      await fs.rm(fakeHome, { recursive: true, force: true }).catch(() => {});
+      await cleanup();
+    }
+  });
+
+  it('skips the globals check when wardrobe has no globals.yaml', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps([]);
+    try {
+      await runDoctor(deps);
+      expect(out.join('\n')).toMatch(/✓\s+globals \(claude\)\s+no globals.yaml/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports lockfile consistency when all recorded paths exist', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps([]);
+    try {
+      // Synthesize a lockfile with one entry pointing at a real file.
+      await fs.mkdir(path.join(deps.projectDir, '.suit'), { recursive: true });
+      await fs.writeFile(path.join(deps.projectDir, 'CLAUDE.md'), 'test\n');
+      await fs.writeFile(
+        path.join(deps.projectDir, '.suit', 'lock.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          appliedAt: new Date().toISOString(),
+          resolution: { outfit: 'backend', cut: null, accessories: [], targets: ['claude-code'] },
+          files: [
+            {
+              path: 'CLAUDE.md',
+              sha256: '0'.repeat(64),
+              mode: 'replace',
+              sourceComponent: 'outfits/backend',
+            },
+          ],
+        }),
+      );
+      await runDoctor(deps);
+      expect(out.join('\n')).toMatch(/✓\s+lockfile\s+consistent/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('returns exit 1 when summary mentions any failures', async () => {
+    const { deps, out, cleanup } = await mkDoctorDeps(['__nonexistent_harness_doc_test__']);
+    try {
+      const code = await runDoctor(deps);
+      expect(code).toBe(1);
+      // Trailer line includes failure count.
+      expect(out.join('\n')).toMatch(/1 failure/);
+    } finally {
+      await cleanup();
     }
   });
 });
