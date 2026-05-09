@@ -3,7 +3,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runUp } from '../../lib/ac/up.js';
-import { readLockfile, sha256OfFile } from '../../lib/lockfile.js';
+import { runOff } from '../../lib/ac/off.js';
+import { readLockfile, sha256OfBuffer, sha256OfFile } from '../../lib/lockfile.js';
+import { extractSuitBlockFull } from '../../lib/writer.js';
 
 const cleanupQueue: string[] = [];
 afterEach(async () => {
@@ -540,5 +542,117 @@ backend body
     // Lockfile got written — base flow succeeded
     const lock = await readLockfile(proj);
     expect(lock).not.toBeNull();
+  });
+});
+
+// ─── #38 Bug B: ADDITIVE_PATHS (root CLAUDE.md) lockfile recording ─────────
+
+/**
+ * Extend the standard mkWardrobe with a project-scope rules component so the
+ * claude-code adapter emits root `CLAUDE.md`. Without a rules component the
+ * adapter never reaches the rules-emission branch and CLAUDE.md only comes
+ * from up.ts's explicit injection (which already records as additive).
+ */
+async function addProjectRulesToWardrobe(wardrobe: string): Promise<void> {
+  await fs.mkdir(path.join(wardrobe, 'rules', 'safety'), { recursive: true });
+  await fs.writeFile(
+    path.join(wardrobe, 'rules', 'safety', 'RULE.md'),
+    `---
+name: safety
+version: 1.0.0
+type: rules
+description: project-scope safety rules
+targets: [claude-code]
+scope: project
+---
+do not push to main without review
+`,
+  );
+}
+
+describe('runUp — additive recording for ADDITIVE_PATHS (#38)', () => {
+  it('records root CLAUDE.md as lockMode=additive with a sha matching the marker block', async () => {
+    // Repro: ProjectWriter treats root CLAUDE.md as additive (per
+    // writer.ADDITIVE_PATHS), strip-and-appending the adapter's emit. Prior
+    // to the fix, the lockfile recorded mode=replace with sha of the raw
+    // adapter content, which never matched the on-disk file (off-by-trailing
+    // newline) — and `suit off` would delete the whole file ignoring
+    // surrounding user content.
+    const wardrobe = await mkWardrobe();
+    await addProjectRulesToWardrobe(wardrobe);
+    const proj = await mkProject();
+    const userDir = await mkdirT('suit-up-user-');
+    const cap = capture();
+
+    const code = await runUp(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        force: false,
+        projectDir: proj,
+        contentDir: wardrobe,
+        userDir,
+        isTTY: false,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+
+    const lock = await readLockfile(proj);
+    const rootClaude = lock!.files.find((f) => f.path === 'CLAUDE.md');
+    expect(rootClaude).toBeDefined();
+    expect(rootClaude!.mode).toBe('additive');
+
+    // The recorded sha should match the suit:outfit marker block extracted
+    // from the on-disk file — that's what `suit current` and `suit off`
+    // verify against.
+    const onDisk = await fs.readFile(path.join(proj, 'CLAUDE.md'), 'utf8');
+    const block = extractSuitBlockFull(onDisk);
+    expect(block).not.toBeNull();
+    expect(sha256OfBuffer(block!)).toBe(rootClaude!.sha256);
+  });
+
+  it('preserves user-authored content around the suit block across `suit off`', async () => {
+    const wardrobe = await mkWardrobe();
+    await addProjectRulesToWardrobe(wardrobe);
+    const proj = await mkProject();
+    const userDir = await mkdirT('suit-up-user-');
+
+    // User has hand-authored content at root CLAUDE.md before suit ever ran.
+    const userBefore = '# my project\n\nhand-authored notes that must survive\n';
+    await fs.writeFile(path.join(proj, 'CLAUDE.md'), userBefore);
+
+    const cap = capture();
+    const upCode = await runUp(
+      {
+        outfit: 'backend',
+        cut: null,
+        accessories: [],
+        force: false,
+        projectDir: proj,
+        contentDir: wardrobe,
+        userDir,
+        isTTY: false,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(upCode).toBe(0);
+
+    // After `suit up`: file has both user content AND the suit block.
+    const dressed = await fs.readFile(path.join(proj, 'CLAUDE.md'), 'utf8');
+    expect(dressed).toContain('hand-authored notes that must survive');
+    expect(dressed).toMatch(/<!-- suit:outfit:backend -->/);
+
+    // `suit off` (no --force) succeeds and the user content survives.
+    const cap2 = capture();
+    const offCode = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap2.push, stderr: cap2.pushE },
+    );
+    expect(offCode).toBe(0);
+    const after = await fs.readFile(path.join(proj, 'CLAUDE.md'), 'utf8');
+    expect(after).toContain('hand-authored notes that must survive');
+    expect(after).not.toMatch(/<!-- suit:outfit:/);
   });
 });

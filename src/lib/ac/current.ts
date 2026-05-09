@@ -14,7 +14,8 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { LOCKFILE_PATH, readLockfile, sha256OfFile } from '../lockfile.js';
+import { LOCKFILE_PATH, readLockfile, sha256OfBuffer, sha256OfFile } from '../lockfile.js';
+import { extractSuitBlockFull } from '../writer.js';
 
 export interface RunCurrentArgs {
   projectDir: string;
@@ -52,6 +53,10 @@ export async function runCurrent(args: RunCurrentArgs, deps: RunCurrentDeps): Pr
   }
 
   // Drift detection — per-file sha256 mismatch (or missing file).
+  // `mode: 'additive'` entries record the marker-block hash, not the
+  // whole-file hash (see lockfile.ts §LockEntryMode), so we extract the block
+  // from the on-disk file before hashing. Mirrors `suit off`'s preflight at
+  // off.ts §Stage 1 — the two commands must agree on what counts as drift.
   const drift: string[] = [];
   for (const f of lock.files) {
     const full = path.join(args.projectDir, f.path);
@@ -59,6 +64,16 @@ export async function runCurrent(args: RunCurrentArgs, deps: RunCurrentDeps): Pr
       await fs.stat(full);
     } catch {
       drift.push(`${f.path} (missing)`);
+      continue;
+    }
+    if (f.mode === 'additive') {
+      const fileContent = await fs.readFile(full, 'utf8');
+      const blockFull = extractSuitBlockFull(fileContent);
+      if (blockFull === null) {
+        drift.push(f.path);
+        continue;
+      }
+      if (sha256OfBuffer(blockFull) !== f.sha256) drift.push(f.path);
       continue;
     }
     const current = await sha256OfFile(full);
