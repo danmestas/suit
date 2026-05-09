@@ -121,38 +121,6 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   const { pending, targets } = composed;
   const newResolution = composed.resolution;
 
-  // Stage 5b: marker-wrap any pending file whose path lives in writer's
-  // ADDITIVE_PATHS but whose entry isn't already lockMode='additive'. Without
-  // this, root `CLAUDE.md` (emitted by the claude-code adapter for
-  // project-scope rules) goes into the lockfile as mode='replace' but gets
-  // written through ProjectWriter.writeAdditive — the recorded sha doesn't
-  // match the on-disk content (off-by-trailing-newline) AND `suit off` would
-  // delete the whole file even when the user has surrounding hand-authored
-  // content. Wrapping aligns these paths with the explicit `.claude/CLAUDE.md`
-  // injection above; both go in as marker blocks the writer can strip back
-  // out without touching user content.
-  //
-  // Skip paths that already have an additive entry (today: only
-  // `.claude/CLAUDE.md` from the explicit injection above) — the existing
-  // entry already does the right thing, and re-wrapping the adapter's
-  // duplicate emission would have writeAdditive strip the first wrap before
-  // appending the second. See issue #38.
-  const additiveAlready = new Set(
-    pending.filter((f) => f.lockMode === 'additive').map((f) => f.path),
-  );
-  for (const f of pending) {
-    if (f.lockMode === 'additive') continue;
-    if (!isAdditivePath(f.path)) continue;
-    if (additiveAlready.has(f.path)) continue;
-    const body = typeof f.content === 'string' ? f.content : f.content.toString('utf8');
-    const trimmed = body.trim();
-    if (trimmed.length === 0) continue; // empty body — leave as-is, nothing meaningful to wrap
-    const wrapped = `<!-- suit:outfit:${outfitName} -->\n${trimmed}\n<!-- /suit:outfit:${outfitName} -->`;
-    f.content = wrapped;
-    f.lockMode = 'additive';
-    f.sha256 = sha256OfBuffer(wrapped);
-  }
-
   // Stage 6: refuse-when-dirty preflight.
   const priorLock = await readLockfile(args.projectDir);
 
