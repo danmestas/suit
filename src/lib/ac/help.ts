@@ -6,13 +6,14 @@ USAGE
   suit up --outfit <name> [--cut <name>] [--accessory <name>]... [--force]
   suit off [--force]
   suit current
-  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run]
+  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>]
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
   suit doctor
   suit list <outfits|cuts|accessories> [-v|--verbose] [--resolvable]
   suit show <outfit|cut|accessory> <name>
+  suit show bundle <path>                          # pretty-print a prepare-bundle's .suit-bundle.json
 
 FLAGS
   --outfit <name>      Pre-built bundle of harness-native components — sets
@@ -61,6 +62,11 @@ EXAMPLES
   # trailing newline so wrapper-side capture is exact. --dry-run lists files
   # that WOULD be emitted, without writing a tempdir.
   suit prepare --outfit backend --target claude --dry-run
+
+  # --label stamps the bundle with caller metadata for registry surveys.
+  # 'suit show bundle <path>' pretty-prints the resulting .suit-bundle.json.
+  BUNDLE=\$(suit prepare --outfit backend --target claude --label "worker-3" --quiet)
+  suit show bundle "\$BUNDLE"
 
 See https://github.com/danmestas/suit for full docs.
 `;
