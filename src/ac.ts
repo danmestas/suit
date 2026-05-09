@@ -10,9 +10,11 @@ import { runStatus } from './lib/ac/status.js';
 import { runUp } from './lib/ac/up.js';
 import { runOff } from './lib/ac/off.js';
 import { runCurrent } from './lib/ac/current.js';
+import { runPrepare } from './lib/ac/prepare.js';
 import { helpText } from './lib/ac/help.js';
 import { resolveSuitPaths } from './lib/paths.js';
 import { KNOWN_HARNESSES } from './lib/ac/harness-presence.js';
+import { TARGETS, type Target } from './lib/types.js';
 
 const argv = process.argv.slice(2);
 
@@ -137,6 +139,76 @@ function parseUpArgs(rest: string[]): UpArgs {
   return { outfit, cut, accessories, force, err };
 }
 
+interface PrepareArgs {
+  outfit: string | null;
+  cut: string | null;
+  accessories: string[];
+  target: Target | null;
+  err: string | null;
+}
+
+/**
+ * Parse `suit prepare` args. Same flag shape as `suit up`, plus `--target` to
+ * scope the bundle to a single harness. Per ADR (#36), `prepare` is
+ * single-target on the first cut — multi-target opens questions about
+ * combined-prefix bundle layouts that don't have answers yet.
+ */
+function parsePrepareArgs(rest: string[]): PrepareArgs {
+  let outfit: string | null = null;
+  let cut: string | null = null;
+  const accessories: string[] = [];
+  let target: Target | null = null;
+  let err: string | null = null;
+
+  function takeValue(_flag: string, i: number, eqValue: string | undefined): { value: string | null; next: number } {
+    if (eqValue !== undefined) return { value: eqValue, next: i };
+    const next = rest[i + 1];
+    if (next === undefined || next.startsWith('-')) {
+      return { value: null, next: i };
+    }
+    return { value: next, next: i + 1 };
+  }
+
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    let flag = arg;
+    let eqValue: string | undefined;
+    const eq = arg.indexOf('=');
+    if (arg.startsWith('--') && eq !== -1) {
+      flag = arg.slice(0, eq);
+      eqValue = arg.slice(eq + 1);
+    }
+    if (flag === '--outfit') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --outfit requires a value'; continue; }
+      outfit = r.value;
+      i = r.next;
+    } else if (flag === '--cut') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --cut requires a value'; continue; }
+      cut = r.value;
+      i = r.next;
+    } else if (flag === '--accessory') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --accessory requires a value'; continue; }
+      accessories.push(r.value);
+      i = r.next;
+    } else if (flag === '--target') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --target requires a value'; continue; }
+      if (!TARGETS.includes(r.value as Target)) {
+        err = err ?? `suit prepare: unknown --target "${r.value}" (known: ${TARGETS.join(', ')})`;
+        continue;
+      }
+      target = r.value as Target;
+      i = r.next;
+    } else {
+      err = err ?? `suit prepare: unrecognized argument "${arg}"`;
+    }
+  }
+  return { outfit, cut, accessories, target, err };
+}
+
 async function main(): Promise<number> {
   const { paths, dirs } = resolveSuitDirs();
   const cmd = argv[0];
@@ -254,6 +326,39 @@ async function main(): Promise<number> {
   if (cmd === 'current') {
     return runCurrent(
       { projectDir: dirs.projectDir },
+      {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      },
+    );
+  }
+
+  if (cmd === 'prepare') {
+    const parsed = parsePrepareArgs(argv.slice(1));
+    if (parsed.err) {
+      process.stderr.write(`${parsed.err}\n`);
+      return 2;
+    }
+    if (parsed.outfit === null) {
+      process.stderr.write('suit prepare: --outfit is required\n');
+      return 2;
+    }
+    if (parsed.target === null) {
+      process.stderr.write(
+        `suit prepare: --target is required (one of: ${TARGETS.join(', ')})\n`,
+      );
+      return 2;
+    }
+    return runPrepare(
+      {
+        outfit: parsed.outfit,
+        cut: parsed.cut,
+        accessories: parsed.accessories,
+        target: parsed.target,
+        projectDir: dirs.projectDir,
+        contentDir: paths.contentDir,
+        userDir: paths.userOverlayDir,
+      },
       {
         stdout: (s) => process.stdout.write(s),
         stderr: (s) => process.stderr.write(s),
