@@ -24,7 +24,7 @@ describe('ManifestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid semver', () => {
+  it('rejects invalid semver when version is present', () => {
     const result = ManifestSchema.safeParse({
       name: 'x',
       version: 'not-semver',
@@ -33,6 +33,18 @@ describe('ManifestSchema', () => {
       targets: ['claude-code'],
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts a manifest without a version field (issue #37)', () => {
+    // version is documentation-only — no code path consumes it. Authors may
+    // omit it; validation still rejects malformed values when present (above).
+    const result = ManifestSchema.safeParse({
+      name: 'no-version-skill',
+      description: 'no version declared',
+      type: 'skill',
+      targets: ['claude-code'],
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rejects names with invalid characters', () => {

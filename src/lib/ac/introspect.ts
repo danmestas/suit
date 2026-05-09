@@ -31,7 +31,7 @@ export async function listCommand(
       return;
     }
     for (const p of all) {
-      deps.print(`${p.manifest.name.padEnd(20)} v${p.manifest.version.padEnd(8)} [${p.source}]  ${p.manifest.description}`);
+      deps.print(`${p.manifest.name.padEnd(20)} v${(p.manifest.version ?? '-').padEnd(8)} [${p.source}]  ${p.manifest.description}`);
       if (verbose) {
         const blurb = extractBlurb(p.body, p.manifest.description);
         if (blurb !== p.manifest.description) deps.print(`${indent}${blurb}`);
@@ -46,7 +46,7 @@ export async function listCommand(
       return;
     }
     for (const m of all) {
-      deps.print(`${m.manifest.name.padEnd(20)} v${m.manifest.version.padEnd(8)} [${m.source}]  ${m.manifest.description}`);
+      deps.print(`${m.manifest.name.padEnd(20)} v${(m.manifest.version ?? '-').padEnd(8)} [${m.source}]  ${m.manifest.description}`);
       if (verbose) {
         const blurb = extractBlurb(m.body, m.manifest.description);
         if (blurb !== m.manifest.description) deps.print(`${indent}${blurb}`);
@@ -61,7 +61,7 @@ export async function listCommand(
     return;
   }
   for (const a of all) {
-    deps.print(`${a.manifest.name.padEnd(20)} v${a.manifest.version.padEnd(8)} [${a.source}]  ${a.manifest.description}`);
+    deps.print(`${a.manifest.name.padEnd(20)} v${(a.manifest.version ?? '-').padEnd(8)} [${a.source}]  ${a.manifest.description}`);
     if (verbose) {
       const blurb = extractBlurb(a.body, a.manifest.description);
       if (blurb !== a.manifest.description) deps.print(`${indent}${blurb}`);

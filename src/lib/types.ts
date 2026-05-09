@@ -43,7 +43,12 @@ export interface ComponentSource {
  */
 export interface ComponentManifest {
   name: string;
-  version: string;
+  /**
+   * Optional documentation field — see issue #37. Validated as semver when
+   * present (src/lib/schema.ts §SEMVER_RE) but no code path consumes it. May
+   * be undefined for manifests that omit the frontmatter key.
+   */
+  version?: string;
   description: string;
   category?: { primary: Category; secondary?: Category[] };
   type: ComponentType;

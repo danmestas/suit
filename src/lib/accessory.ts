@@ -160,7 +160,7 @@ async function findFallthroughComponent(
 
 function synthesizeAccessoryManifest(
   componentName: string,
-  componentVersion: string,
+  componentVersion: string | undefined,
   componentTargets: string[],
   kind: FallthroughKind,
   includeField: FallthroughDef['includeField'],
@@ -175,7 +175,7 @@ function synthesizeAccessoryManifest(
   include[includeField] = [componentName];
   return {
     name: componentName,
-    version: componentVersion,
+    ...(componentVersion !== undefined ? { version: componentVersion } : {}),
     type: 'accessory' as const,
     description: `(synthetic accessory wrapping ${kind} "${componentName}")`,
     targets: componentTargets as AccessoryManifest['targets'],
@@ -225,8 +225,10 @@ export async function findAccessory(
         if (!hit) continue;
         const m = hit.manifest;
         // Defensive defaults — discover.ts validates these strictly, but for
-        // synthesis we only need them to be plausible.
-        const version = typeof m.version === 'string' ? m.version : '0.0.0';
+        // synthesis we only need them to be plausible. `version` is optional
+        // schema-side (see issue #37) so we forward whatever the manifest
+        // declared (string or undefined) without a fallback.
+        const version = typeof m.version === 'string' ? m.version : undefined;
         const targets = Array.isArray(m.targets) ? m.targets : ['claude-code'];
         const manifest = synthesizeAccessoryManifest(
           name,
