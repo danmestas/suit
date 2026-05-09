@@ -1,7 +1,6 @@
 import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
 import { listAllCuts, findCut } from '../cut.js';
 import { listAllAccessories, listAllResolvableNames, findAccessory } from '../accessory.js';
-import { getHarnessPresence } from './harness-presence.js';
 import { extractBlurb } from '../blurb.js';
 
 export interface IntrospectDeps extends DiscoveryDirs {
@@ -179,19 +178,3 @@ export async function showCommand(
   throw new Error('ac show effective: not yet implemented');
 }
 
-export interface DoctorDeps {
-  /** List of harnesses to check */
-  harnesses: string[];
-  print: (line: string) => void;
-}
-
-export async function doctorCommand(deps: DoctorDeps): Promise<number> {
-  const presence = getHarnessPresence(deps.harnesses);
-  let allFound = true;
-  for (const entry of presence) {
-    const status = entry.found ? '✓' : '✗';
-    deps.print(`${status} ${entry.harness}${entry.binPath ? ` (${entry.binPath})` : ''}`);
-    if (!entry.found) allFound = false;
-  }
-  return allFound ? 0 : 1;
-}
