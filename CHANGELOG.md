@@ -4,6 +4,36 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-05-09
+
+External-orchestrator integration polish: five focused improvements to `suit prepare` driven by an end-to-end audit of the `agent-harness` integration. Friction was triaged across spike, Ousterhout review, and stasi transcript audit before each change landed.
+
+### Added
+
+- **`suit prepare --shape sidecar`** emits a side-loadable bundle plus a generated `launch` bash script that owns the recipe. Caller does `exec $BUNDLE/launch` instead of assembling 4–5 flags. Solves the latent gap where the project-shape recipe (`cwd=$BUNDLE && claude --add-dir $PROJECT`) silently misses the project's own CLAUDE.md (Claude Code's `--add-dir` doesn't walk for CLAUDE.md auto-discovery, only grants tool access — verified via spike). Sidecar shape requires `--target claude-code` and `--project <path>`. (#44, #56)
+- **`suit prepare --label <text>`** stamps the bundle with caller-provided metadata (e.g. `agent-harness/bones-worker-3`) for registry surveys. (#43, #54)
+- **`.suit-bundle.json`** introspection metadata at every bundle root: `{ schemaVersion, outfit, cut, accessories, target, label?, shape?, suitVersion, generatedAt }`. (#43, #54)
+- **`suit show bundle <path>`** pretty-prints `.suit-bundle.json`. (#43, #54)
+- **`suit list accessories --resolvable`** (and `--include-fall-through`) widens listing to the full `--accessory` resolvable surface — authored bundles + fall-through skills/hooks/rules/agents/commands. Single sorted column with `[kind]` annotations; authored wins precedence on collision. (#49, #53)
+- **`suit prepare --quiet`** trims the trailing newline from stdout so `BUNDLE=$(suit prepare ... --quiet)` captures cleanly. Suppresses informational stderr in the success path. (#48, #52)
+- **`suit prepare --dry-run`** previews the file list (`<path>\t<size>\t<sourceComponent>` per line) without writing a bundle. (#47, #52)
+- **`--target claude` alias** for `--target claude-code`. Internal `Target` type unchanged; alias is resolved at parse time. Eliminates a translation step in every wrapper. (#50, #52)
+- **`suit doctor`** expanded with 5 checks: content-path, globals (claude) staleness, lockfile consistency, wardrobe staleness (FETCH_HEAD age), and harness presence (preserved v0 behavior). Per Ousterhout review on the issue: straight-line implementation, not a `Check[]` framework. (#46, #55)
+
+### Changed
+
+- **Singleton CLI flags reject duplicates** instead of silently last-wins. `suit prepare --outfit X --outfit Y` now exits 2 with a clear error. `--accessory` is repeatable but deduplicates same value with a warning. Catches caller bugs in programmatic invocations. (#45, #52)
+
+### Fixed
+
+- **Tmpdir comment in `prepare.ts` JSDoc** was wrong on macOS. Now references `<os.tmpdir()>` with platform examples. (#51, #52)
+
+### Implementation notes
+
+- All changes shipped through PRs #52, #53, #54, #55, #56 — small, reviewable, sequentially mergeable.
+- Test count: 543 → 567 (24 new across the five PRs).
+- No breaking changes; v0.11.x recipes continue to work unchanged.
+
 ## [0.9.0] — 2026-05-04
 
 Renames the work-shape composition primitive from `mode` to `cut`. Mirrors the persona→outfit precedent from ADR-0010 — clean break, no migration tooling, single coordinated cutover across `suit`, `wardrobe`, and `suit-template`. Resolver semantics unchanged; this is a vocabulary rename, not a behavior change.
