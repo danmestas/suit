@@ -1,7 +1,7 @@
 {
   "name": "@agent-ops/suit",
-  "version": "0.12.0",
-  "description": "Multi-harness AI agent configurator. Stateless launcher + project-state mutator (suit up / suit off) — Claude Code, Codex, Gemini, Copilot, APM, Pi.",
+  "version": "0.13.0",
+  "description": "Multi-harness AI agent configurator. Stateless launcher + project-state mutator (suit up / suit off) — Claude Code, Codex, Gemini, Pi.",
   "type": "module",
   "bin": {
     "suit": "./dist/ac.js",
@@ -60,7 +60,6 @@
     "claude-code",
     "codex",
     "gemini",
-    "copilot",
     "agent",
     "outfit",
     "harness",

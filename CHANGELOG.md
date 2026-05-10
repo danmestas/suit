@@ -4,6 +4,23 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] — 2026-05-10
+
+Drops the `apm` and `copilot` adapters and removes them from the public `TARGETS` enum. Coordinates with the [danmestas/wardrobe](https://github.com/danmestas/wardrobe) tier-of-support reframe: bulletproof Claude Code, well-supported Codex / Gemini / Pi, DIY-from-docs anything else. APM was scaffolded but never shipped (no published packages, no consumer); Copilot has no ongoing investment.
+
+### Removed
+
+- **`apm` target** — dropped from `TARGETS` literal in `src/lib/types.ts`. Removes `src/adapters/apm.ts` adapter; prunes the `apm` entry from `src/adapters/index.ts` REGISTRY. Removes `publishAPM` and the `APMReleaseOptions` type from `src/lib/release/publish.ts`; narrows `runRelease` (drops `apmToken` / `runApm` options, drops `published.apm` result field). Removes the `APM_TOKEN` env-var read and the `apm` plumbing from `cli.ts releaseCmd`. Drops `apm` from `HARNESS_BINS`, `HARNESS_ALIASES`, `binNames`, the `LAYOUTS` table in `harness-catalog.ts`, the `TARGET_PROJECT_PREFIX` and `TARGET_SUBDIRS` / `TARGET_SKILLS_SUBDIR` records, and the type-by-target compatibility matrix in `validate.ts`. Removes `prelaunchComposeApm` from `src/lib/ac/prelaunch.ts` and the `case 'apm'` arm + `apmPackageDir` field from `session.ts`. (#58)
+- **`copilot` target** — same scope as APM. Removes `src/adapters/copilot.ts` and the `composeCopilotInstructions` export. Removes `src/lib/harness-adapters/copilot.ts` and the `GH_COPILOT_CLI` detection branch from the harness-adapters index. Drops the copilot branch from the `docs` subcommand in `cli.ts`. Drops `copilot` from `GIT_URL_TARGETS` in `notes.ts` and the friendly-name special case. Removes `prelaunchComposeCopilot` from `src/lib/ac/prelaunch.ts` and the `case 'copilot'` arm from `session.ts`. (#58)
+- **`src/tests/adapters/apm/` + `src/tests/adapters/copilot/`** test fixture trees plus the `*.test.ts` orchestrators, `src/tests/release/publish-apm.test.ts`, and `src/tests/integration/ac-prelaunch-apm.test.ts`. (#58)
+
+### Migration
+
+- If your `suit.config.yaml` declares an `apm:` or `copilot:` block, remove it. They no longer parse to anything.
+- If a SKILL.md frontmatter `targets:` list includes `apm` or `copilot`, remove those entries — Zod validation at `discover` time will reject them.
+- If a release flow passed `APM_TOKEN` / `runApm` / `apmToken` to `runRelease`, drop those — the API no longer accepts them.
+- Wardrobe's `npx -y -p @agent-ops/suit suit-build` invocations gain no new flags — the change is purely subtractive.
+
 ## [0.12.0] — 2026-05-09
 
 External-orchestrator integration polish: five focused improvements to `suit prepare` driven by an end-to-end audit of the `agent-harness` integration. Friction was triaged across spike, Ousterhout review, and stasi transcript audit before each change landed.
