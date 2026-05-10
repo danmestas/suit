@@ -10,7 +10,6 @@ import { runBuild } from './lib/build.js';
 import { matchesGlob } from './lib/glob.js';
 import { updateReadme } from './lib/docs.js';
 import { composeAgentsMd } from './lib/agents-md.js';
-import { composeCopilotInstructions } from './adapters/copilot.js';
 import { TARGETS, type Target } from './lib/types.js';
 import { listImplementedTargets } from './adapters/index.js';
 import { runEvolution } from './lib/evolution/orchestrator.js';
@@ -132,9 +131,9 @@ const watchCmd = defineCommand({
 const docsCmd = defineCommand({
   meta: { name: 'docs', description: 'Regenerate the components table in README.md (preserves hand-written sections)' },
   args: {
-    target: { type: 'string', description: 'Filter docs to a specific harness target (codex | copilot)' },
+    target: { type: 'string', description: 'Filter docs to a specific harness target (codex)' },
     resolution: { type: 'string', description: 'Path to resolution artifact (filters skills per skillsDrop)' },
-    out: { type: 'string', description: 'Output path (default: AGENTS.md or copilot-instructions.md per target)' },
+    out: { type: 'string', description: 'Output path (default: AGENTS.md per target)' },
     repo: { type: 'string', description: 'Repo root to discover components from (default: cwd)' },
   },
   async run({ args }) {
@@ -169,13 +168,8 @@ const docsCmd = defineCommand({
       const content = composeAgentsMd({ target: 'codex', components, sectionOrder: ['rules', 'agents', 'skills'] });
       await fs.writeFile(outPath, content);
       console.log(pc.green(`wrote ${outPath} (${components.length} components).`));
-    } else if (args.target === 'copilot') {
-      const outPath = args.out ?? path.join(repoRoot, 'copilot-instructions.md');
-      const content = composeCopilotInstructions(components);
-      await fs.writeFile(outPath, content);
-      console.log(pc.green(`wrote ${outPath} (${components.length} components).`));
     } else {
-      console.log(pc.red(`unknown target: ${args.target}. Valid: codex, copilot`));
+      console.log(pc.red(`unknown target: ${args.target}. Valid: codex`));
       process.exit(1);
     }
   },
