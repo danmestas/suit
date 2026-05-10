@@ -6,7 +6,6 @@ import type { HarnessAdapter } from './types.js';
 import { claudeCodeHarnessAdapter } from './claude-code.js';
 import { codexHarnessAdapter } from './codex.js';
 import { geminiHarnessAdapter } from './gemini.js';
-import { copilotHarnessAdapter } from './copilot.js';
 import { piHarnessAdapter } from './pi.js';
 
 export type {
@@ -19,7 +18,6 @@ export const HARNESS_ADAPTERS: Record<string, HarnessAdapter> = {
   'claude-code': claudeCodeHarnessAdapter,
   codex: codexHarnessAdapter,
   gemini: geminiHarnessAdapter,
-  copilot: copilotHarnessAdapter,
   pi: piHarnessAdapter,
 };
 
@@ -30,7 +28,6 @@ export const HARNESS_ADAPTERS: Record<string, HarnessAdapter> = {
  *  - `CLAUDE_PROJECT_DIR` set → `claude-code`
  *  - `CODEX_HOME` set → `codex`
  *  - `GEMINI_CLI` set → `gemini`
- *  - `GH_COPILOT_CLI` set → `copilot`
  *  - `PI_HOME` set → `pi`
  *  - default → `claude-code`
  */
@@ -38,7 +35,6 @@ export function detectHarness(env: NodeJS.ProcessEnv = process.env): string {
   if (env['CLAUDE_PROJECT_DIR']) return 'claude-code';
   if (env['CODEX_HOME']) return 'codex';
   if (env['GEMINI_CLI']) return 'gemini';
-  if (env['GH_COPILOT_CLI']) return 'copilot';
   if (env['PI_HOME']) return 'pi';
   return 'claude-code';
 }
