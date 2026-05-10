@@ -18,7 +18,6 @@ import { renderReport } from './lib/evolution/render.js';
 import { runRelease } from './lib/release/release.js';
 import { computeTag } from './lib/release/git.js';
 import { renderReleaseNotes } from './lib/release/notes.js';
-import { loadRepoConfig } from './lib/config.js';
 import { buildGlobalsSnapshot, renderGlobalsYaml, openPr } from './lib/sync-globals.js';
 
 const validateCmd = defineCommand({
@@ -321,7 +320,6 @@ const releaseCmd = defineCommand({
   },
   async run({ args }) {
     const repoRoot = process.cwd();
-    const apmToken = process.env.APM_TOKEN;
     if (args['dry-run']) {
       // Dry-run never tags, never publishes, never edits files.
       // Compose what WOULD happen and print it for human review.
@@ -339,23 +337,15 @@ const releaseCmd = defineCommand({
         );
         process.exit(1);
       }
-      const config = await loadRepoConfig(repoRoot);
-      const apmScope = (config['apm']?.['package_scope'] as string | undefined) ?? '';
-      const apmRegistry = (config['apm']?.['registry'] as string | undefined) ?? '';
       const tag = computeTag(args.skill, args.version);
       const notes = renderReleaseNotes({
         component: target,
         summary: args.summary,
-        apmScope,
         gitRepo: args['git-repo'],
       });
       console.log(pc.cyan('=== release plan (dry-run) ==='));
       console.log(`  tag:        ${tag}`);
       console.log(`  targets:    ${target.manifest.targets.join(', ')}`);
-      console.log(`  apm scope:  ${apmScope || '(none)'}`);
-      console.log(
-        `  apm mode:   ${apmRegistry ? `registry (${apmRegistry})` : 'git-url (no registry)'}`,
-      );
       console.log(`  git push:   ${args['no-push'] ? 'skipped' : 'origin'}`);
       console.log(pc.cyan('--- release notes ---'));
       console.log(notes);
@@ -369,7 +359,6 @@ const releaseCmd = defineCommand({
         skill: args.skill,
         version: args.version,
         summary: args.summary,
-        apmToken,
         gitRepo: args['git-repo'],
         pushTag: !args['no-push'],
       });
@@ -377,7 +366,6 @@ const releaseCmd = defineCommand({
       console.log(
         pc.cyan(`  claude-code: ${result.published.claudeCode ? 'published' : 'skipped'}`),
       );
-      console.log(pc.cyan(`  apm:         ${result.published.apm}`));
       console.log(
         pc.cyan(
           `  git-url:     ${result.published.gitUrlTargets.length > 0 ? result.published.gitUrlTargets.join(', ') : 'none'}`,

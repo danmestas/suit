@@ -3,13 +3,11 @@ import type { ComponentSource, Target } from '../types.js';
 export interface NotesContext {
   component: ComponentSource;
   summary: string;
-  /** APM package scope, e.g. "@danmestas". */
-  apmScope: string;
   /** Git host + repo, e.g. "github.com/danmestas/agent-skills". */
   gitRepo: string;
 }
 
-const GIT_ONLY_TARGETS: readonly Target[] = ['codex', 'gemini', 'copilot', 'pi'];
+const GIT_ONLY_TARGETS: readonly Target[] = ['codex', 'gemini', 'pi'];
 
 /**
  * Render the markdown body for a GitHub release. Composes a per-target install
@@ -17,7 +15,7 @@ const GIT_ONLY_TARGETS: readonly Target[] = ['codex', 'gemini', 'copilot', 'pi']
  * the reader exactly how to install for any harness it ships to.
  */
 export function renderReleaseNotes(ctx: NotesContext): string {
-  const { component, summary, apmScope, gitRepo } = ctx;
+  const { component, summary, gitRepo } = ctx;
   const { name, version, description, targets } = component.manifest;
   const sections: string[] = [];
   sections.push(
@@ -39,20 +37,10 @@ export function renderReleaseNotes(ctx: NotesContext): string {
       `Download \`${name}-v${version}.zip\` from the assets below, unzip into your \`~/.claude/plugins/\` directory, then \`/plugin install ${name}\`.`,
     );
   }
-  if (targets.includes('apm')) {
-    sections.push(
-      '',
-      '### APM',
-      '',
-      '```',
-      `apm install ${apmScope}/${name}@${version}`,
-      '```',
-    );
-  }
   const gitTargets = targets.filter((t) => GIT_ONLY_TARGETS.includes(t));
   if (gitTargets.length > 0) {
     const friendly = gitTargets
-      .map((t) => (t === 'copilot' ? 'Copilot CLI' : t.charAt(0).toUpperCase() + t.slice(1)))
+      .map((t) => t.charAt(0).toUpperCase() + t.slice(1))
       .join(' / ');
     sections.push(
       '',

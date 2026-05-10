@@ -12,13 +12,7 @@ Add Kroki fallback for offline rendering.
 
 Download `pikchr-generator-v1.2.0.zip` from the assets below, unzip into your `~/.claude/plugins/` directory, then `/plugin install pikchr-generator`.
 
-### APM
-
-```
-apm install @danmestas/pikchr-generator@1.2.0
-```
-
-### Codex / Gemini / Copilot CLI / Pi
+### Codex / Gemini / Pi
 
 Install from the git tag:
 
@@ -28,4 +22,4 @@ Install from the git tag:
 
 ## Targets
 
-claude-code, apm, codex, gemini, copilot, pi
+claude-code, codex, gemini, pi

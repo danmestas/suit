@@ -21,9 +21,9 @@ describe('publishGitUrl', () => {
       skill: 'foo',
       version: '0.1.0',
       gitRepo: 'github.com/danmestas/agent-skills',
-      targets: ['codex', 'gemini', 'copilot', 'pi'],
+      targets: ['codex', 'gemini', 'pi'],
     });
-    expect(Object.keys(result.installUrls).sort()).toEqual(['codex', 'copilot', 'gemini', 'pi']);
+    expect(Object.keys(result.installUrls).sort()).toEqual(['codex', 'gemini', 'pi']);
     expect(result.installUrls['codex']).toContain('github.com/danmestas/agent-skills');
     expect(result.installUrls['codex']).toContain('foo@v0.1.0');
   });

@@ -13,7 +13,7 @@ describe('renderMarketplaceEntry', () => {
         version: '0.3.0',
         description: 'Software philosophy bundle',
         type: 'plugin',
-        targets: ['claude-code', 'apm', 'pi'],
+        targets: ['claude-code', 'pi'],
         includes: ['../../skills/ousterhout', '../../skills/norman'],
       } as ComponentSource['manifest'],
     };
