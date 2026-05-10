@@ -58,8 +58,6 @@ export const TARGET_PROJECT_PREFIX: Record<Target, string> = {
   gemini: '.gemini',
   pi: '', // adapter already emits with `.pi/` prefix
   codex: '',
-  copilot: '',
-  apm: '',
 };
 
 function applyTargetPrefix(target: Target, emittedPath: string): string {
@@ -69,7 +67,7 @@ function applyTargetPrefix(target: Target, emittedPath: string): string {
     return emittedPath;
   }
   // Project-root files emitted at the top of the dist tree (CLAUDE.md,
-  // GEMINI.md, AGENTS.md, copilot-instructions.md, .mcp.fragment.json, etc.)
+  // GEMINI.md, AGENTS.md, .mcp.fragment.json, etc.)
   // stay put — they're meant to live at the project root.
   if (!emittedPath.includes('/')) return emittedPath;
   return `${prefix}/${emittedPath}`;
@@ -348,9 +346,9 @@ export async function composeBundle(
 
 /**
  * Count files emitted per target, by inspecting their final paths. Best-effort:
- * an unprefixed target gets credited for every unprefixed file (today: codex
- * and copilot fight over `AGENTS.md` etc., but each is reported independently
- * for the operator's diagnostic — the lockfile is the source of truth).
+ * an unprefixed target gets credited for every unprefixed file emitted at the
+ * project root (e.g. AGENTS.md from codex). The lockfile is the source of
+ * truth — this counter is for operator diagnostics only.
  */
 export function countFilesByTarget(
   pending: PendingFile[],

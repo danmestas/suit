@@ -55,7 +55,7 @@ describe('resolve — v0.8 harness-scoped globals filtering', () => {
   });
 
   it('non-claude/non-codex harnesses get empty kept/dropped sets', () => {
-    for (const h of ['gemini', 'copilot', 'apm', 'pi'] as const) {
+    for (const h of ['gemini', 'pi'] as const) {
       const r = resolve({ catalog: [], harness: h, globals: mixedGlobals() });
       expect(r.metadata.globals.plugins.kept).toEqual([]);
       expect(r.metadata.globals.plugins.dropped).toEqual([]);

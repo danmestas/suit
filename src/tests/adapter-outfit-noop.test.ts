@@ -1,17 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { claudeCodeAdapter } from '../adapters/claude-code.ts';
-import { apmAdapter } from '../adapters/apm.ts';
 import { codexAdapter } from '../adapters/codex.ts';
-import { copilotAdapter } from '../adapters/copilot.ts';
 import { geminiAdapter } from '../adapters/gemini.ts';
 import { piAdapter } from '../adapters/pi.ts';
 import type { ComponentSource, AdapterContext } from '../lib/types.ts';
 
 const adapters = [
   ['claude-code', claudeCodeAdapter],
-  ['apm', apmAdapter],
   ['codex', codexAdapter],
-  ['copilot', copilotAdapter],
   ['gemini', geminiAdapter],
   ['pi', piAdapter],
 ] as const;
@@ -28,7 +24,7 @@ function fixture(type: 'outfit' | 'cut'): ComponentSource {
       version: '1.0.0',
       type,
       description: '',
-      targets: ['claude-code', 'apm', 'codex', 'copilot', 'gemini', 'pi'],
+      targets: ['claude-code', 'codex', 'gemini', 'pi'],
       categories: ['tooling'],
       skill_include: [],
       skill_exclude: [],
@@ -46,7 +42,7 @@ function accessoryFixture(): ComponentSource {
       version: '1.0.0',
       type: 'accessory',
       description: '',
-      targets: ['claude-code', 'apm', 'codex', 'copilot', 'gemini', 'pi'],
+      targets: ['claude-code', 'codex', 'gemini', 'pi'],
       include: { skills: [], rules: [], hooks: [], agents: [], commands: [] },
     } as any,
   };

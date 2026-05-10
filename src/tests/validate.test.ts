@@ -51,9 +51,8 @@ describe('validateComponents', () => {
     // Names valid types for the target ("codex"): everything except plugin.
     expect(matrixErr!.message).toMatch(/skill/);
     expect(matrixErr!.message).toMatch(/hook/);
-    // Names valid targets for the type ("plugin"): claude-code, apm, pi.
+    // Names valid targets for the type ("plugin"): claude-code, pi.
     expect(matrixErr!.message).toMatch(/claude-code/);
-    expect(matrixErr!.message).toMatch(/apm/);
     expect(matrixErr!.message).toMatch(/pi/);
   });
 

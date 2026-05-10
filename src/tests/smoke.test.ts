@@ -61,11 +61,11 @@ describe('smoke: cross-harness conformance', () => {
       version: '1.0.0',
       description: 'A smoke-test skill targeting every harness',
       type: 'skill',
-      targets: ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'],
+      targets: ['claude-code', 'codex', 'gemini', 'pi'],
       category: { primary: 'tooling' },
     });
 
-    const targets = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'] as const;
+    const targets = ['claude-code', 'codex', 'gemini', 'pi'] as const;
     const result = await runBuild({
       repoRoot: repo,
       targets: [...targets],
@@ -172,7 +172,7 @@ describe('smoke: docs round-trip', () => {
       version: '1.0.0',
       description: 'second docs skill',
       type: 'skill',
-      targets: ['apm'],
+      targets: ['claude-code'],
       category: { primary: 'workflow' },
     });
     const components = await discoverComponents(repo);

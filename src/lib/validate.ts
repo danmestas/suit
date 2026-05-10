@@ -11,15 +11,15 @@ export interface ValidationError {
 
 type Cell = 'ok' | 'warn' | 'error';
 const MATRIX: Record<ComponentType, Record<Target, Cell>> = {
-  skill:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'warn',  pi: 'ok' },
-  plugin:  { 'claude-code': 'ok',    apm: 'ok', codex: 'error', gemini: 'error', copilot: 'error', pi: 'ok' },
-  hook:    { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'warn' },
-  agent:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'error', copilot: 'error', pi: 'ok' },
-  rules:   { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
-  mcp:     { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'error', pi: 'warn' },
-  outfit:    { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
-  cut:       { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
-  accessory: { 'claude-code': 'ok',    apm: 'ok', codex: 'ok',    gemini: 'ok',    copilot: 'ok',    pi: 'ok' },
+  skill:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
+  plugin:    { 'claude-code': 'ok', codex: 'error', gemini: 'error', pi: 'ok' },
+  hook:      { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'warn' },
+  agent:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'error', pi: 'ok' },
+  rules:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
+  mcp:       { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'warn' },
+  outfit:    { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
+  cut:       { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
+  accessory: { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
 };
 
 function validTypesForTarget(target: Target): ComponentType[] {

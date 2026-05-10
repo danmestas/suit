@@ -10,7 +10,6 @@ import { runBuild } from './lib/build.js';
 import { matchesGlob } from './lib/glob.js';
 import { updateReadme } from './lib/docs.js';
 import { composeAgentsMd } from './lib/agents-md.js';
-import { composeCopilotInstructions } from './adapters/copilot.js';
 import { TARGETS, type Target } from './lib/types.js';
 import { listImplementedTargets } from './adapters/index.js';
 import { runEvolution } from './lib/evolution/orchestrator.js';
@@ -18,7 +17,6 @@ import { renderReport } from './lib/evolution/render.js';
 import { runRelease } from './lib/release/release.js';
 import { computeTag } from './lib/release/git.js';
 import { renderReleaseNotes } from './lib/release/notes.js';
-import { loadRepoConfig } from './lib/config.js';
 import { buildGlobalsSnapshot, renderGlobalsYaml, openPr } from './lib/sync-globals.js';
 
 const validateCmd = defineCommand({
@@ -133,9 +131,9 @@ const watchCmd = defineCommand({
 const docsCmd = defineCommand({
   meta: { name: 'docs', description: 'Regenerate the components table in README.md (preserves hand-written sections)' },
   args: {
-    target: { type: 'string', description: 'Filter docs to a specific harness target (codex | copilot)' },
+    target: { type: 'string', description: 'Filter docs to a specific harness target (codex)' },
     resolution: { type: 'string', description: 'Path to resolution artifact (filters skills per skillsDrop)' },
-    out: { type: 'string', description: 'Output path (default: AGENTS.md or copilot-instructions.md per target)' },
+    out: { type: 'string', description: 'Output path (default: AGENTS.md per target)' },
     repo: { type: 'string', description: 'Repo root to discover components from (default: cwd)' },
   },
   async run({ args }) {
@@ -170,13 +168,8 @@ const docsCmd = defineCommand({
       const content = composeAgentsMd({ target: 'codex', components, sectionOrder: ['rules', 'agents', 'skills'] });
       await fs.writeFile(outPath, content);
       console.log(pc.green(`wrote ${outPath} (${components.length} components).`));
-    } else if (args.target === 'copilot') {
-      const outPath = args.out ?? path.join(repoRoot, 'copilot-instructions.md');
-      const content = composeCopilotInstructions(components);
-      await fs.writeFile(outPath, content);
-      console.log(pc.green(`wrote ${outPath} (${components.length} components).`));
     } else {
-      console.log(pc.red(`unknown target: ${args.target}. Valid: codex, copilot`));
+      console.log(pc.red(`unknown target: ${args.target}. Valid: codex`));
       process.exit(1);
     }
   },
@@ -321,7 +314,6 @@ const releaseCmd = defineCommand({
   },
   async run({ args }) {
     const repoRoot = process.cwd();
-    const apmToken = process.env.APM_TOKEN;
     if (args['dry-run']) {
       // Dry-run never tags, never publishes, never edits files.
       // Compose what WOULD happen and print it for human review.
@@ -339,23 +331,15 @@ const releaseCmd = defineCommand({
         );
         process.exit(1);
       }
-      const config = await loadRepoConfig(repoRoot);
-      const apmScope = (config['apm']?.['package_scope'] as string | undefined) ?? '';
-      const apmRegistry = (config['apm']?.['registry'] as string | undefined) ?? '';
       const tag = computeTag(args.skill, args.version);
       const notes = renderReleaseNotes({
         component: target,
         summary: args.summary,
-        apmScope,
         gitRepo: args['git-repo'],
       });
       console.log(pc.cyan('=== release plan (dry-run) ==='));
       console.log(`  tag:        ${tag}`);
       console.log(`  targets:    ${target.manifest.targets.join(', ')}`);
-      console.log(`  apm scope:  ${apmScope || '(none)'}`);
-      console.log(
-        `  apm mode:   ${apmRegistry ? `registry (${apmRegistry})` : 'git-url (no registry)'}`,
-      );
       console.log(`  git push:   ${args['no-push'] ? 'skipped' : 'origin'}`);
       console.log(pc.cyan('--- release notes ---'));
       console.log(notes);
@@ -369,7 +353,6 @@ const releaseCmd = defineCommand({
         skill: args.skill,
         version: args.version,
         summary: args.summary,
-        apmToken,
         gitRepo: args['git-repo'],
         pushTag: !args['no-push'],
       });
@@ -377,7 +360,6 @@ const releaseCmd = defineCommand({
       console.log(
         pc.cyan(`  claude-code: ${result.published.claudeCode ? 'published' : 'skipped'}`),
       );
-      console.log(pc.cyan(`  apm:         ${result.published.apm}`));
       console.log(
         pc.cyan(
           `  git-url:     ${result.published.gitUrlTargets.length > 0 ? result.published.gitUrlTargets.join(', ') : 'none'}`,

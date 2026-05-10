@@ -3,8 +3,8 @@
  *
  * An AC session is the lifecycle of a single `ac <harness> ...` invocation:
  * it composes the outfit/cut-filtered environment a downstream harness
- * (claude-code, gemini, pi, apm, codex, copilot) sees, spawns the harness
- * binary, and tears the temp environment down on exit.
+ * (claude-code, codex, gemini, pi) sees, spawns the harness binary, and
+ * tears the temp environment down on exit.
  *
  * Stages, in order:
  *   1. resolveTarget         — alias the harness name, fix discovery dirs
@@ -37,18 +37,14 @@ import {
   prelaunchComposeGemini,
   prelaunchComposePi,
   prelaunchComposeCodex,
-  prelaunchComposeCopilot,
-  prelaunchComposeApm,
 } from './prelaunch.js';
 import type { ParsedAcArgs } from './run.js';
 
 export const HARNESS_ALIASES: Record<string, Target> = {
   claude: 'claude-code',
   'claude-code': 'claude-code',
-  apm: 'apm',
   codex: 'codex',
   gemini: 'gemini',
-  copilot: 'copilot',
   pi: 'pi',
 };
 
@@ -85,10 +81,8 @@ export function defaultResolveHarnessBin(harness: string): string {
   // The actual on-PATH binary differs from the target name in some cases.
   const binNames: Record<Target, string> = {
     'claude-code': 'claude',
-    apm: 'apm',
     codex: 'codex',
     gemini: 'gemini',
-    copilot: 'copilot',
     pi: 'pi',
   };
   return binNames[target];
@@ -102,7 +96,6 @@ interface PrelaunchInputs {
   cutBody?: string;
   resolutionArtifactPath?: string;
   realHome: string;
-  apmPackageDir: string;
   globals?: GlobalsRegistry | null;
 }
 
@@ -119,7 +112,7 @@ interface PrelaunchEffects {
  * in `runAc`.
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
-  const { target, outfit, cut, cutBody, resolutionArtifactPath, realHome, apmPackageDir, globals } = opts;
+  const { target, outfit, cut, cutBody, resolutionArtifactPath, realHome, globals } = opts;
   const filtered = outfit !== undefined || cut !== undefined || opts.accessories.length > 0;
 
   switch (target) {
@@ -142,11 +135,6 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
         globals,
       });
       return { envOverrides: { HOME: r.tempHome }, cleanup: r.cleanup };
-    }
-    case 'apm': {
-      if (!filtered) return { envOverrides: {} };
-      const r = await prelaunchComposeApm({ packageDir: apmPackageDir, outfit, cut, cutBody });
-      return { envOverrides: { APM_PACKAGE_DIR: r.tempPackageDir }, cleanup: r.cleanup };
     }
     case 'codex': {
       if (!resolutionArtifactPath) return { envOverrides: {} };
@@ -188,18 +176,6 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
       return {
         cwd: r.tempdir,
         envOverrides,
-        cleanup: r.cleanup,
-      };
-    }
-    case 'copilot': {
-      if (!resolutionArtifactPath) return { envOverrides: {} };
-      const r = await prelaunchComposeCopilot({
-        resolutionPath: resolutionArtifactPath,
-        originalCwd: process.cwd(),
-      });
-      return {
-        cwd: r.tempdir,
-        envOverrides: { AC_ORIGINAL_CWD: process.cwd() },
         cleanup: r.cleanup,
       };
     }
@@ -285,7 +261,6 @@ export async function runAcSession(
     cutBody,
     resolutionArtifactPath,
     realHome: deps.homeDir ?? os.homedir(),
-    apmPackageDir: deps.homeDir ?? process.cwd(),
     globals,
   });
   Object.assign(env, effects.envOverrides);

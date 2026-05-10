@@ -1,7 +1,7 @@
 export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'cut', 'accessory'] as const;
 export type ComponentType = typeof COMPONENT_TYPES[number];
 
-export const TARGETS = ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'] as const;
+export const TARGETS = ['claude-code', 'codex', 'gemini', 'pi'] as const;
 export type Target = typeof TARGETS[number];
 
 // Re-export the Category type so callers depending on `types.ts` get the full

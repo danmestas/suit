@@ -2,10 +2,8 @@ import { execSync } from 'node:child_process';
 
 const HARNESS_BINS: Record<string, string> = {
   'claude-code': 'claude',
-  apm: 'apm',
   codex: 'codex',
   gemini: 'gemini',
-  copilot: 'copilot',
   pi: 'pi',
 };
 

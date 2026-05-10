@@ -18,13 +18,12 @@ describe('renderReleaseNotes', () => {
         version: '1.2.0',
         description: 'Themed diagram generation with Kroki fallback',
         type: 'skill',
-        targets: ['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'],
+        targets: ['claude-code', 'codex', 'gemini', 'pi'],
       } as ComponentSource['manifest'],
     };
     const md = renderReleaseNotes({
       component,
       summary: 'Add Kroki fallback for offline rendering.',
-      apmScope: '@danmestas',
       gitRepo: 'github.com/danmestas/agent-skills',
     });
     const expected = await fs.readFile(path.join(FIXTURES, 'sample-release-notes.md'), 'utf8');

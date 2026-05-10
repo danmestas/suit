@@ -56,10 +56,8 @@ export interface RunUpDeps {
  *     `CLAUDE.md` (project-scope) or `.claude/CLAUDE.md` (user-scope) for
  *     rules; both end up at the right path after the prefix.
  *   - codex: emits `AGENTS.md` at project root, no prefix.
- *   - copilot: emits `copilot-instructions.md` at root.
  *   - gemini: skills live under `.gemini/`.
  *   - pi: adapter already emits paths starting with `.pi/`; no prefix.
- *   - apm: state-mutator model unclear; package dirs land at root unprefixed.
  */
 
 function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; cut: string | null; accessories: string[] }): boolean {

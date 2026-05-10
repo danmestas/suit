@@ -5,7 +5,7 @@ description: A sample skill for discovery testing
 type: skill
 targets:
   - claude-code
-  - apm
+  - codex
 ---
 
 # Sample Skill

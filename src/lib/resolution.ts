@@ -242,7 +242,7 @@ function makeGlobalsLayer(label: string, m: ComposingManifest): GlobalsLayer {
 /**
  * Compute kept/dropped/unresolved metadata for plugins, mcps, and hooks against
  * the active harness. Returns the all-empty shape for harnesses that don't
- * participate in globals filtering today (gemini, copilot, apm, pi).
+ * participate in globals filtering today (gemini, pi).
  */
 function computeGlobalsMetadata(
   globals: GlobalsRegistry,

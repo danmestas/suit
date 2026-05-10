@@ -3,12 +3,11 @@ import fs from 'node:fs/promises';
 import { discoverComponents } from '../discover.js';
 import { validateAll } from '../validate.js';
 import { runBuild } from '../build.js';
-import { loadRepoConfig } from '../config.js';
 import { renderReadme } from '../docs.js';
 import { tagRelease } from './git.js';
 import { appendChangelogEntry } from './changelog.js';
 import { renderReleaseNotes } from './notes.js';
-import { publishAPM, publishClaudeCode, publishGitUrl } from './publish.js';
+import { publishClaudeCode, publishGitUrl } from './publish.js';
 import { renderMarketplaceEntry, marketplaceFilePath } from './marketplace.js';
 import type { Target } from '../types.js';
 
@@ -17,28 +16,22 @@ export interface ReleaseOptions {
   skill: string;
   version: string;
   summary: string;
-  apmToken: string | undefined;
   /** Git host + repo, e.g. "github.com/danmestas/agent-skills". */
   gitRepo: string;
   /** Skip git push (used by tests against bare local remotes, and CI when the tag is already pushed). */
   pushTag?: boolean;
   runGh?: (args: string[]) => Promise<{ stdout: string; exitCode: number }>;
-  runApm?: (
-    args: string[],
-    env: NodeJS.ProcessEnv,
-  ) => Promise<{ stdout: string; exitCode: number }>;
 }
 
 export interface ReleaseResult {
   tag: string;
   published: {
     claudeCode: boolean;
-    apm: 'registry' | 'git-url' | 'skipped';
     gitUrlTargets: Target[];
   };
 }
 
-const GIT_URL_TARGETS: readonly Target[] = ['codex', 'gemini', 'copilot', 'pi'];
+const GIT_URL_TARGETS: readonly Target[] = ['codex', 'gemini', 'pi'];
 
 /**
  * Wire Tasks 2-8 together: discover -> validate -> build -> tag -> per-target
@@ -66,7 +59,6 @@ export async function runRelease(opts: ReleaseOptions): Promise<ReleaseResult> {
   if (fatal.length > 0) {
     throw new Error(`validation failed: ${fatal.map((e) => e.message).join('; ')}`);
   }
-  const config = await loadRepoConfig(opts.repoRoot);
   // Build the full repo (no filter) so plugin.includes references resolve
   // through the validator. Passing `filter: opts.skill` would only validate
   // the released component, breaking includes resolution for plugin types.
@@ -95,16 +87,13 @@ export async function runRelease(opts: ReleaseOptions): Promise<ReleaseResult> {
     version: opts.version,
     push: opts.pushTag !== false,
   });
-  const apmScope = (config['apm']?.['package_scope'] as string | undefined) ?? '';
   const releaseNotes = renderReleaseNotes({
     component: target,
     summary: opts.summary,
-    apmScope,
     gitRepo: opts.gitRepo,
   });
   const published: ReleaseResult['published'] = {
     claudeCode: false,
-    apm: 'skipped',
     gitUrlTargets: [],
   };
   if (target.manifest.targets.includes('claude-code')) {
@@ -121,17 +110,6 @@ export async function runRelease(opts: ReleaseOptions): Promise<ReleaseResult> {
       runGh: opts.runGh,
     });
     published.claudeCode = true;
-  }
-  if (target.manifest.targets.includes('apm')) {
-    const result = await publishAPM({
-      repoRoot: opts.repoRoot,
-      skill: opts.skill,
-      version: opts.version,
-      registry: (config['apm']?.['registry'] as string | undefined) ?? '',
-      apmToken: opts.apmToken,
-      runApm: opts.runApm,
-    });
-    published.apm = result.mode;
   }
   const declaredGitUrl = target.manifest.targets.filter((t) => GIT_URL_TARGETS.includes(t));
   if (declaredGitUrl.length > 0) {

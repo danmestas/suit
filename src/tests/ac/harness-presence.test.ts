@@ -19,19 +19,19 @@ describe('getHarnessPresence', () => {
   });
 
   it('marks found=false when whichBin returns null', () => {
-    const result = getHarnessPresence(['copilot'], { whichBin: () => null });
+    const result = getHarnessPresence(['gemini'], { whichBin: () => null });
     expect(result[0]?.found).toBe(false);
     expect(result[0]?.binPath).toBeUndefined();
   });
 
   it('maps harness names to bin names correctly', () => {
     const calls: string[] = [];
-    getHarnessPresence(['claude-code', 'apm', 'codex', 'gemini', 'copilot', 'pi'], {
+    getHarnessPresence(['claude-code', 'codex', 'gemini', 'pi'], {
       whichBin: (bin) => {
         calls.push(bin);
         return null;
       },
     });
-    expect(calls).toEqual(['claude', 'apm', 'codex', 'gemini', 'copilot', 'pi']);
+    expect(calls).toEqual(['claude', 'codex', 'gemini', 'pi']);
   });
 });
