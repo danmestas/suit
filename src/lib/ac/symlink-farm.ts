@@ -36,18 +36,14 @@ const TARGET_SUBDIRS: Record<Target, string | null> = {
   'claude-code': '.claude',
   gemini: '.gemini',
   pi: '.pi',
-  apm: null,
   codex: null,
-  copilot: null,
 };
 
 const TARGET_SKILLS_SUBDIR: Record<Target, string | null> = {
   'claude-code': 'skills',
   gemini: 'skills',
   pi: 'skills',
-  apm: null,
   codex: null,
-  copilot: null,
 };
 
 export async function composeHarnessHome(opts: ComposeOptions): Promise<ComposeResult> {

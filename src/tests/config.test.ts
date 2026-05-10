@@ -9,10 +9,10 @@ describe('loadRepoConfig', () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'suit-cfg-'));
     await fs.writeFile(
       path.join(tmp, 'suit.config.yaml'),
-      'apm:\n  package_scope: "@test"\n',
+      'codex:\n  agents_md_section_order: [rules, agents, skills]\n',
     );
     const cfg = await loadRepoConfig(tmp);
-    expect(cfg['apm']).toEqual({ package_scope: '@test' });
+    expect(cfg['codex']).toEqual({ agents_md_section_order: ['rules', 'agents', 'skills'] });
   });
 
   it('returns empty config when file missing', async () => {

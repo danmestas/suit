@@ -17,7 +17,7 @@ const sample: ComponentSource = {
     version: '1.0.0',
     description: 'A foo skill',
     type: 'skill',
-    targets: ['claude-code', 'apm'],
+    targets: ['claude-code', 'codex'],
   } as ComponentSource['manifest'],
 };
 
@@ -40,7 +40,7 @@ describe('renderReadme (deprecated default)', () => {
     expect(md).toContain('# agent-skills');
     expect(md).toContain('| foo |');
     expect(md).toContain('A foo skill');
-    expect(md).toMatch(/claude-code.*apm|apm.*claude-code/);
+    expect(md).toMatch(/claude-code.*codex|codex.*claude-code/);
   });
 
   it('wraps the component table in AUTO-GENERATED markers', () => {

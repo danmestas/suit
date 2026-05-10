@@ -1,7 +1,7 @@
 // Shared types for the cross-harness adapter library. Each harness (Claude
-// Code, Codex, Gemini, Copilot, Pi) wraps hook input + output in a different
-// JSON envelope; an adapter `normalizeInput` produces the canonical shape we
-// work with, and `formatOutput` re-wraps it for the harness.
+// Code, Codex, Gemini, Pi) wraps hook input + output in a different JSON
+// envelope; an adapter `normalizeInput` produces the canonical shape we work
+// with, and `formatOutput` re-wraps it for the harness.
 //
 // This is intentionally a thin contract. Adapters live in their own files.
 

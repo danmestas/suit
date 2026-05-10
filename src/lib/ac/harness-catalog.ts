@@ -12,14 +12,12 @@ interface HarnessLayout {
 
 const LAYOUTS: Record<Target, HarnessLayout | null> = {
   'claude-code': { skillsDir: '.claude/skills', manifestFile: 'SKILL.md' },
-  apm: { skillsDir: '.apm/skills', manifestFile: 'SKILL.md' },
   // v0.8: codex carries its own user-scope skills under `$CODEX_HOME/skills/`
   // (typically `~/.codex/skills/`). The catalog mirrors the claude-code layout
   // — same `SKILL.md` manifest file. This is consumed by the codex prelaunch
   // path to compute `skillsKeep` for the composed `CODEX_HOME` tempdir.
   codex: { skillsDir: '.codex/skills', manifestFile: 'SKILL.md' },
   gemini: { skillsDir: '.gemini/skills', manifestFile: 'skill.md' },
-  copilot: null, // Copilot inlines into copilot-instructions.md
   pi: { skillsDir: '.pi/skills', manifestFile: 'SKILL.md' },
 };
 

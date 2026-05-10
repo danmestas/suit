@@ -48,7 +48,7 @@ export interface PrelaunchResult {
  * stdout without changing its CLI, so this is the smallest-surface change.
  */
 async function buildDocsToBuffer(
-  target: 'codex' | 'copilot',
+  target: 'codex',
   resolutionPath: string,
   originalCwd: string,
 ): Promise<Buffer> {
@@ -74,7 +74,7 @@ async function buildDocsToBuffer(
 
 /**
  * Symlink common project files into the writer destination so the harness
- * (codex/copilot, which run with cwd=tempdir) can still see them.
+ * (codex, which runs with cwd=tempdir) can still see them.
  */
 async function symlinkProjectFiles(originalCwd: string, writer: Writer): Promise<void> {
   const toLink = ['.git', 'package.json', 'tsconfig.json', '.env'];
@@ -122,17 +122,6 @@ export async function prelaunchComposeCodex(opts: PrelaunchOptions): Promise<Pre
       await cwdCleanup().catch(() => {});
       if (codexHomeCleanup) await codexHomeCleanup().catch(() => {});
     },
-  };
-}
-
-export async function prelaunchComposeCopilot(opts: PrelaunchOptions): Promise<PrelaunchResult> {
-  const writer = opts.writer ?? (await TempdirWriter.create());
-  const content = await buildDocsToBuffer('copilot', opts.resolutionPath, opts.originalCwd);
-  await writer.write({ path: 'copilot-instructions.md', content });
-  await symlinkProjectFiles(opts.originalCwd, writer);
-  return {
-    tempdir: writer.destination,
-    cleanup: writer.cleanup ?? (async () => {}),
   };
 }
 
@@ -209,95 +198,3 @@ export async function prelaunchComposePi(
   return composeWithHomeOverride('pi', opts);
 }
 
-export interface ApmPrelaunchOptions {
-  /** APM package root, typically process.cwd() of the user's invocation. */
-  packageDir: string;
-  outfit?: OutfitManifest;
-  cut?: CutManifest;
-  cutBody?: string;
-}
-
-/**
- * Build a filtered tempdir mirroring the APM package at `packageDir`.
- * All files/dirs except `.apm/skills/` are symlinked through.
- * Only outfit-allowed skills are symlinked into `.apm/skills/`.
- * Returns `tempPackageDir` — set `APM_PACKAGE_DIR=tempPackageDir` before launching apm.
- */
-export async function prelaunchComposeApm(opts: ApmPrelaunchOptions): Promise<{
-  tempPackageDir: string;
-  cleanup: () => Promise<void>;
-}> {
-  const catalog = await loadHarnessCatalog('apm', opts.packageDir);
-  const resolution = await resolveAgainstHarness({
-    target: 'apm',
-    harnessHome: opts.packageDir,
-    outfit: opts.outfit,
-    cut: opts.cut,
-    cutBody: opts.cutBody,
-  });
-  const skillsKeep = opts.outfit || opts.cut
-    ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
-    : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name);
-
-  // Build a tempdir that mirrors packageDir but with a curated .apm/skills/
-  const tempPackageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-apm-'));
-  const apmSubdir = '.apm';
-  const skillsSubdir = 'skills';
-
-  // Symlink all top-level entries except .apm/
-  let topEntries: string[] = [];
-  try {
-    topEntries = await fs.readdir(opts.packageDir);
-  } catch {
-    // packageDir unreadable — proceed with empty tempdir
-  }
-  for (const entry of topEntries) {
-    if (entry === apmSubdir) continue;
-    const src = path.join(opts.packageDir, entry);
-    const dest = path.join(tempPackageDir, entry);
-    await fs.symlink(src, dest);
-  }
-
-  // Build .apm/ mirroring all entries except skills/
-  const realApmDir = path.join(opts.packageDir, apmSubdir);
-  const tempApmDir = path.join(tempPackageDir, apmSubdir);
-  await fs.mkdir(tempApmDir, { recursive: true });
-  let apmEntries: string[] = [];
-  try {
-    apmEntries = await fs.readdir(realApmDir);
-  } catch {
-    // No .apm dir — leave tempApmDir mostly empty
-  }
-  for (const entry of apmEntries) {
-    if (entry === skillsSubdir) continue;
-    const src = path.join(realApmDir, entry);
-    const dest = path.join(tempApmDir, entry);
-    await fs.symlink(src, dest);
-  }
-
-  // Build curated .apm/skills/ with only allowed skills
-  const tempSkillsDir = path.join(tempApmDir, skillsSubdir);
-  await fs.mkdir(tempSkillsDir);
-  const realSkillsDir = path.join(realApmDir, skillsSubdir);
-  for (const skillName of skillsKeep) {
-    const src = path.join(realSkillsDir, skillName);
-    const dest = path.join(tempSkillsDir, skillName);
-    try {
-      await fs.access(src);
-      await fs.symlink(src, dest);
-    } catch {
-      // Skill in keep list doesn't exist — skip silently
-    }
-  }
-
-  return {
-    tempPackageDir,
-    cleanup: async () => {
-      try {
-        await fs.rm(tempPackageDir, { recursive: true, force: true });
-      } catch {
-        // best-effort
-      }
-    },
-  };
-}

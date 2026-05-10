@@ -21,7 +21,7 @@ describe('discoverComponents', () => {
     const components = await discoverComponents(FIXTURES_ROOT);
     const skill = components.find((c) => c.manifest.name === 'sample-skill');
     expect(skill?.manifest.type).toBe('skill');
-    expect(skill?.manifest.targets).toEqual(['claude-code', 'apm']);
+    expect(skill?.manifest.targets).toEqual(['claude-code', 'codex']);
     expect(skill?.body.trim().startsWith('# Sample Skill')).toBe(true);
   });
 
