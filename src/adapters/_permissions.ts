@@ -1,5 +1,5 @@
-import type { Target, PermissionsBlock } from '../lib/types.ts';
-import { deepMerge } from '../lib/merge.ts';
+import type { Target, PermissionsBlock } from '../lib/types.js';
+import { deepMerge } from '../lib/merge.js';
 
 /**
  * Deep-merge an outfit's per-target permissions sub-block into a destination

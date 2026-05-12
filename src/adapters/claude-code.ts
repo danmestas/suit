@@ -3,7 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.js';
 import { selectRules, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules.js';
-import { applyPassthroughPermissions } from './_permissions.ts';
+import { applyPassthroughPermissions } from './_permissions.js';
 
 function yamlValue(v: string): string {
   // Use yaml.stringify to safely encode a single scalar (with quoting if needed).
