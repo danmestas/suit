@@ -107,4 +107,12 @@ describe('codex adapter', () => {
     const expected = await fs.readFile(path.join(root, 'expected/codex.config.toml'), 'utf8');
     expect(tomlFiles[0]?.content.toString().trim()).toBe(expected.trim());
   });
+
+  it('emits permissions.codex verbatim into codex.config.toml', async () => {
+    const result = await runGolden(
+      codexAdapter,
+      path.join(HERE, 'codex/outfit-permissions'),
+    );
+    expect(result.diff).toEqual([]);
+  });
 });

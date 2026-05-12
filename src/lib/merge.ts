@@ -1,23 +1,36 @@
 /**
- * JSON deep-merge utilities for the project-state mutator (`suit up`).
+ * Deep-merge utilities for the project-state mutator (`suit up`).
  *
  * Fragment files (e.g. `.claude/settings.fragment.json`, codex `hooks.json`,
- * `.mcp.fragment.json`) are designed to accumulate per-component contributions
- * — each hook contributes its own event entry, each mcp component contributes
- * its own server entry, and so on. When `suit up` collects emit output across
- * a multi-hook outfit, the same path appears twice with different bytes.
+ * `codex.config.toml`, `.mcp.fragment.json`) are designed to accumulate
+ * per-component contributions — each hook contributes its own event entry,
+ * each mcp component contributes its own server entry, an outfit may
+ * contribute a permissions block, and so on. When `suit up` collects emit
+ * output across a multi-component outfit, the same path appears twice with
+ * different bytes.
  *
- * For non-mergeable files (markdown, scripts, lockfiles) the up.ts dedupe
- * still refuses on byte-mismatch — that's a real authoring bug.
+ * JSON and TOML files are merged structurally (arrays concat, objects deep-
+ * merge by key). For non-mergeable files (markdown, scripts, lockfiles) the
+ * up.ts dedupe still refuses on byte-mismatch — that's a real authoring bug.
  */
 
+import TOML, { type JsonMap } from '@iarna/toml';
+
 /**
- * Whether two emits at the same path can be merged. Today this is "any JSON
- * file." If a future fragment is ever non-JSON we'd narrow this to a known
- * suffix list, but every fragment-style emit suit produces today is JSON.
+ * Whether two emits at the same path can be merged. JSON and TOML files are
+ * mergeable; everything else (markdown, scripts) must be byte-identical at
+ * dedupe time or it's an authoring bug.
  */
 export function isJsonMergeable(filepath: string): boolean {
   return filepath.endsWith('.json');
+}
+
+export function isTomlMergeable(filepath: string): boolean {
+  return filepath.endsWith('.toml');
+}
+
+export function isMergeable(filepath: string): boolean {
+  return isJsonMergeable(filepath) || isTomlMergeable(filepath);
 }
 
 /**
@@ -35,6 +48,34 @@ export function mergeJsonBuffers(a: Buffer | string, b: Buffer | string): Buffer
   const parsedB = JSON.parse(toUtf8(b));
   const merged = deepMerge(parsedA, parsedB);
   return Buffer.from(`${JSON.stringify(merged, null, 2)}\n`, 'utf-8');
+}
+
+/**
+ * Deep-merge two TOML buffers and return the canonical-formatted result.
+ * Same semantics as mergeJsonBuffers: arrays concat, objects deep-merge,
+ * primitives last-write-wins. Used for `codex.config.toml` accumulation when
+ * multiple components (e.g. mcp + outfit permissions) contribute to it.
+ */
+export function mergeTomlBuffers(a: Buffer | string, b: Buffer | string): Buffer {
+  const parsedA = TOML.parse(toUtf8(a)) as Record<string, unknown>;
+  const parsedB = TOML.parse(toUtf8(b)) as Record<string, unknown>;
+  const merged = deepMerge(parsedA, parsedB) as JsonMap;
+  return Buffer.from(TOML.stringify(merged), 'utf-8');
+}
+
+/**
+ * Dispatch-by-extension wrapper. Returns null when the path is not mergeable
+ * — callers should treat this as the "byte-mismatch is an authoring bug"
+ * signal.
+ */
+export function mergeBuffers(
+  filepath: string,
+  a: Buffer | string,
+  b: Buffer | string,
+): Buffer | null {
+  if (isJsonMergeable(filepath)) return mergeJsonBuffers(a, b);
+  if (isTomlMergeable(filepath)) return mergeTomlBuffers(a, b);
+  return null;
 }
 
 function toUtf8(buf: Buffer | string): string {

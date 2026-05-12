@@ -1,0 +1,12 @@
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[[rules.prefix_rules]]
+prefix = "git "
+
+[[rules.prefix_rules]]
+prefix = "npm "
+
+[mcp_servers.signoz]
+enabled = true
+enabled_tools = [ "signoz_search_logs" ]

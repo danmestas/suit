@@ -21,7 +21,7 @@ import { getAdapter } from '../../adapters/index.js';
 import { loadRepoConfig } from '../config.js';
 import { isAdditivePath } from '../writer.js';
 import { sha256OfBuffer } from '../lockfile.js';
-import { isJsonMergeable, mergeJsonBuffers } from '../merge.js';
+import { isMergeable, mergeBuffers } from '../merge.js';
 import { loadGlobalsRegistry } from '../globals-loader.js';
 
 /**
@@ -168,16 +168,18 @@ function dedupeByPath(files: PendingFile[]): PendingFile[] {
     }
     if (prior.sha256 === f.sha256) continue;
 
-    if (isJsonMergeable(f.path)) {
-      const merged = mergeJsonBuffers(prior.content, f.content);
-      byPath.set(f.path, {
-        path: f.path,
-        content: merged,
-        sha256: sha256OfBuffer(merged),
-        sourceComponent: `${prior.sourceComponent} + ${f.sourceComponent}`,
-        mode: prior.mode ?? f.mode,
-      });
-      continue;
+    if (isMergeable(f.path)) {
+      const merged = mergeBuffers(f.path, prior.content, f.content);
+      if (merged !== null) {
+        byPath.set(f.path, {
+          path: f.path,
+          content: merged,
+          sha256: sha256OfBuffer(merged),
+          sourceComponent: `${prior.sourceComponent} + ${f.sourceComponent}`,
+          mode: prior.mode ?? f.mode,
+        });
+        continue;
+      }
     }
 
     throw new Error(
