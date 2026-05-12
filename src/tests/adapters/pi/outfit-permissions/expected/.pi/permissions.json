@@ -1,0 +1,7 @@
+{
+  "tools": [
+    "read",
+    "bash",
+    "write"
+  ]
+}
