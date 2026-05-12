@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.js';
 import { composeAgentsMd } from '../lib/agents-md.js';
+import { applyPassthroughPermissions } from './_permissions.js';
 
 export const piAdapter: Adapter = {
   target: 'pi',
@@ -29,16 +30,36 @@ export const piAdapter: Adapter = {
       case 'mcp':
         return emitMcpStub(component);
       case 'outfit':
+        return emitOutfit(component);
       case 'cut':
       case 'accessory':
-        // Outfits, cuts, and accessories are harness-agnostic, consumed by
-        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
+        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
+        // resolution time. Outfits, however, may carry a `permissions:` block
+        // that emits .pi/permissions.json (see emitOutfit).
         return [];
       default:
         throw new Error(`pi adapter: type "${component.manifest.type}" not supported`);
     }
   },
 };
+
+function emitOutfit(component: ComponentSource): EmittedFile[] {
+  const block = applyPassthroughPermissions(
+    component.manifest.permissions,
+    'pi',
+    {},
+  );
+  if (Object.keys(block).length === 0) return [];
+  // Pi has no declarative permission surface today. The emit lands at
+  // .pi/permissions.json as a forward-compat marker — consistent with the
+  // existing .pi/mcp.experimental.json convention. Pi today ignores it.
+  return [
+    {
+      path: '.pi/permissions.json',
+      content: `${JSON.stringify(block, null, 2)}\n`,
+    },
+  ];
+}
 
 function emitSkill(component: ComponentSource): EmittedFile[] {
   const { manifest, body } = component;

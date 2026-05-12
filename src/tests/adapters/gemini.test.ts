@@ -120,4 +120,12 @@ describe('gemini adapter', () => {
       geminiAdapter.emit(fake, { config: {}, allComponents: [fake], repoRoot: '/tmp/fake' }),
     ).rejects.toThrow(/not supported on Gemini/);
   });
+
+  it('emits permissions.gemini verbatim into .gemini/settings.fragment.json', async () => {
+    const result = await runGolden(
+      geminiAdapter,
+      path.join(HERE, 'gemini/outfit-permissions'),
+    );
+    expect(result.diff).toEqual([]);
+  });
 });

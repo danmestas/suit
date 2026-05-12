@@ -80,6 +80,14 @@ describe('claude-code adapter', () => {
     expect(result.diff).toEqual([]);
   });
 
+  it('emits permissions.claude-code wrapped under settings.permissions key', async () => {
+    const result = await runGolden(
+      claudeCodeAdapter,
+      path.join(HERE, 'claude-code/outfit-permissions'),
+    );
+    expect(result.diff).toEqual([]);
+  });
+
   it('throws when hook references a missing script', async () => {
     // Reuse hook-basic fixture but mutate manifest in-memory to point at a non-existent script.
     const root = path.join(HERE, 'claude-code/hook-basic');

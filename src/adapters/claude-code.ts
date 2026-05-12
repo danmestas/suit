@@ -3,6 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.js';
 import { selectRules, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules.js';
+import { applyPassthroughPermissions } from './_permissions.js';
 
 function yamlValue(v: string): string {
   // Use yaml.stringify to safely encode a single scalar (with quoting if needed).
@@ -32,16 +33,36 @@ export const claudeCodeAdapter: Adapter = {
       case 'plugin':
         return emitPlugin(component, ctx);
       case 'outfit':
+        return emitOutfit(component);
       case 'cut':
       case 'accessory':
-        // Outfits, cuts, and accessories are harness-agnostic, consumed by
-        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
+        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
+        // resolution time. Outfits, however, may carry a `permissions:` block
+        // that emits per-target permission config (see emitOutfit).
         return [];
       default:
         throw new Error(`claude-code adapter: type "${component.manifest.type}" not yet implemented`);
     }
   },
 };
+
+function emitOutfit(component: ComponentSource): EmittedFile[] {
+  const block = applyPassthroughPermissions(
+    component.manifest.permissions,
+    'claude-code',
+    {},
+  );
+  if (Object.keys(block).length === 0) return [];
+  // Claude's settings.json nests permission rules under a `permissions:` key;
+  // the other harnesses merge permission-flavored config at top level.
+  const fragment = { permissions: block };
+  return [
+    {
+      path: '.claude/settings.fragment.json',
+      content: `${JSON.stringify(fragment, null, 2)}\n`,
+    },
+  ];
+}
 
 function emitSkill(component: ComponentSource): EmittedFile[] {
   const { manifest, body } = component;

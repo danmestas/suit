@@ -130,4 +130,12 @@ describe('pi adapter', () => {
     const count = flat.filter((f) => f.path === '.pi/AGENTS.md').length;
     expect(count).toBe(1);
   });
+
+  it('emits permissions.pi verbatim into .pi/permissions.json', async () => {
+    const result = await runGolden(
+      piAdapter,
+      path.join(HERE, 'pi/outfit-permissions'),
+    );
+    expect(result.diff).toEqual([]);
+  });
 });

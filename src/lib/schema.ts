@@ -119,6 +119,22 @@ const EnableDisableBlockSchema = z
 
 export type EnableDisableBlock = z.infer<typeof EnableDisableBlockSchema>;
 
+// v0.14+: passthrough permissions block. Keys match the `Target` enum
+// (claude-code / codex / gemini / pi) so authors can reference the same
+// names they already use in `targets:`. Each sub-block is opaque — emitted
+// verbatim into the target's native permission config file via deep-merge.
+// Outfit-only in v1; cuts/accessories reject via Zod `.strict()`.
+export const PermissionsBlockSchema = z
+  .object({
+    'claude-code': z.record(z.string(), z.unknown()).optional(),
+    codex: z.record(z.string(), z.unknown()).optional(),
+    gemini: z.record(z.string(), z.unknown()).optional(),
+    pi: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
+export type PermissionsBlock = z.infer<typeof PermissionsBlockSchema>;
+
 export const OutfitSchema = ManifestBaseSchema.extend({
   type: z.literal('outfit'),
   categories: z.array(z.string()).min(0),
@@ -133,6 +149,7 @@ export const OutfitSchema = ManifestBaseSchema.extend({
   compose: z.array(z.string()).default([]),
   enable: EnableDisableBlockSchema,
   disable: EnableDisableBlockSchema,
+  permissions: PermissionsBlockSchema.optional(),
 }).strict();
 
 export type OutfitManifest = z.infer<typeof OutfitSchema>;

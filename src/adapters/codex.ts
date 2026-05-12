@@ -12,6 +12,8 @@ import {
   type AgentsMdSection,
 } from '../lib/agents-md.js';
 import { renderMcpServerToml } from '../lib/toml.js';
+import TOML, { type JsonMap } from '@iarna/toml';
+import { applyPassthroughPermissions } from './_permissions.js';
 
 const TARGET = 'codex' as const;
 
@@ -33,10 +35,12 @@ export const codexAdapter: Adapter = {
       case 'mcp':
         return emitMcp(component, ctx);
       case 'outfit':
+        return emitOutfit(component);
       case 'cut':
       case 'accessory':
-        // Outfits, cuts, and accessories are harness-agnostic, consumed by
-        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
+        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
+        // resolution time. Outfits, however, may carry a `permissions:` block
+        // that emits codex.config.toml (see emitOutfit).
         return [];
       // plugin is schema-rejected for codex (see Plan 1's validate.ts).
       default:
@@ -46,6 +50,21 @@ export const codexAdapter: Adapter = {
     }
   },
 };
+
+function emitOutfit(component: ComponentSource): EmittedFile[] {
+  const block = applyPassthroughPermissions(
+    component.manifest.permissions,
+    TARGET,
+    {},
+  );
+  if (Object.keys(block).length === 0) return [];
+  // Codex's config.toml is flat — the permissions sub-block contents (e.g.
+  // approval_policy, sandbox_mode, rules, mcp_servers) merge at top level.
+  // If a separate mcp component also emits codex.config.toml, compose.ts's
+  // dedupeByPath uses mergeTomlBuffers to combine them.
+  const content = TOML.stringify(block as JsonMap);
+  return [{ path: 'codex.config.toml', content }];
+}
 
 interface CodexHookEntry {
   command: string;
