@@ -8,7 +8,7 @@ export type Target = typeof TARGETS[number];
 // public surface in one import. The canonical list lives in `schema.ts` to
 // keep the Zod enum and the TypeScript type derived from a single source.
 export type { Category, PermissionsBlock } from './schema.js';
-import type { Category } from './schema.js';
+import type { Category, PermissionsBlock } from './schema.js';
 
 /**
  * Attribution metadata for components vendored from an upstream source.
@@ -81,6 +81,10 @@ export interface ComponentManifest {
     agents?: string[];
     commands?: string[];
   };
+  // outfit-specific: passthrough permissions emitted per-target by adapters.
+  // Schema-rejected on cut/accessory; the type-level allowance is permissive
+  // per the convention above (validation boundary is Zod, not TS).
+  permissions?: PermissionsBlock;
 }
 
 export interface EmittedFile {

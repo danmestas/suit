@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "mcp__signoz__signoz_search_logs"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)"
+    ],
+    "additionalDirectories": [
+      "~/src"
+    ]
+  }
+}
