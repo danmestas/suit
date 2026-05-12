@@ -11,6 +11,7 @@ import {
   composeRulesBody,
   isOwnerOfRulesFile,
 } from '../lib/rules.js';
+import { applyPassthroughPermissions } from './_permissions.js';
 
 const GEMINI_EVENTS = new Set([
   'SessionStart',
@@ -49,10 +50,12 @@ export const geminiAdapter: Adapter = {
       case 'mcp':
         return emitMcp(component);
       case 'outfit':
+        return emitOutfit(component);
       case 'cut':
       case 'accessory':
-        // Outfits, cuts, and accessories are harness-agnostic, consumed by
-        // `ac` at resolution time. Not emitted per-target. See spec §5.2.
+        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
+        // resolution time. Outfits, however, may carry a `permissions:` block
+        // that emits .gemini/settings.fragment.json (see emitOutfit).
         return [];
       // agent and plugin are schema-rejected by validate.ts (compatibility matrix).
       default:
@@ -62,6 +65,24 @@ export const geminiAdapter: Adapter = {
     }
   },
 };
+
+function emitOutfit(component: ComponentSource): EmittedFile[] {
+  const block = applyPassthroughPermissions(
+    component.manifest.permissions,
+    'gemini',
+    {},
+  );
+  if (Object.keys(block).length === 0) return [];
+  // Gemini's settings.json is flat — the permissions sub-block contents
+  // (general / security / mcpServers / etc.) merge at top level. Multiple
+  // emits at this path are merged via compose.ts's deepMerge JSON path.
+  return [
+    {
+      path: '.gemini/settings.fragment.json',
+      content: `${JSON.stringify(block, null, 2)}\n`,
+    },
+  ];
+}
 
 function emitSkill(component: ComponentSource): EmittedFile[] {
   const { manifest, body } = component;
