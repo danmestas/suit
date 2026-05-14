@@ -169,6 +169,23 @@ export const CutSchema = ManifestBaseSchema.extend({
 
 export type CutManifest = z.infer<typeof CutSchema>;
 
+// Fit — seniority-tier overlay (junior-engineer / engineer / senior-engineer /
+// staff-engineer). Same shape as a cut (overlay primitive) but composes between
+// outfit and cut in the prose-union layer order: outfit → fit → cut → accessory.
+// Skill/agent/hook union is order-independent set algebra. Singleton per
+// session — multiple `--fit` flags reject at CLI parse time.
+export const FitSchema = ManifestBaseSchema.extend({
+  type: z.literal('fit'),
+  categories: z.array(z.string()).min(0),
+  skill_include: z.array(z.string()).default([]),
+  skill_exclude: z.array(z.string()).default([]),
+  include: IncludeBlockSchema,
+  enable: EnableDisableBlockSchema,
+  disable: EnableDisableBlockSchema,
+}).strict();
+
+export type FitManifest = z.infer<typeof FitSchema>;
+
 export const AccessorySchema = ManifestBaseSchema.extend({
   type: z.literal('accessory'),
   include: IncludeBlockSchema,
@@ -183,6 +200,7 @@ export const ManifestSchema = z.discriminatedUnion('type', [
   OutfitSchema,
   CutSchema,
   AccessorySchema,
+  FitSchema,
 ]);
 
 export type Manifest = z.infer<typeof ManifestSchema>;

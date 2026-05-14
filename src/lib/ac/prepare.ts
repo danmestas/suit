@@ -54,6 +54,8 @@ import { composeBundle } from './compose.js';
 
 export interface RunPrepareArgs {
   outfit: string;
+  /** Seniority-tier overlay (issue #60). Optional for back-compat. */
+  fit?: string | null;
   cut: string | null;
   accessories: string[];
   target: Target;
@@ -113,6 +115,7 @@ export interface RunPrepareArgs {
 export interface SuitBundleMetadata {
   schemaVersion: 1;
   outfit: string;
+  fit?: string | null;
   cut: string | null;
   accessories: string[];
   target: Target;
@@ -247,6 +250,7 @@ export async function runPrepare(
   const composed = await composeBundle(
     {
       outfit: args.outfit,
+      fit: args.fit ?? null,
       cut: args.cut,
       accessories: args.accessories,
       targets: [args.target],
@@ -316,6 +320,7 @@ export async function runPrepare(
   const metadata: SuitBundleMetadata = {
     schemaVersion: 1,
     outfit: args.outfit,
+    ...(args.fit !== null && args.fit !== undefined ? { fit: args.fit } : {}),
     cut: args.cut,
     accessories: args.accessories,
     target: args.target,

@@ -15,6 +15,7 @@ import type { Target, EmittedFile, ComponentSource } from '../types.js';
 import { discoverComponents } from '../discover.js';
 import { findOutfit } from '../outfit.js';
 import { findCut } from '../cut.js';
+import { findFit } from '../fit.js';
 import { findAccessory } from '../accessory.js';
 import { resolve, skillsKeepFromResolution } from '../resolution.js';
 import { getAdapter } from '../../adapters/index.js';
@@ -88,16 +89,22 @@ export function projectPathRedirect(emitPath: string): string {
 }
 
 /**
- * Render the outfit's body (and any active cut body) into the marker block
- * that goes into CLAUDE.md.
+ * Render the outfit's body (and any active fit/cut bodies) into the marker
+ * block that goes into CLAUDE.md. Layer order (lowest → highest precedence
+ * for prose union) is outfit → fit → cut. Skill/agent/hook union is
+ * order-independent set algebra elsewhere.
  */
 function renderOutfitBlock(
   outfitName: string,
   outfitBody: string,
+  fitBody: string | undefined,
   cutBody: string | undefined,
   _accessoryCount: number,
 ): string {
   const parts = [outfitBody.trim()];
+  if (fitBody && fitBody.trim().length > 0) {
+    parts.push('', fitBody.trim());
+  }
   if (cutBody && cutBody.trim().length > 0) {
     parts.push('', cutBody.trim());
   }
@@ -106,10 +113,12 @@ function renderOutfitBlock(
 
 function unionTargets(
   outfitTargets: Target[],
+  fitTargets: Target[] | undefined,
   cutTargets: Target[] | undefined,
   accessoryTargetsList: Target[][],
 ): Target[] {
   const set = new Set<Target>(outfitTargets);
+  if (fitTargets) for (const t of fitTargets) set.add(t);
   if (cutTargets) for (const t of cutTargets) set.add(t);
   for (const list of accessoryTargetsList) for (const t of list) set.add(t);
   return Array.from(set);
@@ -192,9 +201,10 @@ function dedupeByPath(files: PendingFile[]): PendingFile[] {
 
 export interface ComposeBundleArgs {
   outfit: string;
+  fit?: string | null;
   cut: string | null;
   accessories: string[];
-  /** If null/empty, derive targets from the resolved outfit/cut/accessories union. */
+  /** If null/empty, derive targets from the resolved outfit/fit/cut/accessories union. */
   targets?: Target[];
   /** Project root used for repoConfig lookup + resolver context. NOT a write destination. */
   projectDir: string;
@@ -209,7 +219,7 @@ export interface ComposeBundleDeps {
 export interface ComposeBundleResult {
   pending: PendingFile[];
   outfitName: string;
-  resolution: { outfit: string; cut: string | null; accessories: string[] };
+  resolution: { outfit: string; fit: string | null; cut: string | null; accessories: string[] };
   targets: Target[];
 }
 
@@ -234,6 +244,14 @@ export async function composeBundle(
   const foundOutfit = await findOutfit(args.outfit, dirs);
   const outfitManifest = foundOutfit.manifest;
 
+  let fitManifest;
+  let fitBody: string | undefined;
+  if (args.fit) {
+    const found = await findFit(args.fit, dirs);
+    fitManifest = found.manifest;
+    fitBody = found.body;
+  }
+
   let cutManifest;
   let cutBody: string | undefined;
   if (args.cut) {
@@ -252,6 +270,7 @@ export async function composeBundle(
 
   const derivedTargets = unionTargets(
     outfitManifest.targets,
+    fitManifest?.targets,
     cutManifest?.targets,
     accessoryManifests.map((a) => a.targets),
   );
@@ -268,9 +287,11 @@ export async function composeBundle(
   const canonicalResolution = resolve({
     catalog,
     outfit: outfitManifest,
+    fit: fitManifest,
     cut: cutManifest,
     accessories: accessoryManifests,
     cutBody,
+    fitBody,
     harness: targets[0],
     globals,
     warn: (msg) => deps.stderr(`${msg}\n`),
@@ -300,6 +321,7 @@ export async function composeBundle(
     const blockContent = renderOutfitBlock(
       args.outfit,
       foundOutfit.body,
+      fitBody,
       cutBody,
       accessoryManifests.length,
     );
@@ -339,6 +361,7 @@ export async function composeBundle(
     outfitName: args.outfit,
     resolution: {
       outfit: outfitManifest.name,
+      fit: fitManifest?.name ?? null,
       cut: cutManifest?.name ?? null,
       accessories: accessoryManifests.map((a) => a.name),
     },

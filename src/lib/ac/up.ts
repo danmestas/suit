@@ -29,6 +29,9 @@ import { composeBundle, countFilesByTarget, type PendingFile } from './compose.j
 
 export interface RunUpArgs {
   outfit: string | null;
+  /** Seniority-tier overlay (issue #60). Optional for back-compat with callers
+   * predating the fit axis — they implicitly pass `null`. */
+  fit?: string | null;
   cut: string | null;
   accessories: string[];
   force: boolean;
@@ -60,8 +63,14 @@ export interface RunUpDeps {
  *   - pi: adapter already emits paths starting with `.pi/`; no prefix.
  */
 
-function sameResolution(a: Lockfile['resolution'], b: { outfit: string | null; cut: string | null; accessories: string[] }): boolean {
+function sameResolution(
+  a: Lockfile['resolution'],
+  b: { outfit: string | null; fit: string | null; cut: string | null; accessories: string[] },
+): boolean {
   if (a.outfit !== b.outfit) return false;
+  // pre-fit lockfiles omit `fit`; treat undefined as null for comparison.
+  const aFit = a.fit ?? null;
+  if (aFit !== b.fit) return false;
   if (a.cut !== b.cut) return false;
   if (a.accessories.length !== b.accessories.length) return false;
   for (let i = 0; i < a.accessories.length; i++) {
@@ -86,7 +95,14 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     }
     try {
       const picked = await runPicker(dirs, deps);
-      args = { ...args, outfit: picked.outfit, cut: picked.cut, accessories: picked.accessories };
+      args = {
+        ...args,
+        outfit: picked.outfit,
+        // Picker doesn't surface `fit` yet — preserve the caller's flag value.
+        fit: args.fit ?? null,
+        cut: picked.cut,
+        accessories: picked.accessories,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       deps.stderr(`suit up: ${msg}\n`);
@@ -108,6 +124,7 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   const composed = await composeBundle(
     {
       outfit: args.outfit,
+      fit: args.fit ?? null,
       cut: args.cut,
       accessories: args.accessories,
       projectDir: args.projectDir,
@@ -186,10 +203,18 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
     })
     .sort((a, b) => a.path.localeCompare(b.path));
 
+  // Back-compat: omit `fit` from the lockfile resolution block when no fit
+  // was applied. Pre-fit lockfiles never had this field, so older code paths
+  // (and tests) that exact-match the resolution shape continue to pass.
+  const lockResolution: Lockfile['resolution'] =
+    newResolution.fit === null
+      ? { outfit: newResolution.outfit, cut: newResolution.cut, accessories: newResolution.accessories }
+      : { outfit: newResolution.outfit, fit: newResolution.fit, cut: newResolution.cut, accessories: newResolution.accessories };
+
   const lock: Lockfile = {
     schemaVersion: 1,
     appliedAt: new Date().toISOString(),
-    resolution: newResolution,
+    resolution: lockResolution,
     files: lockEntries,
   };
   await writeLockfile(args.projectDir, lock);
@@ -209,9 +234,15 @@ export async function runUp(args: RunUpArgs, deps: RunUpDeps): Promise<number> {
   return 0;
 }
 
-function formatResolution(r: { outfit: string | null; cut: string | null; accessories: string[] }): string {
+function formatResolution(r: {
+  outfit: string | null;
+  fit?: string | null;
+  cut: string | null;
+  accessories: string[];
+}): string {
   const parts: string[] = [];
   parts.push(`outfit=${r.outfit ?? '(none)'}`);
+  parts.push(`fit=${r.fit ?? '(none)'}`);
   parts.push(`cut=${r.cut ?? '(none)'}`);
   parts.push(`accessories=[${r.accessories.join(', ')}]`);
   return parts.join(', ');

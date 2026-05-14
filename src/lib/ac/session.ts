@@ -24,12 +24,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { findOutfit } from '../outfit.js';
 import { findCut } from '../cut.js';
+import { findFit } from '../fit.js';
 import { findAccessory } from '../accessory.js';
 import { resolveAndPersist, resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.js';
 import { discoverComponents } from '../discover.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
 import type { Target } from '../types.js';
-import type { OutfitManifest, CutManifest, AccessoryManifest } from '../schema.js';
+import type { OutfitManifest, CutManifest, FitManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
 import { loadGlobalsRegistry } from '../globals-loader.js';
 import {
@@ -91,9 +92,11 @@ export function defaultResolveHarnessBin(harness: string): string {
 interface PrelaunchInputs {
   target: Target;
   outfit?: OutfitManifest;
+  fit?: FitManifest;
   cut?: CutManifest;
   accessories: AccessoryManifest[];
   cutBody?: string;
+  fitBody?: string;
   resolutionArtifactPath?: string;
   realHome: string;
   globals?: GlobalsRegistry | null;
@@ -112,8 +115,12 @@ interface PrelaunchEffects {
  * in `runAc`.
  */
 async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffects> {
-  const { target, outfit, cut, cutBody, resolutionArtifactPath, realHome, globals } = opts;
-  const filtered = outfit !== undefined || cut !== undefined || opts.accessories.length > 0;
+  const { target, outfit, fit, cut, cutBody, fitBody, resolutionArtifactPath, realHome, globals } = opts;
+  const filtered =
+    outfit !== undefined ||
+    fit !== undefined ||
+    cut !== undefined ||
+    opts.accessories.length > 0;
 
   switch (target) {
     case 'claude-code':
@@ -129,9 +136,11 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
       const r = await composer({
         realHome,
         outfit,
+        fit,
         cut,
         accessories: opts.accessories,
         cutBody,
+        fitBody,
         globals,
       });
       return { envOverrides: { HOME: r.tempHome }, cleanup: r.cleanup };
@@ -149,12 +158,14 @@ async function prelaunchForTarget(opts: PrelaunchInputs): Promise<PrelaunchEffec
           target: 'codex',
           harnessHome: opts.realHome,
           outfit,
+          fit,
           cut,
           accessories: opts.accessories,
           cutBody,
+          fitBody,
           globals,
         });
-        const skillsKeep = outfit || cut
+        const skillsKeep = outfit || fit || cut
           ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
           : catalog
               .filter((c: { manifest: { type: string; name: string } }) => c.manifest.type === 'skill')
@@ -202,19 +213,29 @@ export async function runAcSession(
 
   const env: NodeJS.ProcessEnv = { ...process.env, AC_WRAPPED: '1', AC_HARNESS: target };
 
-  // Stage 2: load outfit/cut/accessories and persist a resolution artifact
+  // Stage 2: load outfit/fit/cut/accessories and persist a resolution artifact
   // when filter is requested. `--no-filter` skips loading any of them per
   // ADR-0010 (treat the harness as if `suit` were not in the loop).
   const filtered =
     !args.noFilter &&
-    (args.outfit !== undefined || args.cut !== undefined || args.accessories.length > 0);
+    (args.outfit !== undefined ||
+      args.fit !== undefined ||
+      args.cut !== undefined ||
+      args.accessories.length > 0);
   let outfit: OutfitManifest | undefined;
+  let fitManifest: FitManifest | undefined;
+  let fitBody: string | undefined;
   let cutManifest: CutManifest | undefined;
   let cutBody: string | undefined;
   let accessoryManifests: AccessoryManifest[] = [];
   let resolutionArtifactPath: string | undefined;
   if (filtered) {
     if (args.outfit) outfit = (await findOutfit(args.outfit, dirs)).manifest;
+    if (args.fit) {
+      const found = await findFit(args.fit, dirs);
+      fitManifest = found.manifest;
+      fitBody = found.body;
+    }
     if (args.cut) {
       const found = await findCut(args.cut, dirs);
       cutManifest = found?.manifest;
@@ -229,9 +250,11 @@ export async function runAcSession(
     const { artifactPath } = await resolveAndPersist({
       catalog,
       outfit,
+      fit: fitManifest,
       cut: cutManifest,
       accessories: accessoryManifests,
       cutBody,
+      fitBody,
       harness: target,
     });
     resolutionArtifactPath = artifactPath;
@@ -256,9 +279,11 @@ export async function runAcSession(
   const effects = await prelaunchForTarget({
     target,
     outfit,
+    fit: fitManifest,
     cut: cutManifest,
     accessories: accessoryManifests,
     cutBody,
+    fitBody,
     resolutionArtifactPath,
     realHome: deps.homeDir ?? os.homedir(),
     globals,

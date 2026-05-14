@@ -67,6 +67,7 @@ function parseInitArgs(rest: string[]): { url: string | null; force: boolean } {
 
 interface UpArgs {
   outfit: string | null;
+  fit: string | null;
   cut: string | null;
   accessories: string[];
   force: boolean;
@@ -77,12 +78,14 @@ interface UpArgs {
  * Parse `suit up` args. Surface the first parse error via `err` so the caller
  * can print it consistently with the rest of the CLI rather than throwing.
  *
- * Recognized flags: `--outfit X`, `--cut Y`, `--accessory A` (repeatable), `--force`.
+ * Recognized flags: `--outfit X`, `--fit F`, `--cut Y`, `--accessory A`
+ * (repeatable), `--force`. `--outfit`/`--fit`/`--cut` are singletons.
  * The `=` form (`--outfit=X`) is also accepted for muscle-memory parity with
  * other CLIs.
  */
 function parseUpArgs(rest: string[]): UpArgs {
   let outfit: string | null = null;
+  let fit: string | null = null;
   let cut: string | null = null;
   const accessories: string[] = [];
   let force = false;
@@ -118,6 +121,18 @@ function parseUpArgs(rest: string[]): UpArgs {
       }
       outfit = r.value;
       i = r.next;
+    } else if (flag === '--fit') {
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) {
+        err = err ?? 'suit up: --fit requires a value';
+        continue;
+      }
+      if (fit !== null) {
+        err = err ?? 'suit up: --fit passed multiple times (singleton)';
+        continue;
+      }
+      fit = r.value;
+      i = r.next;
     } else if (flag === '--cut') {
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) {
@@ -138,11 +153,12 @@ function parseUpArgs(rest: string[]): UpArgs {
       err = err ?? `suit up: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, cut, accessories, force, err };
+  return { outfit, fit, cut, accessories, force, err };
 }
 
 interface PrepareArgs {
   outfit: string | null;
+  fit: string | null;
   cut: string | null;
   accessories: string[];
   target: Target | null;
@@ -182,6 +198,7 @@ function resolveTargetArg(raw: string): Target | null {
  */
 function parsePrepareArgs(rest: string[]): PrepareArgs {
   let outfit: string | null = null;
+  let fit: string | null = null;
   let cut: string | null = null;
   const accessories: string[] = [];
   const accessorySeen = new Set<string>();
@@ -229,6 +246,12 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
       const r = takeValue(flag, i, eqValue);
       if (r.value === null) { err = err ?? 'suit prepare: --outfit requires a value'; continue; }
       outfit = r.value;
+      i = r.next;
+    } else if (flag === '--fit') {
+      if (rejectIfDuplicate(flag)) continue;
+      const r = takeValue(flag, i, eqValue);
+      if (r.value === null) { err = err ?? 'suit prepare: --fit requires a value'; continue; }
+      fit = r.value;
       i = r.next;
     } else if (flag === '--cut') {
       if (rejectIfDuplicate(flag)) continue;
@@ -290,7 +313,7 @@ function parsePrepareArgs(rest: string[]): PrepareArgs {
       err = err ?? `suit prepare: unrecognized argument "${arg}"`;
     }
   }
-  return { outfit, cut, accessories, target, quiet, dryRun, label, shape, projectPath, err };
+  return { outfit, fit, cut, accessories, target, quiet, dryRun, label, shape, projectPath, err };
 }
 
 /**
@@ -386,8 +409,8 @@ async function main(): Promise<number> {
 
   if (cmd === 'list') {
     const what = argv[1];
-    if (what !== 'outfits' && what !== 'cuts' && what !== 'accessories') {
-      process.stderr.write('suit list: expected "outfits", "cuts", or "accessories"\n');
+    if (what !== 'outfits' && what !== 'cuts' && what !== 'fits' && what !== 'accessories') {
+      process.stderr.write('suit list: expected "outfits", "cuts", "fits", or "accessories"\n');
       return 2;
     }
     const rest = argv.slice(2);
@@ -397,7 +420,7 @@ async function main(): Promise<number> {
       if (a === '-v' || a === '--verbose') {
         verbose = true;
       } else if (a === '--resolvable' || a === '--include-fall-through') {
-        // Only meaningful for `list accessories`; --resolvable on outfits/cuts
+        // Only meaningful for `list accessories`; --resolvable on outfits/cuts/fits
         // is silently ignored rather than rejected, to keep the flag surface
         // forgiving for tab-completion habits.
         resolvable = true;
@@ -428,15 +451,15 @@ async function main(): Promise<number> {
       });
       return code;
     }
-    if (kind !== 'outfit' && kind !== 'cut' && kind !== 'accessory' && kind !== 'effective') {
+    if (kind !== 'outfit' && kind !== 'cut' && kind !== 'fit' && kind !== 'accessory' && kind !== 'effective') {
       process.stderr.write(
-        'suit show: expected "outfit <name>" | "cut <name>" | "accessory <name>" | "effective ..." | "bundle <path>"\n',
+        'suit show: expected "outfit <name>" | "cut <name>" | "fit <name>" | "accessory <name>" | "effective ..." | "bundle <path>"\n',
       );
       return 2;
     }
     const name = argv[2];
     await showCommand(
-      { kind: kind as 'outfit' | 'cut' | 'accessory' | 'effective', name },
+      { kind: kind as 'outfit' | 'cut' | 'fit' | 'accessory' | 'effective', name },
       { ...dirs, print: (l) => process.stdout.write(l + '\n') },
     );
     return 0;
@@ -461,6 +484,7 @@ async function main(): Promise<number> {
     return runUp(
       {
         outfit: parsed.outfit,
+        fit: parsed.fit,
         cut: parsed.cut,
         accessories: parsed.accessories,
         force: parsed.force,
@@ -505,6 +529,7 @@ async function main(): Promise<number> {
     return runPrepare(
       {
         outfit: parsed.outfit,
+        fit: parsed.fit,
         cut: parsed.cut,
         accessories: parsed.accessories,
         target: parsed.target,

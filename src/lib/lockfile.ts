@@ -54,6 +54,8 @@ export interface Lockfile {
   appliedAt: string;
   resolution: {
     outfit: string | null;
+    /** Optional in schema v1 for back-compat with pre-fit lockfiles. */
+    fit?: string | null;
     cut: string | null;
     accessories: string[];
   };
@@ -72,6 +74,8 @@ const lockfileSchema = z.object({
   appliedAt: z.string().min(1),
   resolution: z.object({
     outfit: z.string().nullable(),
+    // Optional so pre-fit lockfiles (no `fit` field) still parse cleanly.
+    fit: z.string().nullable().optional(),
     cut: z.string().nullable(),
     accessories: z.array(z.string()),
   }),

@@ -1,5 +1,6 @@
 import { listAllOutfits, findOutfit, type DiscoveryDirs } from '../outfit.js';
 import { listAllCuts, findCut } from '../cut.js';
+import { listAllFits, findFit } from '../fit.js';
 import { listAllAccessories, listAllResolvableNames, findAccessory } from '../accessory.js';
 import { extractBlurb } from '../blurb.js';
 
@@ -20,7 +21,7 @@ export interface ListOptions {
 }
 
 export async function listCommand(
-  what: 'outfits' | 'cuts' | 'accessories',
+  what: 'outfits' | 'cuts' | 'fits' | 'accessories',
   deps: IntrospectDeps,
   opts: ListOptions = {},
 ): Promise<void> {
@@ -49,6 +50,21 @@ export async function listCommand(
     const all = await listAllCuts(deps);
     if (all.length === 0) {
       deps.print('(no cuts found)');
+      return;
+    }
+    for (const m of all) {
+      deps.print(`${m.manifest.name.padEnd(20)} v${(m.manifest.version ?? '-').padEnd(8)} [${m.source}]  ${m.manifest.description}`);
+      if (verbose) {
+        const blurb = extractBlurb(m.body, m.manifest.description);
+        if (blurb !== m.manifest.description) deps.print(`${indent}${blurb}`);
+      }
+    }
+    return;
+  }
+  if (what === 'fits') {
+    const all = await listAllFits(deps);
+    if (all.length === 0) {
+      deps.print('(no fits found)');
       return;
     }
     for (const m of all) {
@@ -89,7 +105,7 @@ export async function listCommand(
 }
 
 export interface ShowOptions {
-  kind: 'outfit' | 'cut' | 'accessory' | 'effective';
+  kind: 'outfit' | 'cut' | 'fit' | 'accessory' | 'effective';
   name?: string;
   outfit?: string;
   cut?: string;
@@ -150,6 +166,38 @@ export async function showCommand(
     }
     deps.print('');
     deps.print('--- cut prompt body (injected as additional context when active) ---');
+    deps.print(f.body.trim());
+    return;
+  }
+  if (opts.kind === 'fit') {
+    if (!opts.name) throw new Error('ac show fit <name>: name required');
+    const f = await findFit(opts.name, deps);
+    deps.print(`name: ${f.manifest.name}`);
+    deps.print(`version: ${f.manifest.version}`);
+    deps.print(`source: ${f.source} (${f.filepath})`);
+    deps.print(`description: ${f.manifest.description}`);
+    deps.print(`targets: ${f.manifest.targets.join(', ')}`);
+    deps.print(`categories: ${f.manifest.categories.join(', ')}`);
+    deps.print(`skill_include: ${(f.manifest.skill_include ?? []).join(', ')}`);
+    deps.print(`skill_exclude: ${(f.manifest.skill_exclude ?? []).join(', ')}`);
+    const inc = f.manifest.include;
+    const hasIncludes =
+      inc.skills.length +
+        inc.rules.length +
+        inc.hooks.length +
+        inc.agents.length +
+        inc.commands.length >
+      0;
+    if (hasIncludes) {
+      deps.print('include:');
+      deps.print(`  skills: ${inc.skills.join(', ')}`);
+      deps.print(`  rules: ${inc.rules.join(', ')}`);
+      deps.print(`  hooks: ${inc.hooks.join(', ')}`);
+      deps.print(`  agents: ${inc.agents.join(', ')}`);
+      deps.print(`  commands: ${inc.commands.join(', ')}`);
+    }
+    deps.print('');
+    deps.print('--- fit prompt body (injected as additional context when active) ---');
     deps.print(f.body.trim());
     return;
   }

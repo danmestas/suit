@@ -129,15 +129,17 @@ import { resolveAgainstHarness, skillsKeepFromResolution } from '../resolution.j
 import { composeHarnessHome } from './symlink-farm.js';
 import { composeCodexHome } from './codex-home.js';
 import { loadHarnessCatalog } from './harness-catalog.js';
-import type { OutfitManifest, CutManifest, AccessoryManifest } from '../schema.js';
+import type { OutfitManifest, CutManifest, FitManifest, AccessoryManifest } from '../schema.js';
 import type { GlobalsRegistry } from '../globals-schema.js';
 
 export interface HomeOverridePrelaunchOptions {
   realHome: string;
   outfit?: OutfitManifest;
+  fit?: FitManifest;
   cut?: CutManifest;
   accessories?: AccessoryManifest[];
   cutBody?: string;
+  fitBody?: string;
   /** v0.7+: optional globals registry for plugin/mcp filtering. */
   globals?: GlobalsRegistry | null;
 }
@@ -154,12 +156,14 @@ async function composeWithHomeOverride(
     target,
     harnessHome: opts.realHome,
     outfit: opts.outfit,
+    fit: opts.fit,
     cut: opts.cut,
     accessories: opts.accessories,
     cutBody: opts.cutBody,
+    fitBody: opts.fitBody,
     globals: opts.globals,
   });
-  const skillsKeep = opts.outfit || opts.cut
+  const skillsKeep = opts.outfit || opts.fit || opts.cut
     ? skillsKeepFromResolution(catalog, resolution.skillsDrop)
     : catalog.filter((c) => c.manifest.type === 'skill').map((c) => c.manifest.name); // no filter → keep all
   // Only forward plugins/mcps filtering when a globals registry was provided —

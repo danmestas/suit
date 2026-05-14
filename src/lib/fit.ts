@@ -1,0 +1,105 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import matter from 'gray-matter';
+import { FitSchema, type FitManifest } from './schema.js';
+import type { DiscoveryDirs } from './outfit.js';
+
+export interface FoundFit {
+  manifest: FitManifest;
+  body: string;
+  source: 'project' | 'user' | 'builtin';
+  filepath: string;
+}
+
+const TIERS: Array<keyof DiscoveryDirs> = ['projectDir', 'userDir', 'builtinDir'];
+const TIER_NAMES: Record<keyof DiscoveryDirs, FoundFit['source']> = {
+  projectDir: 'project',
+  userDir: 'user',
+  builtinDir: 'builtin',
+};
+
+function resolveTierRoots(tier: keyof DiscoveryDirs, dirs: DiscoveryDirs): string[] {
+  switch (tier) {
+    case 'projectDir':
+      return [path.join(dirs.projectDir, '.suit', 'fits')];
+    case 'userDir':
+      return [path.join(dirs.userDir, 'fits')];
+    case 'builtinDir':
+      return [path.join(dirs.builtinDir, 'fits')];
+  }
+}
+
+async function listFitFilenames(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isFile() && e.name.endsWith('.md')) out.push(path.join(dir, e.name));
+      else if (e.isDirectory()) {
+        const candidate = path.join(dir, e.name, 'fit.md');
+        try {
+          await fs.access(candidate);
+          out.push(candidate);
+        } catch {
+          // not a fit dir
+        }
+      }
+    }
+  } catch {
+    // dir doesn't exist
+  }
+  return out;
+}
+
+export async function findFit(name: string, dirs: DiscoveryDirs): Promise<FoundFit> {
+  const seen: string[] = [];
+  for (const tier of TIERS) {
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listFitFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = FitSchema.safeParse(parsed.data);
+        if (!result.success) continue;
+        seen.push(result.data.name);
+        if (result.data.name === name) {
+          return {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          };
+        }
+      }
+    }
+  }
+  throw new Error(
+    `fit not found: "${name}". Available: ${seen.length === 0 ? '(none)' : seen.join(', ')}`,
+  );
+}
+
+export async function listAllFits(dirs: DiscoveryDirs): Promise<FoundFit[]> {
+  const found = new Map<string, FoundFit>();
+  for (const tier of TIERS) {
+    for (const root of resolveTierRoots(tier, dirs)) {
+      const files = await listFitFilenames(root);
+      for (const filepath of files) {
+        const raw = await fs.readFile(filepath, 'utf8');
+        const parsed = matter(raw);
+        const result = FitSchema.safeParse(parsed.data);
+        if (!result.success) continue;
+        if (!found.has(result.data.name)) {
+          found.set(result.data.name, {
+            manifest: result.data,
+            body: parsed.content,
+            source: TIER_NAMES[tier],
+            filepath,
+          });
+        }
+      }
+    }
+  }
+  return Array.from(found.values()).sort((a, b) =>
+    a.manifest.name.localeCompare(b.manifest.name),
+  );
+}

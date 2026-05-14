@@ -20,6 +20,7 @@ const MATRIX: Record<ComponentType, Record<Target, Cell>> = {
   outfit:    { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
   cut:       { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
   accessory: { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
+  fit:       { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
 };
 
 function validTypesForTarget(target: Target): ComponentType[] {
@@ -213,7 +214,7 @@ export async function validateAll(
 
   for (const component of components) {
     const { manifest } = component;
-    if (manifest.type !== 'outfit' && manifest.type !== 'cut') continue;
+    if (manifest.type !== 'outfit' && manifest.type !== 'cut' && manifest.type !== 'fit') continue;
 
     const cats: Set<string> = await getValidCats();
 
@@ -247,19 +248,19 @@ export async function validateAll(
       }
     }
 
-    if (manifest.type === 'cut') {
+    if (manifest.type === 'cut' || manifest.type === 'fit') {
       const len = Buffer.byteLength(component.body, 'utf8');
       if (len > 4096) {
         errors.push({
           severity: 'error',
           componentName: manifest.name,
-          message: `cut body too long: ${len} bytes (max 4096)`,
+          message: `${manifest.type} body too long: ${len} bytes (max 4096)`,
         });
       } else if (len > 1024) {
         errors.push({
           severity: 'warning',
           componentName: manifest.name,
-          message: `cut body is ${len} bytes (>1024 warns; long prompts cost real tokens every session)`,
+          message: `${manifest.type} body is ${len} bytes (>1024 warns; long prompts cost real tokens every session)`,
         });
       }
     }
