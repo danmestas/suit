@@ -94,6 +94,93 @@ describe('OutfitSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // ─── include block (issue #62) ────────────────────────────────────────────
+  //
+  // Outfits gain parity with cuts and accessories: an optional `include:`
+  // block lets an outfit force-include hooks, agents, commands, and rules by
+  // name. Skills stay on `skill_include`/`skill_exclude` for v1 (no breaking
+  // change for existing outfits).
+
+  it('defaults the include block to all-empty arrays when not declared (back-compat)', () => {
+    const result = OutfitSchema.parse({
+      name: 'backend',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+    });
+    expect(result.include.rules).toEqual([]);
+    expect(result.include.hooks).toEqual([]);
+    expect(result.include.agents).toEqual([]);
+    expect(result.include.commands).toEqual([]);
+  });
+
+  it('accepts a populated include block on an outfit', () => {
+    const result = OutfitSchema.safeParse({
+      name: 'code',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+      include: {
+        hooks: ['rtk-suggest', 'rtk-rewrite'],
+        agents: ['rtk-rust-expert'],
+        rules: ['pr-policy'],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.include.hooks).toEqual(['rtk-suggest', 'rtk-rewrite']);
+      expect(result.data.include.agents).toEqual(['rtk-rust-expert']);
+      expect(result.data.include.rules).toEqual(['pr-policy']);
+      expect(result.data.include.commands).toEqual([]);
+    }
+  });
+
+  it('rejects include.skills on an outfit (use skill_include instead)', () => {
+    // Issue #62 deliberately omits `include.skills` from v1 so the canonical
+    // mechanism for skills stays `skill_include`/`skill_exclude`. The Zod
+    // strict() shape rejects the unknown key with a clear-enough error that
+    // points to the offending field.
+    const result = OutfitSchema.safeParse({
+      name: 'backend',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+      include: {
+        skills: ['idiomatic-go'],
+        hooks: [],
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      // Surface that the error is about the `skills` key specifically — so
+      // authors who try the cut/accessory shape on an outfit get a precise
+      // pointer rather than a generic "unrecognized key".
+      const errText = result.error.issues.map((i) => i.message).join('\n');
+      expect(errText.toLowerCase()).toMatch(/skills|unrecognized/);
+    }
+  });
+
+  it('rejects other unknown keys inside outfit include (strict)', () => {
+    const result = OutfitSchema.safeParse({
+      name: 'backend',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+      include: {
+        bogus: ['nope'],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('findOutfit (3-tier discovery)', () => {
