@@ -58,6 +58,40 @@ describe('parseAcArgs', () => {
   it('throws when --accessory is followed by another flag instead of a value', () => {
     expect(() => parseAcArgs(['claude', '--accessory', '--cut', 'focused'])).toThrow(/--accessory/);
   });
+
+  it('parses --fit flag (singleton seniority overlay)', () => {
+    const r = parseAcArgs(['claude', '--outfit', 'backend', '--fit', 'senior-engineer']);
+    expect(r.outfit).toBe('backend');
+    expect(r.fit).toBe('senior-engineer');
+  });
+
+  it('parses --fit alongside --cut and --accessory in any order', () => {
+    const r = parseAcArgs([
+      'claude',
+      '--fit', 'engineer',
+      '--outfit', 'code',
+      '--cut', 'executing',
+      '--accessory', 'pr-policy',
+    ]);
+    expect(r.outfit).toBe('code');
+    expect(r.fit).toBe('engineer');
+    expect(r.cut).toBe('executing');
+    expect(r.accessories).toEqual(['pr-policy']);
+  });
+
+  it('throws on --fit without a value', () => {
+    expect(() => parseAcArgs(['claude', '--fit'])).toThrow(/--fit/);
+  });
+
+  it('throws when --fit is followed by another flag instead of a value', () => {
+    expect(() => parseAcArgs(['claude', '--fit', '--cut', 'focused'])).toThrow(/--fit/);
+  });
+
+  it('rejects duplicate --fit flags as a singleton violation', () => {
+    expect(() =>
+      parseAcArgs(['claude', '--fit', 'engineer', '--fit', 'senior-engineer']),
+    ).toThrow(/--fit/);
+  });
 });
 
 describe('findRepoRoot (via runAc builtinDir)', () => {

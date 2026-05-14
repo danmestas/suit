@@ -14,6 +14,7 @@ const COMPONENT_DIRS = [
   'outfits',
   'cuts',
   'accessories',
+  'fits',
   // Note: 'commands' is intentionally not walked yet — there is no
   // CommandSchema in the discriminated union. Wardrobe v2 layout
   // includes a commands/ dir, but those manifests will be picked up
@@ -23,6 +24,7 @@ const COMPONENT_DIRS = [
 const DIR_FILENAMES: Partial<Record<string, string[]>> = {
   outfits: ['outfit.md'],
   cuts: ['cut.md'],
+  fits: ['fit.md'],
   accessories: ['accessory.md'],
   agents: ['AGENT.md', 'SKILL.md'],
   hooks: ['HOOK.md', 'SKILL.md'],
