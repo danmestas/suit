@@ -102,6 +102,24 @@ const IncludeBlockSchema = z
   .strict()
   .default({ skills: [], rules: [], hooks: [], agents: [], commands: [] });
 
+// Outfit-flavored include block (issue #62). Same shape as the cut/accessory
+// `include`, MINUS `skills`. Outfits keep `skill_include` / `skill_exclude` as
+// the canonical mechanism for force-including or excluding skills — that v1
+// constraint avoids a breaking change while letting outfits declare structural
+// component bundles (hooks/agents/commands/rules) alongside their skill lists.
+// Per the issue, a typo of `skills:` inside an outfit's `include:` must surface
+// as a precise error pointing to `skill_include`, not silently parse. Strict
+// keys give us that: any unrecognized key (including `skills`) fails parse.
+const OutfitIncludeBlockSchema = z
+  .object({
+    rules: z.array(z.string()).default([]),
+    hooks: z.array(z.string()).default([]),
+    agents: z.array(z.string()).default([]),
+    commands: z.array(z.string()).default([]),
+  })
+  .strict()
+  .default({ rules: [], hooks: [], agents: [], commands: [] });
+
 // v0.7+: globals targeting block. Outfits, cuts, and accessories may declare
 // `enable:` / `disable:` blocks naming user-scope plugins, MCP servers, and
 // hooks (registered in `globals.yaml`). The resolver layers these per-CLI
@@ -147,6 +165,12 @@ export const OutfitSchema = ManifestBaseSchema.extend({
   // a selector over skills' freeform `tags` array. Defaults to empty so
   // pre-v0.10 outfits round-trip unchanged.
   compose: z.array(z.string()).default([]),
+  // v0.15+ (issue #62): structured include block for hooks/agents/commands/
+  // rules. Mirrors the cut/accessory include shape minus `skills` (those stay
+  // on `skill_include` / `skill_exclude`). Outfit-provided includes union with
+  // whatever cuts/accessories/fits contribute and dedup by name downstream.
+  // Defaults to all-empty so v0.14 outfits round-trip unchanged.
+  include: OutfitIncludeBlockSchema,
   enable: EnableDisableBlockSchema,
   disable: EnableDisableBlockSchema,
   permissions: PermissionsBlockSchema.optional(),

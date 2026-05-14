@@ -92,7 +92,7 @@ type IncludeBlock = {
  * differently from an accessory-include miss without forking the validator.
  */
 function validateIncludes(
-  speaker: 'cut' | 'fit' | 'accessory',
+  speaker: 'cut' | 'fit' | 'outfit' | 'accessory',
   ownerName: string,
   inc: IncludeBlock,
   catalog: ComponentSource[],
@@ -520,8 +520,21 @@ export function resolve(opts: ResolveOptions): Resolution {
   const accessories = opts.accessories ?? [];
   const warn = opts.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  // Phase 1: validate include blocks (strict per ADR-0010). Cut first so a
-  // cut typo surfaces before any accessory-level error.
+  // Phase 1: validate include blocks (strict per ADR-0010). Outfit first so
+  // an outfit-include typo surfaces before any cut/accessory-level error.
+  // Outfit's include block (issue #62) lacks a `skills` key by design — the
+  // canonical mechanism for force-including/excluding skills on an outfit is
+  // `skill_include`/`skill_exclude`. We synthesize `skills: []` here so the
+  // shared validator keeps a single shape; the OutfitSchema's strict `.strict()`
+  // already rejects any `include.skills` author input at parse time.
+  if (outfit?.include) {
+    validateIncludes(
+      'outfit',
+      outfit.name,
+      { ...outfit.include, skills: [] },
+      catalog,
+    );
+  }
   if (cut?.include) {
     validateIncludes('cut', cut.name, cut.include, catalog);
   }
