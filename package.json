@@ -1,6 +1,6 @@
 {
   "name": "@agent-ops/suit",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Multi-harness AI agent configurator. Stateless launcher + project-state mutator (suit up / suit off) — Claude Code, Codex, Gemini, Pi.",
   "type": "module",
   "bin": {
