@@ -107,6 +107,71 @@ Norman's design principles apply to every interface.
   return root;
 }
 
+/**
+ * Wardrobe mirroring the REAL `philosophy` accessory: 6 declared skills
+ * (ousterhout/tigerstyle/farley/hipp/norman/vitaly) + 1 declared agent
+ * (architect-review), PLUS unrelated catalog components (golang-patterns,
+ * publish-to-npm skills; a stray hook + agent) that the accessory does NOT
+ * declare. The over-emission bug emitted the whole catalog; the fix must emit
+ * ONLY the 6 declared skills + 1 agent.
+ */
+const PHIL_SKILLS = ['ousterhout', 'tigerstyle', 'farley', 'hipp', 'norman', 'vitaly'];
+const UNRELATED_SKILLS = ['golang-patterns', 'publish-to-npm'];
+
+async function writeSkill(root: string, name: string): Promise<void> {
+  await fs.mkdir(path.join(root, 'skills', name), { recursive: true });
+  await fs.writeFile(
+    path.join(root, 'skills', name, 'SKILL.md'),
+    `---\nname: ${name}\nversion: 1.0.0\ntype: skill\ndescription: ${name} skill\ntargets: [claude-code]\n---\n${name} body\n`,
+  );
+}
+
+async function mkWardrobePhilosophy(): Promise<string> {
+  const root = await mkdirT('suit-inject-phil-');
+
+  await fs.mkdir(path.join(root, 'accessories', 'philosophy'), { recursive: true });
+  await fs.writeFile(
+    path.join(root, 'accessories', 'philosophy', 'accessory.md'),
+    `---
+name: philosophy
+version: 1.0.0
+type: accessory
+description: philosophy pack
+targets: [claude-code]
+include:
+  skills: [${PHIL_SKILLS.join(', ')}]
+  rules: []
+  hooks: []
+  agents: [architect-review]
+  commands: []
+---
+philosophy bundle body
+`,
+  );
+
+  for (const s of [...PHIL_SKILLS, ...UNRELATED_SKILLS]) await writeSkill(root, s);
+
+  // The declared agent + an undeclared agent (proves agents are also scoped).
+  for (const a of ['architect-review', 'stray-agent']) {
+    await fs.mkdir(path.join(root, 'agents', a), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'agents', a, 'AGENT.md'),
+      `---\nname: ${a}\nversion: 1.0.0\ntype: agent\ndescription: ${a}\ntargets: [claude-code]\n---\n${a} body\n`,
+    );
+  }
+
+  // A standalone hook the accessory does NOT declare — must NOT be emitted.
+  // The claude-code adapter reads the script the hook references, so it must exist.
+  await fs.mkdir(path.join(root, 'hooks', 'rtk-suggest'), { recursive: true });
+  await fs.writeFile(path.join(root, 'hooks', 'rtk-suggest', 'rtk-suggest.sh'), '#!/bin/sh\necho hi\n');
+  await fs.writeFile(
+    path.join(root, 'hooks', 'rtk-suggest', 'HOOK.md'),
+    `---\nname: rtk-suggest\nversion: 1.0.0\ntype: hook\ndescription: rtk suggest hook\ntargets: [claude-code]\nhooks:\n  PreToolUse:\n    command: rtk-suggest.sh\n---\nhook body\n`,
+  );
+
+  return root;
+}
+
 interface Capture {
   out: string[];
   err: string[];
@@ -132,6 +197,7 @@ describe('runInject — materialize + lockfile', () => {
     const code = await runInject(
       {
         component: 'release',
+        kind: 'accessory',
         home,
         contentDir: wardrobe,
         userDir,
@@ -179,7 +245,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c1 = capture();
     await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: c1.push, stderr: c1.pushE },
     );
     const lock1 = await readLockfile(home);
@@ -192,7 +258,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c2 = capture();
     const code = await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: c2.push, stderr: c2.pushE },
     );
 
@@ -218,7 +284,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c1 = capture();
     const code1 = await runInject(
-      { component: 'philosophy', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'philosophy', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: c1.push, stderr: c1.pushE },
     );
     expect(c1.err.join('')).toBe('');
@@ -237,7 +303,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c2 = capture();
     const code2 = await runInject(
-      { component: 'philosophy', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'philosophy', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: c2.push, stderr: c2.pushE },
     );
     expect(code2).toBe(0);
@@ -259,7 +325,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c1 = capture();
     const refused = await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: c1.push, stderr: c1.pushE },
     );
     expect(refused).toBe(1);
@@ -268,7 +334,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const c2 = capture();
     const forced = await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: true, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: true, json: false },
       { stdout: c2.push, stderr: c2.pushE },
     );
     expect(forced).toBe(0);
@@ -285,7 +351,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const cap = capture();
     await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: cap.push, stderr: cap.pushE },
     );
 
@@ -313,7 +379,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const cap = capture();
     await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
       { stdout: cap.push, stderr: cap.pushE },
     );
 
@@ -331,7 +397,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const cap = capture();
     const code = await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: true, noReload: false, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: true, noReload: false, force: false, json: false },
       { stdout: cap.push, stderr: cap.pushE },
     );
     expect(code).toBe(0);
@@ -347,7 +413,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const cap = capture();
     await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: true, force: false, json: false },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: true, force: false, json: false },
       { stdout: cap.push, stderr: cap.pushE },
     );
     expect(cap.out.join('')).toMatch(/reload:\s+skipped/);
@@ -360,7 +426,7 @@ describe('runInject — materialize + lockfile', () => {
 
     const cap = capture();
     await runInject(
-      { component: 'release', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: true },
+      { component: 'release', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: true },
       { stdout: cap.push, stderr: cap.pushE },
     );
     const parsed = JSON.parse(cap.out.join(''));
@@ -370,6 +436,120 @@ describe('runInject — materialize + lockfile', () => {
     expect(parsed.targets).toContain('claude-code');
   });
 });
+
+async function listSkillDirs(home: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(path.join(home, '.claude', 'skills'), { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  } catch {
+    return [];
+  }
+}
+
+describe('runInject — scoped emission (keep-set)', () => {
+  it('BUG REGRESSION: --accessory philosophy emits EXACTLY its declared components, not the whole catalog', async () => {
+    const wardrobe = await mkWardrobePhilosophy();
+    const home = await mkdirT('suit-inject-home-');
+    const userDir = await mkdirT('suit-inject-user-');
+    const cap = capture();
+
+    const code = await runInject(
+      { component: 'philosophy', kind: 'accessory', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    // EXACTLY the 6 declared philosophy skills landed — no more, no less.
+    const skills = await listSkillDirs(home);
+    expect(skills).toEqual([...PHIL_SKILLS].sort());
+    expect(skills).toHaveLength(6); // was ~108 before the fix
+
+    // Unrelated skills are ABSENT.
+    for (const s of UNRELATED_SKILLS) {
+      expect(skills).not.toContain(s);
+    }
+
+    // The declared architect-review agent IS present; the stray one is ABSENT.
+    expect(await fileExistsT(path.join(home, '.claude', 'agents', 'architect-review.md'))).toBe(true);
+    expect(await fileExistsT(path.join(home, '.claude', 'agents', 'stray-agent.md'))).toBe(false);
+
+    // The undeclared hook is ABSENT (the over-emission bug emitted hooks too).
+    const settings = await fs
+      .readFile(path.join(home, '.claude', 'settings.local.json'), 'utf8')
+      .catch(() => '');
+    expect(settings).not.toMatch(/rtk-suggest/);
+  });
+
+  it('--skill ousterhout emits exactly the ousterhout skill and nothing else', async () => {
+    const wardrobe = await mkWardrobePhilosophy();
+    const home = await mkdirT('suit-inject-home-');
+    const userDir = await mkdirT('suit-inject-user-');
+    const cap = capture();
+
+    const code = await runInject(
+      { component: 'ousterhout', kind: 'skill', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    const skills = await listSkillDirs(home);
+    expect(skills).toEqual(['ousterhout']);
+    expect(skills).not.toContain('tigerstyle');
+
+    // Lockfile label is qualified `skill:<name>`.
+    const lock = await readLockfile(home);
+    expect(lock!.injected![0].component).toBe('skill:ousterhout');
+  });
+
+  it('--hook rtk-suggest emits exactly that hook', async () => {
+    const wardrobe = await mkWardrobePhilosophy();
+    const home = await mkdirT('suit-inject-home-');
+    const userDir = await mkdirT('suit-inject-user-');
+    const cap = capture();
+
+    const code = await runInject(
+      { component: 'rtk-suggest', kind: 'hook', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    // No skills emitted at all.
+    expect(await listSkillDirs(home)).toEqual([]);
+
+    // The hook landed in settings, and the lockfile label is qualified.
+    const settings = await fs.readFile(path.join(home, '.claude', 'settings.local.json'), 'utf8');
+    expect(settings).toMatch(/rtk-suggest|echo hi/);
+    const lock = await readLockfile(home);
+    expect(lock!.injected![0].component).toBe('hook:rtk-suggest');
+  });
+
+  it('non-existent skill → exit 1 with a clear message', async () => {
+    const wardrobe = await mkWardrobePhilosophy();
+    const home = await mkdirT('suit-inject-home-');
+    const userDir = await mkdirT('suit-inject-user-');
+    const cap = capture();
+
+    const code = await runInject(
+      { component: 'does-not-exist', kind: 'skill', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(1);
+    expect(cap.err.join('')).toMatch(/skill "does-not-exist" not found in wardrobe/);
+    expect(await readLockfile(home)).toBeNull();
+  });
+});
+
+async function fileExistsT(p: string): Promise<boolean> {
+  try {
+    await fs.stat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe('reloadDecision', () => {
   it('claude-code skill → not-required', () => {
