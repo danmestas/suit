@@ -10,6 +10,7 @@ import { runInit } from './lib/ac/init.js';
 import { runSync } from './lib/ac/sync.js';
 import { runStatus } from './lib/ac/status.js';
 import { runUp } from './lib/ac/up.js';
+import { runInject } from './lib/ac/inject.js';
 import { runOff } from './lib/ac/off.js';
 import { runCurrent } from './lib/ac/current.js';
 import { runPrepare, BUNDLE_METADATA_FILENAME } from './lib/ac/prepare.js';
@@ -139,6 +140,91 @@ function parseUpArgs(rest: string[]): UpArgs {
     }
   }
   return { outfit, cut, accessories, force, err };
+}
+
+interface InjectArgs {
+  component: string | null;
+  home: string | null;
+  from: string | null;
+  dryRun: boolean;
+  noReload: boolean;
+  force: boolean;
+  json: boolean;
+  /** Set when `--target` is passed — NATS discovery is a later increment. */
+  targetRequested: boolean;
+  err: string | null;
+}
+
+/**
+ * Parse `suit inject` args (increment 1).
+ *
+ * `--bundle` is an alias of `--accessory`: a bundle is just a named accessory
+ * whose include block lists components. `--target owner/session` (NATS
+ * discovery) is a LATER increment — recorded here so the dispatcher can exit 2
+ * with a "not yet implemented" message rather than silently ignoring it.
+ */
+function parseInjectArgs(rest: string[]): InjectArgs {
+  let component: string | null = null;
+  let home: string | null = null;
+  let from: string | null = null;
+  let dryRun = false;
+  let noReload = false;
+  let force = false;
+  let json = false;
+  let targetRequested = false;
+  let err: string | null = null;
+
+  function takeValue(i: number, eqValue: string | undefined): { value: string | null; next: number } {
+    if (eqValue !== undefined) return { value: eqValue, next: i };
+    const next = rest[i + 1];
+    if (next === undefined || next.startsWith('-')) return { value: null, next: i };
+    return { value: next, next: i + 1 };
+  }
+
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    let flag = arg;
+    let eqValue: string | undefined;
+    const eq = arg.indexOf('=');
+    if (arg.startsWith('--') && eq !== -1) {
+      flag = arg.slice(0, eq);
+      eqValue = arg.slice(eq + 1);
+    }
+    if (flag === '--accessory' || flag === '--bundle') {
+      const r = takeValue(i, eqValue);
+      if (r.value === null) { err = err ?? `suit inject: ${flag} requires a value`; continue; }
+      if (component !== null) { err = err ?? 'suit inject: only one component may be injected at a time'; continue; }
+      component = r.value;
+      i = r.next;
+    } else if (flag === '--home') {
+      const r = takeValue(i, eqValue);
+      if (r.value === null) { err = err ?? 'suit inject: --home requires a value'; continue; }
+      home = r.value;
+      i = r.next;
+    } else if (flag === '--from') {
+      const r = takeValue(i, eqValue);
+      if (r.value === null) { err = err ?? 'suit inject: --from requires a value'; continue; }
+      from = r.value;
+      i = r.next;
+    } else if (flag === '--target') {
+      // Parse-and-consume the value so it isn't flagged as unrecognized; the
+      // dispatcher rejects --target with a "not yet implemented" message.
+      targetRequested = true;
+      const r = takeValue(i, eqValue);
+      if (r.value !== null) i = r.next;
+    } else if (flag === '--dry-run') {
+      dryRun = true;
+    } else if (flag === '--no-reload') {
+      noReload = true;
+    } else if (flag === '--force') {
+      force = true;
+    } else if (flag === '--json') {
+      json = true;
+    } else {
+      err = err ?? `suit inject: unrecognized argument "${arg}"`;
+    }
+  }
+  return { component, home, from, dryRun, noReload, force, json, targetRequested, err };
 }
 
 interface PrepareArgs {
@@ -468,6 +554,42 @@ async function main(): Promise<number> {
         contentDir: paths.contentDir,
         userDir: paths.userOverlayDir,
         isTTY: process.stdin.isTTY === true,
+      },
+      {
+        stdout: (s) => process.stdout.write(s),
+        stderr: (s) => process.stderr.write(s),
+      },
+    );
+  }
+
+  if (cmd === 'inject') {
+    const parsed = parseInjectArgs(argv.slice(1));
+    if (parsed.err) {
+      process.stderr.write(`${parsed.err}\n`);
+      return 2;
+    }
+    if (parsed.targetRequested) {
+      process.stderr.write('suit inject: not yet implemented: use --home\n');
+      return 2;
+    }
+    if (parsed.component === null) {
+      process.stderr.write('suit inject: --accessory (or --bundle) <name> is required\n');
+      return 2;
+    }
+    // Home resolution (increment 1): --home > $CLAUDE_PROJECT_DIR > cwd.
+    const home = parsed.home ?? process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
+    // --from overrides the content dir; default = the same content dir up/prepare use.
+    const contentDir = parsed.from ?? paths.contentDir;
+    return runInject(
+      {
+        component: parsed.component,
+        home,
+        contentDir,
+        userDir: paths.userOverlayDir,
+        dryRun: parsed.dryRun,
+        noReload: parsed.noReload,
+        force: parsed.force,
+        json: parsed.json,
       },
       {
         stdout: (s) => process.stdout.write(s),

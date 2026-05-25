@@ -191,7 +191,14 @@ function dedupeByPath(files: PendingFile[]): PendingFile[] {
 }
 
 export interface ComposeBundleArgs {
-  outfit: string;
+  /**
+   * Outfit name, or `null` for an outfit-less composition. `suit up`/`suit
+   * prepare` always pass a real outfit; `suit inject` passes `null` because it
+   * composes a single accessory's include block with no base outfit. When null,
+   * no outfit lookup runs, no outfit body is injected into CLAUDE.md, and the
+   * resolver's identity short-circuit/accessory-only path handles resolution.
+   */
+  outfit: string | null;
   cut: string | null;
   accessories: string[];
   /** If null/empty, derive targets from the resolved outfit/cut/accessories union. */
@@ -208,8 +215,8 @@ export interface ComposeBundleDeps {
 
 export interface ComposeBundleResult {
   pending: PendingFile[];
-  outfitName: string;
-  resolution: { outfit: string; cut: string | null; accessories: string[] };
+  outfitName: string | null;
+  resolution: { outfit: string | null; cut: string | null; accessories: string[] };
   targets: Target[];
 }
 
@@ -231,8 +238,8 @@ export async function composeBundle(
     builtinDir: args.contentDir,
   };
 
-  const foundOutfit = await findOutfit(args.outfit, dirs);
-  const outfitManifest = foundOutfit.manifest;
+  const foundOutfit = args.outfit !== null ? await findOutfit(args.outfit, dirs) : null;
+  const outfitManifest = foundOutfit?.manifest;
 
   let cutManifest;
   let cutBody: string | undefined;
@@ -251,7 +258,7 @@ export async function composeBundle(
   const catalog = await discoverComponents(args.contentDir);
 
   const derivedTargets = unionTargets(
-    outfitManifest.targets,
+    outfitManifest?.targets ?? [],
     cutManifest?.targets,
     accessoryManifests.map((a) => a.targets),
   );
@@ -295,8 +302,19 @@ export async function composeBundle(
     f.path = projectPathRedirect(f.path);
   }
 
+  // Marker label for suit:outfit blocks. With a real outfit this is its name;
+  // for outfit-less composition (`suit inject`) fall back to the first
+  // accessory name so the block stays attributable, else a generic label.
+  const markerLabel = args.outfit ?? args.accessories[0] ?? 'inject';
+
   // Inject outfit body as additive .claude/CLAUDE.md (claude-code only).
-  if (targets.includes('claude-code') && foundOutfit.body.trim().length > 0) {
+  // Skipped entirely for outfit-less composition — there's no body to inject.
+  if (
+    args.outfit !== null &&
+    foundOutfit !== null &&
+    targets.includes('claude-code') &&
+    foundOutfit.body.trim().length > 0
+  ) {
     const blockContent = renderOutfitBlock(
       args.outfit,
       foundOutfit.body,
@@ -324,7 +342,7 @@ export async function composeBundle(
     const body = typeof f.content === 'string' ? f.content : f.content.toString('utf8');
     const trimmed = body.trim();
     if (trimmed.length === 0) continue;
-    const wrapped = `<!-- suit:outfit:${args.outfit} -->\n${trimmed}\n<!-- /suit:outfit:${args.outfit} -->`;
+    const wrapped = `<!-- suit:outfit:${markerLabel} -->\n${trimmed}\n<!-- /suit:outfit:${markerLabel} -->`;
     f.content = wrapped;
     f.lockMode = 'additive';
     f.sha256 = sha256OfBuffer(wrapped);
@@ -338,7 +356,7 @@ export async function composeBundle(
     pending,
     outfitName: args.outfit,
     resolution: {
-      outfit: outfitManifest.name,
+      outfit: outfitManifest?.name ?? null,
       cut: cutManifest?.name ?? null,
       accessories: accessoryManifests.map((a) => a.name),
     },
