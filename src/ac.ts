@@ -705,14 +705,39 @@ async function main(): Promise<number> {
   }
 
   if (cmd === 'off') {
+    // `suit off` defaults to the cwd project, but accepts `--project <dir>`
+    // (or `--home <dir>`, the alias `suit inject` uses) so an operator can tear
+    // down a lockfile — including its `injected` list — at an inject target
+    // that isn't the cwd. `--keep-injected` removes only the up-applied files
+    // and preserves the injected components.
     const rest = argv.slice(1);
+    let projectDir = dirs.projectDir;
     let force = false;
+    let keepInjected = false;
     let err: string | null = null;
-    for (const a of rest) {
-      if (a === '--force') {
+    for (let i = 0; i < rest.length; i++) {
+      const arg = rest[i];
+      let flag = arg;
+      let eqValue: string | undefined;
+      const eq = arg.indexOf('=');
+      if (arg.startsWith('--') && eq !== -1) {
+        flag = arg.slice(0, eq);
+        eqValue = arg.slice(eq + 1);
+      }
+      if (flag === '--force') {
         force = true;
+      } else if (flag === '--keep-injected') {
+        keepInjected = true;
+      } else if (flag === '--project' || flag === '--home') {
+        const value = eqValue ?? rest[i + 1];
+        if (value === undefined || value.startsWith('-')) {
+          err = err ?? `suit off: ${flag} requires a value`;
+          continue;
+        }
+        projectDir = path.resolve(value);
+        if (eqValue === undefined) i += 1;
       } else {
-        err = err ?? `suit off: unrecognized argument "${a}"`;
+        err = err ?? `suit off: unrecognized argument "${arg}"`;
       }
     }
     if (err) {
@@ -720,7 +745,7 @@ async function main(): Promise<number> {
       return 2;
     }
     return runOff(
-      { projectDir: dirs.projectDir, force },
+      { projectDir, force, keepInjected },
       {
         stdout: (s) => process.stdout.write(s),
         stderr: (s) => process.stderr.write(s),
