@@ -4,8 +4,9 @@ export function helpText(): string {
 USAGE
   suit <harness> [--outfit X] [--fit F] [--cut Y] [--accessory A]... [--no-filter] [-- <harness args>]
   suit up --outfit <name> [--fit <name>] [--cut <name>] [--accessory <name>]... [--force]
-  suit off [--force]
-  suit current
+  suit off [--force] [--keep-injected] [--project <path>]
+  suit current [--project <path>]
+  suit inject (--accessory|--bundle|--skill|--hook) <name> [--home <path>] [--from <path>] [--dry-run] [--no-reload] [--force] [--json]
   suit prepare --outfit <name> --target <name> [--fit <name>] [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>] [--shape project|sidecar] [--project <path>]
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
@@ -79,6 +80,17 @@ EXAMPLES
   # gap in the project-shape recipe.
   BUNDLE=\$(suit prepare --shape sidecar --outfit backend --target claude --project ~/projects/foo --quiet)
   exec "\$BUNDLE/launch"
+
+  # 'inject' materializes a single component into a harness home so an
+  # already-running worker can pick it up — scoped to exactly the named
+  # component(s), idempotent, refuse-when-dirty. --home defaults to
+  # \$CLAUDE_PROJECT_DIR then cwd, so a hook can self-inject with no --home.
+  # Reload: claude-code file-watches skills/hooks (next turn); other harnesses
+  # load on restart — 'reload:' in the output says which.
+  suit inject --skill release-watch --home ~/projects/foo
+  suit inject --accessory philosophy --home ~/projects/foo
+  suit inject --hook rtk-suggest                       # self-inject into cwd/\$CLAUDE_PROJECT_DIR
+  # 'suit off' removes injected files too; 'suit off --keep-injected' keeps them.
 
 See https://github.com/danmestas/suit for full docs.
 `;

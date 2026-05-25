@@ -71,6 +71,32 @@ suit sync                       # pull latest from your content repo
 
 For the deeper walkthrough — content tier resolution, authoring, refuse-when-dirty semantics, drift detection — see [USAGE.md](docs/USAGE.md).
 
+## Runtime injection (`suit inject`)
+
+`suit inject` materializes a single wardrobe component into a harness home so a worker that's already running can pick it up — without restarting it. Where `suit up` dresses a whole project, `suit inject` adds one component to an existing harness home.
+
+```bash
+# Add one skill / hook / accessory to a harness home:
+suit inject --skill release-watch  --home ~/projects/foo
+suit inject --hook  rtk-suggest    --home ~/projects/foo
+suit inject --accessory philosophy --home ~/projects/foo   # the accessory's declared components only
+
+# --home defaults to $CLAUDE_PROJECT_DIR, else the cwd — so a hook running
+# inside a worker can self-inject with no flag:
+suit inject --skill release-watch
+```
+
+Exactly one of `--accessory` / `--bundle` / `--skill` / `--hook` is required. Injection is **scoped** — only the named component(s) are written, never the whole wardrobe. It's **idempotent** (re-injecting an unchanged component is a no-op) and **refuses to clobber** a hand-edited target unless `--force`.
+
+Reload semantics differ by harness, and `suit inject` reports which applies (`reload: not-required | restart-required`):
+
+- **claude-code** — standalone skills, hooks, and rules are file-watched, so an injected component loads on the worker's **next turn** with no reload command.
+- **codex / gemini / pi** (and plugin/MCP kinds on any harness) — the component lands on disk and loads on **restart**.
+
+Injected components are recorded in `.suit/lock.json` under a distinct `injected` list, so `suit current` shows them and `suit off` removes them. `suit off --keep-injected` tears down the `up`-applied dressing but leaves injected components in place.
+
+> Injecting into a *remote* worker by name (`--target <owner>/<session>`, over the agent mesh) is on the roadmap. Today `suit inject` targets a local harness home via `--home`.
+
 ## Local content repo (point suit at a checkout)
 
 If you're maintaining a content repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
