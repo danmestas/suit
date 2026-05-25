@@ -4,6 +4,18 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `suit inject` — materialize a single wardrobe component into a harness home so an already-running worker can pick it up without restarting. Supports `--accessory`/`--bundle <name>` (the accessory's declared `include` components) and `--skill`/`--hook <name>` (one bare component); exactly one kind is required. Emission is **scoped** to exactly the named component(s), **idempotent** (re-injecting unchanged content is a no-op), and **refuses to clobber** hand-edited targets unless `--force`. Target home resolves from `--home <dir>`, else `$CLAUDE_PROJECT_DIR`, else the cwd — so a worker's own hook can self-inject with no flag. Injected components are recorded in `.suit/lock.json` under a distinct `injected` list. A per-harness **reload decision** is reported (`reload: not-required` for claude-code file-watched kinds, `restart-required` for codex/gemini/pi and plugin/MCP kinds); no reload signal is fired yet. `--from <path>` overrides the content source; `--dry-run`, `--no-reload`, and `--json` are supported.
+- `suit off --keep-injected` — tear down the `up`-applied dressing but preserve injected components, rewriting the lockfile rather than deleting it.
+- `suit off` and `suit current` now accept `--project`/`--home <dir>` to operate on a lockfile outside the current working directory.
+
+### Fixed
+
+- `suit off` now removes `suit inject`-applied files (previously it deleted the lockfile while orphaning injected files on disk — fatal for an inject-only lockfile created when a worker was launched via stateless `prepare`).
+
 ## [0.15.0] — 2026-05-14
 
 Two composition-axis extensions driven by the [danmestas/wardrobe](https://github.com/danmestas/wardrobe) seniority-tier and universal-tooling work.
