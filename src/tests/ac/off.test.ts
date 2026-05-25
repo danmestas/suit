@@ -317,3 +317,288 @@ describe('runOff — .suit/ dir cleanup', () => {
     expect(await fileExists(path.join(proj, '.suit', 'project-overlay.md'))).toBe(true);
   });
 });
+
+// --- injected component removal (slice e/4) -------------------------------
+
+/** Marker-wrapped additive block, mirroring writer.ts's SUIT_BLOCK shape. */
+function additiveBlock(name: string, body: string): string {
+  return `<!-- suit:outfit:${name} -->\n${body}\n<!-- /suit:outfit:${name} -->`;
+}
+
+describe('runOff — injected file removal (both up + injected)', () => {
+  it('removes up files AND injected files, then deletes the lockfile', async () => {
+    const proj = await mkProject();
+    const up1 = await plant(proj, '.claude/CLAUDE.md', '# up\n');
+    const inj1 = await plant(proj, '.claude/skills/phil/SKILL.md', 'phil body\n', 'skills/phil');
+    const inj2 = await plant(proj, '.claude/skills/norm/SKILL.md', 'norm body\n', 'skills/norm');
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
+      files: [up1],
+      injected: [
+        {
+          component: 'philosophy',
+          injectedAt: new Date().toISOString(),
+          files: [inj1, inj2],
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    expect(await fileExists(path.join(proj, up1.path))).toBe(false);
+    expect(await fileExists(path.join(proj, inj1.path))).toBe(false);
+    expect(await fileExists(path.join(proj, inj2.path))).toBe(false);
+    expect(await readLockfile(proj)).toBeNull();
+
+    const out = cap.out.join('');
+    expect(out).toMatch(/Removed 3 files/);
+    expect(out).toMatch(/Removed 2 injected file\(s\) \(1 component\(s\)\)/);
+    expect(out).toMatch(/Removed lockfile:/);
+  });
+});
+
+describe('runOff — inject-only lockfile (the orphan bug)', () => {
+  it('removes injected files and deletes the lockfile when files:[]', async () => {
+    const proj = await mkProject();
+    const inj1 = await plant(proj, '.claude/skills/a/SKILL.md', 'a\n', 'skills/a');
+    const inj2 = await plant(proj, '.claude/skills/b/SKILL.md', 'b\n', 'skills/b');
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: null, cut: null, accessories: [] },
+      files: [],
+      injected: [
+        {
+          component: 'philosophy',
+          injectedAt: new Date().toISOString(),
+          files: [inj1, inj2],
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    // Injected files gone (no longer orphaned).
+    expect(await fileExists(path.join(proj, inj1.path))).toBe(false);
+    expect(await fileExists(path.join(proj, inj2.path))).toBe(false);
+    // Lockfile gone.
+    expect(await readLockfile(proj)).toBeNull();
+    expect(await fileExists(path.join(proj, '.suit'))).toBe(false);
+
+    const out = cap.out.join('');
+    expect(out).toMatch(/Removed 2 injected file\(s\) \(1 component\(s\)\)/);
+  });
+});
+
+describe('runOff — drift on an injected file', () => {
+  it('refuses without --force, lists the injected drift, then removes under --force', async () => {
+    const proj = await mkProject();
+    const inj1 = await plant(proj, '.claude/skills/a/SKILL.md', 'a-original\n', 'skills/a');
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: null, cut: null, accessories: [] },
+      files: [],
+      injected: [
+        {
+          component: 'philosophy',
+          injectedAt: new Date().toISOString(),
+          files: [inj1],
+        },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    // Hand-edit the injected file.
+    await fs.writeFile(path.join(proj, inj1.path), 'a-edited\n');
+
+    // Non-force: refuse, list it the same as an up drift.
+    const cap1 = capture();
+    const code1 = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap1.push, stderr: cap1.pushE },
+    );
+    expect(code1).toBe(1);
+    const err = cap1.err.join('');
+    expect(err).toMatch(/hand-edited since suit applied it: \.claude\/skills\/a\/SKILL\.md/);
+    expect(err).toMatch(/refusing to delete 1 hand-edited file/);
+    expect(await fileExists(path.join(proj, inj1.path))).toBe(true);
+    expect(await readLockfile(proj)).not.toBeNull();
+
+    // Force: remove anyway, report as forcedDrift.
+    const cap2 = capture();
+    const code2 = await runOff(
+      { projectDir: proj, force: true },
+      { stdout: cap2.push, stderr: cap2.pushE },
+    );
+    expect(code2).toBe(0);
+    expect(await fileExists(path.join(proj, inj1.path))).toBe(false);
+    expect(await readLockfile(proj)).toBeNull();
+    const out = cap2.out.join('');
+    expect(out).toMatch(/Force-deleted 1 hand-edited file:/);
+    expect(out).toMatch(/\.claude\/skills\/a\/SKILL\.md/);
+  });
+});
+
+describe('runOff — additive injected file', () => {
+  it('strips just the marker block, preserving surrounding user content', async () => {
+    const proj = await mkProject();
+    const block = additiveBlock('philosophy', 'INJECTED LINE');
+    const userBefore = '# my notes\n\n';
+    const userAfter = '\n\n# more notes\n';
+    const full = path.join(proj, '.claude/CLAUDE.md');
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, userBefore + block + userAfter);
+
+    const inj1 = {
+      path: '.claude/CLAUDE.md',
+      sha256: sha256OfBuffer(block),
+      sourceComponent: 'accessories/philosophy',
+      mode: 'additive' as const,
+    };
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: null, cut: null, accessories: [] },
+      files: [],
+      injected: [
+        { component: 'philosophy', injectedAt: new Date().toISOString(), files: [inj1] },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+    expect(cap.err.join('')).toBe('');
+
+    // File survives, block gone, user content kept.
+    expect(await fileExists(full)).toBe(true);
+    const remaining = await fs.readFile(full, 'utf8');
+    expect(remaining).not.toMatch(/INJECTED LINE/);
+    expect(remaining).toMatch(/my notes/);
+    expect(remaining).toMatch(/more notes/);
+  });
+
+  it('deletes the host file when the additive injected block was its only content', async () => {
+    const proj = await mkProject();
+    const block = additiveBlock('philosophy', 'ONLY CONTENT');
+    const full = path.join(proj, '.claude/skills/x/SKILL.md');
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, block);
+
+    const inj1 = {
+      path: '.claude/skills/x/SKILL.md',
+      sha256: sha256OfBuffer(block),
+      sourceComponent: 'skills/x',
+      mode: 'additive' as const,
+    };
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: null, cut: null, accessories: [] },
+      files: [],
+      injected: [
+        { component: 'philosophy', injectedAt: new Date().toISOString(), files: [inj1] },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+    expect(await fileExists(full)).toBe(false);
+    expect(await fileExists(path.join(proj, '.claude/skills/x'))).toBe(false);
+  });
+});
+
+describe('runOff --keep-injected', () => {
+  it('removes up files, keeps injected files, and rewrites the lockfile', async () => {
+    const proj = await mkProject();
+    const up1 = await plant(proj, '.claude/CLAUDE.md', '# up\n');
+    const inj1 = await plant(proj, '.claude/skills/a/SKILL.md', 'a\n', 'skills/a');
+    const inj2 = await plant(proj, '.claude/skills/b/SKILL.md', 'b\n', 'skills/b');
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: 'backend', fit: 'go', cut: 'executing', accessories: ['pr-policy'] },
+      files: [up1],
+      injected: [
+        { component: 'philosophy', injectedAt: new Date().toISOString(), files: [inj1, inj2] },
+      ],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false, keepInjected: true },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+
+    // Up file gone.
+    expect(await fileExists(path.join(proj, up1.path))).toBe(false);
+    // Injected files survive.
+    expect(await fileExists(path.join(proj, inj1.path))).toBe(true);
+    expect(await fileExists(path.join(proj, inj2.path))).toBe(true);
+
+    // Lockfile retained, rewritten: files cleared, resolution reset, injected kept.
+    const after = await readLockfile(proj);
+    expect(after).not.toBeNull();
+    expect(after!.files).toEqual([]);
+    expect(after!.resolution.outfit).toBeNull();
+    expect(after!.resolution.cut).toBeNull();
+    expect(after!.resolution.accessories).toEqual([]);
+    expect(after!.injected).toHaveLength(1);
+    expect(after!.injected![0].files).toHaveLength(2);
+
+    const out = cap.out.join('');
+    expect(out).toMatch(/Kept 2 injected file\(s\) \(1 component\(s\)\); lockfile retained/);
+    expect(out).not.toMatch(/Removed lockfile:/);
+  });
+
+  it('behaves like a full off (deletes lockfile) when there are no injected entries', async () => {
+    const proj = await mkProject();
+    const up1 = await plant(proj, '.claude/CLAUDE.md', '# up\n');
+    const lock: Lockfile = {
+      schemaVersion: 1,
+      appliedAt: new Date().toISOString(),
+      resolution: { outfit: 'backend', cut: null, accessories: [] },
+      files: [up1],
+    };
+    await writeLockfile(proj, lock);
+
+    const cap = capture();
+    const code = await runOff(
+      { projectDir: proj, force: false, keepInjected: true },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+    expect(code).toBe(0);
+    expect(await fileExists(path.join(proj, up1.path))).toBe(false);
+    expect(await readLockfile(proj)).toBeNull();
+    expect(cap.out.join('')).toMatch(/Removed lockfile:/);
+  });
+});
