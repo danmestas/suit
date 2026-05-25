@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { OutfitSchema } from '../lib/schema.ts';
-import { findOutfit } from '../lib/outfit.ts';
+import { findOutfit, listAllOutfits } from '../lib/outfit.ts';
 
 describe('OutfitSchema', () => {
   it('accepts a minimal valid outfit', () => {
@@ -94,6 +94,46 @@ describe('OutfitSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts an include block with hooks and agents (parity with cut/accessory)', () => {
+    const result = OutfitSchema.safeParse({
+      name: 'orchestrator',
+      version: '0.1.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['workflow'],
+      include: {
+        hooks: ['rtk-suggest', 'rtk-rewrite'],
+        agents: ['rtk-testing-specialist'],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.include.hooks).toEqual(['rtk-suggest', 'rtk-rewrite']);
+      expect(result.data.include.agents).toEqual(['rtk-testing-specialist']);
+      // sub-arrays the author omitted still default to empty.
+      expect(result.data.include.skills).toEqual([]);
+    }
+  });
+
+  it('defaults include to all-empty arrays when omitted (back-compat)', () => {
+    const result = OutfitSchema.parse({
+      name: 'backend',
+      version: '1.0.0',
+      type: 'outfit',
+      description: 'x',
+      targets: ['claude-code'],
+      categories: ['tooling'],
+    });
+    expect(result.include).toEqual({
+      skills: [],
+      rules: [],
+      hooks: [],
+      agents: [],
+      commands: [],
+    });
+  });
 });
 
 describe('findOutfit (3-tier discovery)', () => {
@@ -177,6 +217,66 @@ categories: [tooling]
     await expect(
       findOutfit('nope', { projectDir: '/nonexistent', userDir, builtinDir: '/nonexistent' }),
     ).rejects.toThrow(/one/);
+  });
+});
+
+describe('listAllOutfits (regression: include-bearing outfits must enumerate)', () => {
+  // Mirrors the builtin tier on-disk layout (<builtinDir>/outfits/<name>/outfit.md)
+  // where every wardrobe outfit carries an `include:` block. Before the schema
+  // gained an `include` field, OutfitSchema.safeParse rejected these as
+  // unrecognized keys and the loader silently skipped all of them — producing
+  // "(no outfits found)" despite the dirs being present.
+  async function writeBuiltinOutfit(builtinDir: string, name: string) {
+    const dir = path.join(builtinDir, 'outfits', name);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, 'outfit.md'),
+      `---
+name: ${name}
+version: 0.1.0
+type: outfit
+description: ${name} role
+targets: [claude-code, codex, gemini, pi]
+categories: [workflow]
+skill_include:
+  - dispatching-parallel-agents
+include:
+  hooks:
+    - rtk-suggest
+    - rtk-rewrite
+  agents:
+    - rtk-testing-specialist
+---
+
+# ${name} body
+`,
+    );
+  }
+
+  it('enumerates builtin outfits that carry an include block', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-builtin-'));
+    await writeBuiltinOutfit(builtinDir, 'orchestrator');
+    await writeBuiltinOutfit(builtinDir, 'engineer');
+    const found = await listAllOutfits({
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+    });
+    expect(found.map((f) => f.manifest.name)).toEqual(['engineer', 'orchestrator']);
+    expect(found.every((f) => f.source === 'builtin')).toBe(true);
+  });
+
+  it('findOutfit returns the body of an include-bearing builtin outfit', async () => {
+    const builtinDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ac-builtin-'));
+    await writeBuiltinOutfit(builtinDir, 'orchestrator');
+    const result = await findOutfit('orchestrator', {
+      projectDir: '/nonexistent',
+      userDir: '/nonexistent',
+      builtinDir,
+    });
+    expect(result.manifest.name).toBe('orchestrator');
+    expect(result.manifest.include.hooks).toContain('rtk-suggest');
+    expect(result.body).toContain('# orchestrator body');
   });
 });
 

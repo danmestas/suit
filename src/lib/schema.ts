@@ -87,10 +87,15 @@ const ManifestBaseSchema = z
   })
   .strict();
 
-// Reusable include-block sub-schema. Both CutSchema and AccessorySchema embed
-// this same shape so a cut can declare structured component bundles
-// alongside (or instead of) its body-only prompt overlay. Defaults to all-empty
-// arrays so authors only need to declare keys they care about.
+// Reusable include-block sub-schema. OutfitSchema, CutSchema, and AccessorySchema
+// all embed this same shape so a composition primitive can declare structured
+// component bundles (skills/rules/hooks/agents/commands) alongside (or instead
+// of) its body-only prompt overlay. Defaults to all-empty arrays so authors only
+// need to declare keys they care about. Outfits use it chiefly for hooks/agents
+// that `skill_include` cannot express; per-skill rescue still flows through
+// `skill_include` / `compose`, and resolver force-include of an outfit's include
+// block remains the deferred phase (cut/accessory include behaves the same way
+// today — only `.skills` is consumed by the force-include drop rescue).
 const IncludeBlockSchema = z
   .object({
     skills: z.array(z.string()).default([]),
@@ -147,6 +152,11 @@ export const OutfitSchema = ManifestBaseSchema.extend({
   // a selector over skills' freeform `tags` array. Defaults to empty so
   // pre-v0.10 outfits round-trip unchanged.
   compose: z.array(z.string()).default([]),
+  // v0.7+ composition: structured include block, same shape cuts/accessories
+  // carry. Wardrobe outfits use it to force-include hooks/agents that
+  // `skill_include` cannot name. Defaults to all-empty so pre-include outfits
+  // round-trip unchanged.
+  include: IncludeBlockSchema,
   enable: EnableDisableBlockSchema,
   disable: EnableDisableBlockSchema,
   permissions: PermissionsBlockSchema.optional(),
