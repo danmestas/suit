@@ -3,6 +3,7 @@ import { runAcSession, type AcSessionDeps } from './session.js';
 export interface ParsedAcArgs {
   harness: string;
   outfit?: string;
+  fit?: string;
   cut?: string;
   /**
    * Names of accessories the user passed via repeated `--accessory <name>`
@@ -52,6 +53,18 @@ export function parseAcArgs(argv: string[]): ParsedAcArgs {
         throw new Error('ac: --cut requires a value');
       }
       out.cut = v;
+      i += 2;
+      continue;
+    }
+    if (tok === '--fit') {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith('--')) {
+        throw new Error('ac: --fit requires a value');
+      }
+      if (out.fit !== undefined) {
+        throw new Error('ac: --fit passed multiple times (singleton)');
+      }
+      out.fit = v;
       i += 2;
       continue;
     }

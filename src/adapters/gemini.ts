@@ -52,9 +52,10 @@ export const geminiAdapter: Adapter = {
       case 'outfit':
         return emitOutfit(component);
       case 'cut':
+      case 'fit':
       case 'accessory':
-        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
-        // resolution time. Outfits, however, may carry a `permissions:` block
+        // Cuts, fits, and accessories remain harness-agnostic, consumed by `ac`
+        // at resolution time. Outfits, however, may carry a `permissions:` block
         // that emits .gemini/settings.fragment.json (see emitOutfit).
         return [];
       // agent and plugin are schema-rejected by validate.ts (compatibility matrix).

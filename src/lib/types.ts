@@ -1,4 +1,4 @@
-export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'cut', 'accessory'] as const;
+export const COMPONENT_TYPES = ['skill', 'plugin', 'hook', 'agent', 'rules', 'mcp', 'outfit', 'cut', 'accessory', 'fit'] as const;
 export type ComponentType = typeof COMPONENT_TYPES[number];
 
 export const TARGETS = ['claude-code', 'codex', 'gemini', 'pi'] as const;

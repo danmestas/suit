@@ -774,6 +774,229 @@ describe('skillsKeepFromResolution', () => {
   });
 });
 
+// ─── resolve — outfit include block (issue #62) ───────────────────────────
+//
+// Outfits now accept an optional `include:` block with hooks/agents/commands/
+// rules (no `skills` — that stays on `skill_include`). These tests cover:
+//   • back-compat (existing outfits without `include` still resolve)
+//   • happy-path (each sub-array individually + combined)
+//   • catalog-miss errors point at "outfit" not "cut" or "accessory"
+//   • outfit-include + cut-include naming the same component dedups by name
+describe('resolve — outfit include block (issue #62)', () => {
+  // Mirrors `catalogWithExtras` from the cut-include tests so an outfit include
+  // can reference real rules/hooks/agents.
+  const catalogWithExtras = (): ComponentSource[] => [
+    skill('a', 'tooling'),
+    skill('b', 'workflow'),
+    {
+      relativeDir: 'rules/pr-policy',
+      dir: '/tmp/rules/pr-policy',
+      body: '',
+      manifest: {
+        name: 'pr-policy',
+        version: '1.0.0',
+        type: 'rules',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+    {
+      relativeDir: 'hooks/rtk-suggest',
+      dir: '/tmp/hooks/rtk-suggest',
+      body: '',
+      manifest: {
+        name: 'rtk-suggest',
+        version: '1.0.0',
+        type: 'hook',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+    {
+      relativeDir: 'agents/rtk-rust-expert',
+      dir: '/tmp/agents/rtk-rust-expert',
+      body: '',
+      manifest: {
+        name: 'rtk-rust-expert',
+        version: '1.0.0',
+        type: 'agent',
+        description: '',
+        targets: ['claude-code'],
+      } as any,
+    },
+  ];
+
+  // Build a fixture outfit that mirrors what OutfitSchema.parse emits.
+  // The include block defaults match `OutfitIncludeBlockSchema` — no `skills`
+  // key, since the schema rejects that at parse time.
+  const outfitWithInclude = (
+    name: string,
+    categories: string[],
+    include: Partial<{
+      rules: string[];
+      hooks: string[];
+      agents: string[];
+      commands: string[];
+    }>,
+  ) => ({
+    name,
+    version: '1.0.0',
+    type: 'outfit' as const,
+    description: '',
+    targets: ['claude-code'],
+    categories,
+    skill_include: [],
+    skill_exclude: [],
+    include: {
+      rules: [],
+      hooks: [],
+      agents: [],
+      commands: [],
+      ...include,
+    },
+    enable: { plugins: [], mcps: [], hooks: [] },
+    disable: { plugins: [], mcps: [], hooks: [] },
+  } as any);
+
+  it('outfit without include block resolves identically to before (back-compat)', () => {
+    // No include block — same shape as every existing wardrobe outfit.
+    const catalog = catalogWithExtras();
+    const outfit = {
+      name: 'backend',
+      type: 'outfit',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+    } as any;
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.skillsDrop).toContain('b');
+    expect(r.skillsDrop).not.toContain('a');
+    expect(r.metadata.outfit).toBe('backend');
+  });
+
+  it('accepts an outfit include block with hooks alone', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], { hooks: ['rtk-suggest'] });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+  });
+
+  it('accepts an outfit include block with agents alone', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], { agents: ['rtk-rust-expert'] });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+  });
+
+  it('accepts an outfit include block with rules alone', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], { rules: ['pr-policy'] });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+  });
+
+  it('accepts an outfit include block with commands alone (no catalog validation today)', () => {
+    // Commands has no first-class component type yet, mirroring cut/accessory
+    // semantics — `validateIncludes` accepts any name without checking the
+    // catalog. When a `command` type lands, this test will need updating.
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], {
+      commands: ['hypothetical-future-command'],
+    });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+  });
+
+  it('accepts an outfit include with hooks/agents/commands/rules combined', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], {
+      hooks: ['rtk-suggest'],
+      agents: ['rtk-rust-expert'],
+      rules: ['pr-policy'],
+      commands: ['c'],
+    });
+    const r = resolve({ catalog, outfit, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+  });
+
+  it('throws on a missing hook reference in outfit include (error says "outfit")', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('code', ['tooling'], { hooks: ['no-such-hook'] });
+    expect(() => resolve({ catalog, outfit, harness: 'claude-code' })).toThrow(
+      /outfit "code" includes hook "no-such-hook" not found in wardrobe/,
+    );
+  });
+
+  it('throws on a missing agent reference in outfit include', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('code', ['tooling'], { agents: ['no-such-agent'] });
+    expect(() => resolve({ catalog, outfit, harness: 'claude-code' })).toThrow(
+      /outfit "code" includes agent "no-such-agent" not found in wardrobe/,
+    );
+  });
+
+  it('throws on a missing rule reference in outfit include', () => {
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('code', ['tooling'], { rules: ['no-such-rule'] });
+    expect(() => resolve({ catalog, outfit, harness: 'claude-code' })).toThrow(
+      /outfit "code" includes rule "no-such-rule" not found in wardrobe/,
+    );
+  });
+
+  it('outfit and cut both reference the same hook → resolved metadata reflects both', () => {
+    // Both layers list `rtk-suggest`. Hooks emit unconditionally for any
+    // target in their `targets:` list — they don't pass through the skills
+    // drop set — so the kept set already contains the hook exactly once
+    // (compose.ts dedupeByPath collapses identical emitted files). This test
+    // locks in that the validator accepts the same name on both layers
+    // without error, and the resolution metadata records both layers.
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('o', ['tooling'], { hooks: ['rtk-suggest'] });
+    const cut = {
+      name: 'm',
+      type: 'cut',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+      include: {
+        skills: [],
+        rules: [],
+        hooks: ['rtk-suggest'],
+        agents: [],
+        commands: [],
+      },
+    } as any;
+    const r = resolve({ catalog, outfit, cut, harness: 'claude-code' });
+    expect(r.metadata.outfit).toBe('o');
+    expect(r.metadata.cut).toBe('m');
+  });
+
+  it('outfit include validation runs before cut include validation', () => {
+    // Outfit-first ordering means the outfit-include error surfaces first,
+    // letting authors fix the higher-precedence layer before chasing
+    // downstream errors. Same ordering used by cut/accessory today.
+    const catalog = catalogWithExtras();
+    const outfit = outfitWithInclude('bad-outfit', ['tooling'], { hooks: ['nope'] });
+    const cut = {
+      name: 'bad-cut',
+      type: 'cut',
+      categories: ['tooling'],
+      skill_include: [],
+      skill_exclude: [],
+      include: {
+        skills: [],
+        rules: [],
+        hooks: ['also-nope'],
+        agents: [],
+        commands: [],
+      },
+    } as any;
+    expect(() => resolve({ catalog, outfit, cut, harness: 'claude-code' })).toThrow(
+      /outfit "bad-outfit"/,
+    );
+  });
+});
+
 // ─── globals filtering (Phase D, v0.7) ─────────────────────────────────────
 //
 // These tests assert the layered enable/disable semantics over a globals.yaml

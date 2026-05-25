@@ -35,9 +35,10 @@ export const claudeCodeAdapter: Adapter = {
       case 'outfit':
         return emitOutfit(component);
       case 'cut':
+      case 'fit':
       case 'accessory':
-        // Cuts and accessories remain harness-agnostic, consumed by `ac` at
-        // resolution time. Outfits, however, may carry a `permissions:` block
+        // Cuts, fits, and accessories remain harness-agnostic, consumed by `ac`
+        // at resolution time. Outfits, however, may carry a `permissions:` block
         // that emits per-target permission config (see emitOutfit).
         return [];
       default:

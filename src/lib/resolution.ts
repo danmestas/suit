@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { ComponentSource, Target } from './types.js';
-import type { OutfitManifest, CutManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
+import type { OutfitManifest, CutManifest, FitManifest, AccessoryManifest, EnableDisableBlock } from './schema.js';
 import type { GlobalsRegistry } from './globals-schema.js';
 import { entryHarness } from './globals-schema.js';
 import { loadHarnessCatalog } from './ac/harness-catalog.js';
@@ -21,6 +21,7 @@ export interface Resolution {
   cutPrompt: string;
   metadata: {
     outfit: string | null;
+    fit: string | null;
     cut: string | null;
     accessories: string[];
     categories: string[];
@@ -31,10 +32,18 @@ export interface Resolution {
 export interface ResolveOptions {
   catalog: ComponentSource[];
   outfit?: OutfitManifest;
+  /**
+   * Fit — seniority-tier overlay. Layers between outfit and cut for prose
+   * unioning (outfit → fit → cut → accessory). Set algebra for
+   * skills/agents/hooks is order-independent.
+   */
+  fit?: FitManifest;
   cut?: CutManifest;
   accessories?: AccessoryManifest[];
   /** Cut body string (the markdown body of the cut component, used as prompt scaffolding). */
   cutBody?: string;
+  /** Fit body string (the markdown body of the fit component, used as prompt scaffolding). */
+  fitBody?: string;
   harness: Target;
   /**
    * v0.7+: per-machine globals registry. When provided, `enable:` / `disable:`
@@ -83,7 +92,7 @@ type IncludeBlock = {
  * differently from an accessory-include miss without forking the validator.
  */
 function validateIncludes(
-  speaker: 'cut' | 'accessory',
+  speaker: 'cut' | 'fit' | 'outfit' | 'accessory',
   ownerName: string,
   inc: IncludeBlock,
   catalog: ComponentSource[],
@@ -211,12 +220,12 @@ function resolveGlobalsKind(
 }
 
 /**
- * Composing manifests — the three primitives that participate in the
- * outfit/cut/accessory layering. Each carries `enable` and `disable` blocks per
- * ADR-0014. Skills, hooks, rules, agents, commands, plugins, and mcps don't
+ * Composing manifests — the four primitives that participate in the
+ * outfit/fit/cut/accessory layering. Each carries `enable` and `disable` blocks
+ * per ADR-0014. Skills, hooks, rules, agents, commands, plugins, and mcps don't
  * compose at this level so they're excluded.
  */
-type ComposingManifest = OutfitManifest | CutManifest | AccessoryManifest;
+type ComposingManifest = OutfitManifest | FitManifest | CutManifest | AccessoryManifest;
 
 interface GlobalsLayer {
   ownerLabel: string;
@@ -247,6 +256,7 @@ function makeGlobalsLayer(label: string, m: ComposingManifest): GlobalsLayer {
 function computeGlobalsMetadata(
   globals: GlobalsRegistry,
   outfit: OutfitManifest | undefined,
+  fit: FitManifest | undefined,
   cut: CutManifest | undefined,
   accessories: AccessoryManifest[],
   harness: Target,
@@ -256,8 +266,13 @@ function computeGlobalsMetadata(
     harness === 'claude-code' ? 'claude-code' : harness === 'codex' ? 'codex' : undefined;
   if (harnessFilter === undefined) return emptyGlobalsMetadata();
 
+  // Layer order matters for prose unioning (outfit → fit → cut → accessory).
+  // For set-algebra globals layering, later layers can override earlier
+  // disable/enable directives. The fit layer is inserted between outfit and
+  // cut to match the precedence in ADR-0014.
   const layers: GlobalsLayer[] = [];
   if (outfit) layers.push(makeGlobalsLayer(`outfit "${outfit.name}"`, outfit));
+  if (fit) layers.push(makeGlobalsLayer(`fit "${fit.name}"`, fit));
   if (cut) layers.push(makeGlobalsLayer(`cut "${cut.name}"`, cut));
   for (const acc of accessories) {
     layers.push(makeGlobalsLayer(`accessory "${acc.name}"`, acc));
@@ -271,20 +286,27 @@ function computeGlobalsMetadata(
 }
 
 /**
- * Compute the effective category set: intersection when both outfit and cut
- * declare categories, single set when only one does, null when neither.
+ * Compute the effective category set: progressive intersection across every
+ * layer that declares non-empty categories. Layers with empty categories
+ * arrays don't narrow the set — that's the "no opinion" case for a fit/cut.
+ * Returns null when no layer declares any categories.
  */
 function computeEffectiveCategories(
   outfit: OutfitManifest | undefined,
+  fit: FitManifest | undefined,
   cut: CutManifest | undefined,
 ): Set<string> | null {
-  if (outfit && cut) {
-    const p = new Set(outfit.categories);
-    return new Set(cut.categories.filter((c) => p.has(c)));
+  const declared: Array<Set<string>> = [];
+  if (outfit && outfit.categories.length > 0) declared.push(new Set(outfit.categories));
+  if (fit && fit.categories.length > 0) declared.push(new Set(fit.categories));
+  if (cut && cut.categories.length > 0) declared.push(new Set(cut.categories));
+  if (declared.length === 0) return null;
+  let acc = declared[0]!;
+  for (let i = 1; i < declared.length; i++) {
+    const next = declared[i]!;
+    acc = new Set([...acc].filter((c) => next.has(c)));
   }
-  if (outfit) return new Set(outfit.categories);
-  if (cut) return new Set(cut.categories);
-  return null;
+  return acc;
 }
 
 /**
@@ -367,6 +389,7 @@ function resolveComposeOperators(
 function computeSkillsDrop(
   catalog: ComponentSource[],
   outfit: OutfitManifest | undefined,
+  fit: FitManifest | undefined,
   cut: CutManifest | undefined,
   effectiveCategories: Set<string> | null,
 ): string[] {
@@ -376,11 +399,13 @@ function computeSkillsDrop(
 
   const includeNames = new Set<string>([
     ...(outfit?.skill_include ?? []),
+    ...(fit?.skill_include ?? []),
     ...(cut?.skill_include ?? []),
     ...composeResolved.include,
   ]);
   const excludeNames = new Set<string>([
     ...(outfit?.skill_exclude ?? []),
+    ...(fit?.skill_exclude ?? []),
     ...(cut?.skill_exclude ?? []),
     ...composeResolved.exclude,
   ]);
@@ -423,10 +448,20 @@ function computeSkillsDrop(
  */
 function applyForceIncludes(
   skillsDrop: string[],
+  fit: FitManifest | undefined,
   cut: CutManifest | undefined,
   accessories: AccessoryManifest[],
 ): string[] {
+  const fitInclude = fit?.include;
   const cutInclude = cut?.include;
+  const hasFitIncludes = fitInclude
+    ? fitInclude.skills.length +
+        fitInclude.rules.length +
+        fitInclude.hooks.length +
+        fitInclude.agents.length +
+        fitInclude.commands.length >
+      0
+    : false;
   const hasCutIncludes = cutInclude
     ? cutInclude.skills.length +
         cutInclude.rules.length +
@@ -435,10 +470,19 @@ function applyForceIncludes(
         cutInclude.commands.length >
       0
     : false;
-  if (!hasCutIncludes && accessories.length === 0) {
+  if (!hasFitIncludes && !hasCutIncludes && accessories.length === 0) {
     return skillsDrop;
   }
   const dropSet = new Set(skillsDrop);
+  // Apply fit force-includes before cut so a same-named skill that's
+  // both in fit.include.skills and cut.include.skills is rescued by either.
+  // The kept-set is identical either way (set semantics), order only matters
+  // for "first to claim" logging.
+  if (fitInclude && hasFitIncludes) {
+    for (const skillName of fitInclude.skills) {
+      dropSet.delete(skillName);
+    }
+  }
   if (cutInclude && hasCutIncludes) {
     for (const skillName of cutInclude.skills) {
       dropSet.delete(skillName);
@@ -452,15 +496,50 @@ function applyForceIncludes(
   return Array.from(dropSet);
 }
 
+/**
+ * Compose the prompt body for the resolution artifact. Layer order is
+ * outfit → fit → cut for prose unioning, per issue #60. The outfit body
+ * is rendered separately by callers that own CLAUDE.md (compose.ts), so
+ * here we union fit + cut to produce `cutPrompt`.
+ *
+ * Back-compat: when only `cutBody` is supplied (no fit), preserve the body
+ * byte-for-byte — including trailing newlines — to match the pre-fit
+ * `cutPrompt: cutBody ?? ''` semantics existing tests rely on.
+ */
+function composeCutPrompt(fitBody: string | undefined, cutBody: string | undefined): string {
+  if (!fitBody) return cutBody ?? '';
+  if (!cutBody) return fitBody;
+  // Both present — separate with a blank line for prose-union readability.
+  // Trim only the trailing whitespace on `fitBody` so the leading content of
+  // `cutBody` is preserved verbatim (callers may rely on leading newlines).
+  return `${fitBody.replace(/\s+$/, '')}\n\n${cutBody}`;
+}
+
 export function resolve(opts: ResolveOptions): Resolution {
-  const { catalog, outfit, cut, cutBody, harness } = opts;
+  const { catalog, outfit, fit, cut, cutBody, fitBody, harness } = opts;
   const accessories = opts.accessories ?? [];
   const warn = opts.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  // Phase 1: validate include blocks (strict per ADR-0010). Cut first so a
-  // cut typo surfaces before any accessory-level error.
+  // Phase 1: validate include blocks (strict per ADR-0010). Outfit first so
+  // an outfit-include typo surfaces before any cut/accessory-level error.
+  // Outfit's include block (issue #62) lacks a `skills` key by design — the
+  // canonical mechanism for force-including/excluding skills on an outfit is
+  // `skill_include`/`skill_exclude`. We synthesize `skills: []` here so the
+  // shared validator keeps a single shape; the OutfitSchema's strict `.strict()`
+  // already rejects any `include.skills` author input at parse time.
+  if (outfit?.include) {
+    validateIncludes(
+      'outfit',
+      outfit.name,
+      { ...outfit.include, skills: [] },
+      catalog,
+    );
+  }
   if (cut?.include) {
     validateIncludes('cut', cut.name, cut.include, catalog);
+  }
+  if (fit?.include) {
+    validateIncludes('fit', fit.name, fit.include, catalog);
   }
   for (const acc of accessories) {
     validateIncludes('accessory', acc.name, acc.include, catalog);
@@ -469,11 +548,11 @@ export function resolve(opts: ResolveOptions): Resolution {
   // Phase 2: globals kept/dropped/unresolved sets per kind. Skipped entirely
   // when no registry is supplied to preserve v0.6 behavior.
   const globalsMetadata = opts.globals
-    ? computeGlobalsMetadata(opts.globals, outfit, cut, accessories, harness, warn)
+    ? computeGlobalsMetadata(opts.globals, outfit, fit, cut, accessories, harness, warn)
     : emptyGlobalsMetadata();
 
   // Phase 3: identity short-circuit when no composition primitives are active.
-  if (!outfit && !cut && accessories.length === 0) {
+  if (!outfit && !fit && !cut && accessories.length === 0) {
     return {
       schemaVersion: 1,
       harness,
@@ -482,6 +561,7 @@ export function resolve(opts: ResolveOptions): Resolution {
       cutPrompt: '',
       metadata: {
         outfit: null,
+        fit: null,
         cut: null,
         accessories: [],
         categories: [],
@@ -491,18 +571,19 @@ export function resolve(opts: ResolveOptions): Resolution {
   }
 
   // Phase 4-6: category filter, force-include rescue, assemble.
-  const effectiveCategories = computeEffectiveCategories(outfit, cut);
-  const initialDrops = computeSkillsDrop(catalog, outfit, cut, effectiveCategories);
-  const skillsDrop = applyForceIncludes(initialDrops, cut, accessories);
+  const effectiveCategories = computeEffectiveCategories(outfit, fit, cut);
+  const initialDrops = computeSkillsDrop(catalog, outfit, fit, cut, effectiveCategories);
+  const skillsDrop = applyForceIncludes(initialDrops, fit, cut, accessories);
 
   return {
     schemaVersion: 1,
     harness,
     skillsDrop,
     skillsKeep: null,
-    cutPrompt: cutBody ?? '',
+    cutPrompt: composeCutPrompt(fitBody, cutBody),
     metadata: {
       outfit: outfit?.name ?? null,
+      fit: fit?.name ?? null,
       cut: cut?.name ?? null,
       accessories: accessories.map((a) => a.name),
       categories: effectiveCategories ? Array.from(effectiveCategories) : [],
@@ -537,9 +618,11 @@ export interface ResolveAgainstHarnessOptions {
   target: Target;
   harnessHome: string;
   outfit?: OutfitManifest;
+  fit?: FitManifest;
   cut?: CutManifest;
   accessories?: AccessoryManifest[];
   cutBody?: string;
+  fitBody?: string;
   globals?: GlobalsRegistry | null;
   warn?: (msg: string) => void;
 }
@@ -551,9 +634,11 @@ export async function resolveAgainstHarness(
   return resolve({
     catalog,
     outfit: opts.outfit,
+    fit: opts.fit,
     cut: opts.cut,
     accessories: opts.accessories,
     cutBody: opts.cutBody,
+    fitBody: opts.fitBody,
     harness: opts.target,
     globals: opts.globals,
     warn: opts.warn,

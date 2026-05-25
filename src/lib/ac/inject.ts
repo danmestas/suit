@@ -116,6 +116,27 @@ function trackedByPath(lock: Lockfile | null): Map<string, string> {
   return m;
 }
 
+/**
+ * Order-insensitive equality of two lock-entry arrays by (path, sha256, mode).
+ * Both inputs are expected pre-sorted by path, but we compare by path-keyed
+ * lookup so a caller passing an unsorted array still gets a correct answer.
+ * `sourceComponent` is informational and intentionally excluded — a re-inject
+ * that produces the same bytes at the same paths is "unchanged" regardless of
+ * any provenance-label cosmetics.
+ */
+function sameLockEntries(a: LockEntry[], b: LockEntry[]): boolean {
+  if (a.length !== b.length) return false;
+  const byPath = new Map<string, LockEntry>();
+  for (const e of a) byPath.set(e.path, e);
+  for (const e of b) {
+    const prior = byPath.get(e.path);
+    if (!prior) return false;
+    if (prior.sha256 !== e.sha256) return false;
+    if ((prior.mode ?? 'replace') !== (e.mode ?? 'replace')) return false;
+  }
+  return true;
+}
+
 async function fileExists(p: string): Promise<boolean> {
   try {
     await fs.stat(p);
@@ -165,29 +186,24 @@ export async function runInject(args: RunInjectArgs, deps: RunInjectDeps): Promi
   const priorLock = await readLockfile(args.home);
   const tracked = trackedByPath(priorLock);
 
-  // Idempotency: if every pending file already exists at the target with a
-  // matching sha256 (tracked OR on disk), this is a no-op.
-  let allUnchanged = pending.length > 0;
-  for (const f of pending) {
-    if (f.lockMode === 'additive') {
-      // Additive files share their host file with user content; a whole-file
-      // sha won't match, so they can't satisfy the unchanged check. (Inject of
-      // a pure accessory rarely emits additive content, but be safe.)
-      allUnchanged = false;
-      break;
-    }
-    const full = path.join(args.home, f.path);
-    if (!(await fileExists(full))) {
-      allUnchanged = false;
-      break;
-    }
-    const currentSha = await sha256OfFile(full);
-    const trackedSha = tracked.get(f.path);
-    if (currentSha !== f.sha256 || (trackedSha !== undefined && trackedSha !== f.sha256)) {
-      allUnchanged = false;
-      break;
-    }
-  }
+  // Compute the lock-entries this inject would write. These are the source of
+  // truth for idempotency: each carries the path + sha256 + optional additive
+  // mode, where the additive sha is the marker-BLOCK hash (stable across
+  // re-injects) — not the whole-file hash. Comparing this set against the prior
+  // injected entry handles additive files correctly, which a whole-file on-disk
+  // scan cannot (the host file mixes our block with user content).
+  const injectedFiles: LockEntry[] = pending
+    .map((f) => {
+      const entry: LockEntry = { path: f.path, sha256: f.sha256, sourceComponent: f.sourceComponent };
+      if (f.lockMode && f.lockMode !== 'replace') entry.mode = f.lockMode;
+      return entry;
+    })
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  // Idempotency: if a prior injection of THIS component recorded the exact same
+  // file set (same paths, shas, and modes — order-insensitive), this is a no-op.
+  const priorEntry = (priorLock?.injected ?? []).find((e) => e.component === args.component);
+  const allUnchanged = pending.length > 0 && priorEntry !== undefined && sameLockEntries(priorEntry.files, injectedFiles);
 
   if (allUnchanged) {
     report(args, deps, {
@@ -246,15 +262,8 @@ export async function runInject(args: RunInjectArgs, deps: RunInjectDeps): Promi
 
   // Record into the lockfile's injected list (replace any prior entry for the
   // same component name; preserve up's files/resolution untouched). Create a
-  // minimal lockfile if none exists.
-  const injectedFiles: LockEntry[] = pending
-    .map((f) => {
-      const entry: LockEntry = { path: f.path, sha256: f.sha256, sourceComponent: f.sourceComponent };
-      if (f.lockMode && f.lockMode !== 'replace') entry.mode = f.lockMode;
-      return entry;
-    })
-    .sort((a, b) => a.path.localeCompare(b.path));
-
+  // minimal lockfile if none exists. `injectedFiles` was computed above for the
+  // idempotency check and is reused here verbatim.
   const now = new Date().toISOString();
   const newEntry: InjectedComponent = {
     component: args.component,

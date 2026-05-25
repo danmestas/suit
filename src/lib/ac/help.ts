@@ -2,22 +2,25 @@ export function helpText(): string {
   return `suit — multi-harness AI agent configurator
 
 USAGE
-  suit <harness> [--outfit X] [--cut Y] [--accessory A]... [--no-filter] [-- <harness args>]
-  suit up --outfit <name> [--cut <name>] [--accessory <name>]... [--force]
+  suit <harness> [--outfit X] [--fit F] [--cut Y] [--accessory A]... [--no-filter] [-- <harness args>]
+  suit up --outfit <name> [--fit <name>] [--cut <name>] [--accessory <name>]... [--force]
   suit off [--force]
   suit current
-  suit prepare --outfit <name> --target <name> [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>] [--shape project|sidecar] [--project <path>]
+  suit prepare --outfit <name> --target <name> [--fit <name>] [--cut <name>] [--accessory <name>]... [--quiet] [--dry-run] [--label <text>] [--shape project|sidecar] [--project <path>]
   suit init [<url>] [--force]    (defaults to suit.templateUrl from package.json)
   suit sync
   suit status
   suit doctor
-  suit list <outfits|cuts|accessories> [-v|--verbose] [--resolvable]
-  suit show <outfit|cut|accessory> <name>
+  suit list <outfits|cuts|fits|accessories> [-v|--verbose] [--resolvable]
+  suit show <outfit|cut|fit|accessory> <name>
   suit show bundle <path>                          # pretty-print a prepare-bundle's .suit-bundle.json
 
 FLAGS
   --outfit <name>      Pre-built bundle of harness-native components — sets
                        the baseline component set for the session.
+  --fit <name>         Seniority-tier overlay (junior-engineer / engineer /
+                       senior-engineer / staff-engineer). Composes between
+                       outfit and cut. Singleton per session.
   --cut <name>         Work-shape overlay (e.g. focused, ticket-writing) —
                        extends/overrides the outfit's components and injects
                        a prompt body as additional context.
@@ -47,6 +50,7 @@ EXAMPLES
   suit current
   suit off
   suit claude --outfit backend --cut focused
+  suit claude --outfit backend --fit senior-engineer --cut executing
   suit claude --outfit backend --accessory tracing --accessory pr-policy
   suit claude --outfit backend --accessory test-driven-development   # any skill works
   suit codex --outfit frontend -- --resume sess-123

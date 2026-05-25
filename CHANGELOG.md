@@ -4,6 +4,22 @@ All notable changes to `@agent-ops/suit` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] — 2026-05-14
+
+Two composition-axis extensions driven by the [danmestas/wardrobe](https://github.com/danmestas/wardrobe) seniority-tier and universal-tooling work.
+
+### Added
+
+- **`fit` axis** — fourth composition primitive alongside outfit, cut, and accessory. Fits express seniority tier (junior-engineer / engineer / senior-engineer / staff-engineer) and compose as an overlay between outfit and cut in the prose-union layer order: `outfit → fit → cut → accessory`. Skill / agent / hook union remains order-independent set algebra. New `--fit <name>` CLI flag (singleton, duplicates error at parse time) on `suit <harness>`, `suit up`, `suit prepare`. New `fits/` content-root scan with `fit.md` filename convention. New `suit list fits` and `suit show fit <name>` commands. Lockfile gains an optional `fit` field in the resolution block (omitted when null for back-compat with pre-fit lockfiles). All four adapters (claude-code / codex / gemini / pi) emit `[]` for `type: fit` — composed at resolve time, not per-component. (#61, closes #60)
+- **`include` block on outfits** — parity with cuts and accessories. Outfits can now declare `include.{hooks, agents, commands, rules}` to force-load components directly, eliminating the need to route force-loads through an accessory. **`include.skills` is deliberately rejected on outfits** for v1 — `skill_include` / `skill_exclude` remains the canonical skill-loading mechanism. Existing outfits without an `include` block continue to parse unchanged. (#63, closes #62)
+
+### Migration
+
+No breaking changes. Both additions are opt-in:
+- Existing outfits / cuts / accessories without `--fit` references continue to resolve identically.
+- Pre-fit lockfiles remain bit-identical (no spurious `resolution.fit: null` insertion).
+- Existing outfits without `include` blocks continue to parse unchanged.
+
 ## [0.13.0] — 2026-05-10
 
 Drops the `apm` and `copilot` adapters and removes them from the public `TARGETS` enum. Coordinates with the [danmestas/wardrobe](https://github.com/danmestas/wardrobe) tier-of-support reframe: bulletproof Claude Code, well-supported Codex / Gemini / Pi, DIY-from-docs anything else. APM was scaffolded but never shipped (no published packages, no consumer); Copilot has no ongoing investment.

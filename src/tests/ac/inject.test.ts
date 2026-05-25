@@ -62,6 +62,51 @@ release-watch body
   return root;
 }
 
+/**
+ * Wardrobe whose accessory `philosophy` includes a project-scope rules
+ * component. The claude-code adapter emits project-scope rules into an additive
+ * CLAUDE.md — exactly the file class that defeated the old on-disk idempotency
+ * scan (BUG 1). A re-inject must still report `unchanged` despite the additive
+ * file's whole-file sha differing (the host file mixes our block with whatever
+ * else is there). This mirrors the real `philosophy` accessory in the wardrobe.
+ */
+async function mkWardrobeWithAdditive(): Promise<string> {
+  const root = await mkdirT('suit-inject-additive-');
+
+  await fs.mkdir(path.join(root, 'accessories', 'philosophy'), { recursive: true });
+  await fs.writeFile(
+    path.join(root, 'accessories', 'philosophy', 'accessory.md'),
+    `---
+name: philosophy
+version: 1.0.0
+type: accessory
+description: philosophy bundle with a rule
+targets: [claude-code]
+include:
+  rules: [norman]
+---
+philosophy bundle body
+`,
+  );
+
+  await fs.mkdir(path.join(root, 'rules', 'norman'), { recursive: true });
+  await fs.writeFile(
+    path.join(root, 'rules', 'norman', 'RULE.md'),
+    `---
+name: norman
+version: 1.0.0
+type: rules
+description: design discipline rule
+targets: [claude-code]
+scope: project
+---
+Norman's design principles apply to every interface.
+`,
+  );
+
+  return root;
+}
+
 interface Capture {
   out: string[];
   err: string[];
@@ -139,8 +184,11 @@ describe('runInject — materialize + lockfile', () => {
     );
     const lock1 = await readLockfile(home);
     const at1 = lock1!.injected![0].injectedAt;
+    // Capture file + lockfile mtimes so we can prove the second run writes nothing.
+    const skillMtime1 = (await fs.stat(path.join(home, SKILL_PATH))).mtimeMs;
+    const lockMtime1 = (await fs.stat(path.join(home, '.suit', 'lock.json'))).mtimeMs;
 
-    await new Promise((r) => setTimeout(r, 5));
+    await new Promise((r) => setTimeout(r, 10));
 
     const c2 = capture();
     const code = await runInject(
@@ -153,6 +201,51 @@ describe('runInject — materialize + lockfile', () => {
     // Lockfile injected entry unchanged — no rewrite, timestamp preserved.
     const lock2 = await readLockfile(home);
     expect(lock2!.injected![0].injectedAt).toBe(at1);
+    // Nothing on disk was rewritten: skill file and lockfile mtimes unchanged.
+    expect((await fs.stat(path.join(home, SKILL_PATH))).mtimeMs).toBe(skillMtime1);
+    expect((await fs.stat(path.join(home, '.suit', 'lock.json'))).mtimeMs).toBe(lockMtime1);
+  });
+
+  it('is idempotent for accessories that emit additive files (BUG 1 regression)', async () => {
+    // The exact case that defeated the old whole-file on-disk scan: the
+    // accessory emits an additive CLAUDE.md whose whole-file sha differs from
+    // the recorded BLOCK sha. The fix compares freshly-computed lock-entries
+    // (block sha for additive) against the prior injected entry, so re-inject
+    // is correctly `unchanged`.
+    const wardrobe = await mkWardrobeWithAdditive();
+    const home = await mkdirT('suit-inject-home-');
+    const userDir = await mkdirT('suit-inject-user-');
+
+    const c1 = capture();
+    const code1 = await runInject(
+      { component: 'philosophy', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: c1.push, stderr: c1.pushE },
+    );
+    expect(c1.err.join('')).toBe('');
+    expect(code1).toBe(0);
+    expect(c1.out.join('')).toMatch(/injected: philosophy/);
+
+    // Sanity: an additive CLAUDE.md was emitted, and its lockfile entry records
+    // mode 'additive' (block sha, not whole-file sha).
+    const lock1 = await readLockfile(home);
+    const additive = lock1!.injected![0].files.find((f) => f.mode === 'additive');
+    expect(additive).toBeDefined();
+    const claudeMtime1 = (await fs.stat(path.join(home, additive!.path))).mtimeMs;
+    const at1 = lock1!.injected![0].injectedAt;
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const c2 = capture();
+    const code2 = await runInject(
+      { component: 'philosophy', home, contentDir: wardrobe, userDir, dryRun: false, noReload: false, force: false, json: false },
+      { stdout: c2.push, stderr: c2.pushE },
+    );
+    expect(code2).toBe(0);
+    // The regression: this MUST be 'unchanged', not 'injected'.
+    expect(c2.out.join('')).toMatch(/unchanged: philosophy/);
+    const lock2 = await readLockfile(home);
+    expect(lock2!.injected![0].injectedAt).toBe(at1);
+    expect((await fs.stat(path.join(home, additive!.path))).mtimeMs).toBe(claudeMtime1);
   });
 
   it('refuses when a target file exists untracked, and --force overrides', async () => {
