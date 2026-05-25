@@ -48,6 +48,26 @@ export interface LockEntry {
   mode?: LockEntryMode;
 }
 
+/**
+ * One component pushed into a running worker by `suit inject` (the realtime
+ * component-injection verb, distinct from `suit up`). Recorded in the lockfile's
+ * `injected` list so `suit current` can show injected components separately from
+ * the `up`-applied resolution and `suit off` can clean them up later.
+ *
+ * The `files` rows use the same path + sha256 + sourceComponent + mode contract
+ * as `up`-applied `files[]` entries — so the removal logic is identical. The
+ * distinction is purely provenance: `injected` entries came from `suit inject`,
+ * `files` came from `suit up`.
+ */
+export interface InjectedComponent {
+  /** The `--accessory`/`--bundle` name that was injected. */
+  component: string;
+  /** ISO 8601 timestamp of when `suit inject` materialized this component. */
+  injectedAt: string;
+  /** The files this injection wrote, same shape as `up`-applied entries. */
+  files: LockEntry[];
+}
+
 export interface Lockfile {
   schemaVersion: 1;
   /** ISO 8601 timestamp of when `suit up` produced this lockfile. */
@@ -60,6 +80,12 @@ export interface Lockfile {
     accessories: string[];
   };
   files: LockEntry[];
+  /**
+   * Components pushed by `suit inject`, distinct from the `up`-applied
+   * `resolution`/`files`. Optional for back-compat: absent means none, so
+   * existing v0.x lockfiles validate unchanged.
+   */
+  injected?: InjectedComponent[];
 }
 
 const lockEntrySchema = z.object({
@@ -67,6 +93,12 @@ const lockEntrySchema = z.object({
   sha256: z.string().regex(/^[0-9a-f]{64}$/i, 'sha256 must be 64 hex chars'),
   sourceComponent: z.string().min(1),
   mode: z.enum(['replace', 'additive']).optional(),
+});
+
+const injectedComponentSchema = z.object({
+  component: z.string().min(1),
+  injectedAt: z.string().min(1),
+  files: z.array(lockEntrySchema),
 });
 
 const lockfileSchema = z.object({
@@ -80,6 +112,7 @@ const lockfileSchema = z.object({
     accessories: z.array(z.string()),
   }),
   files: z.array(lockEntrySchema),
+  injected: z.array(injectedComponentSchema).optional(),
 });
 
 /** Hex sha256 of a buffer or string. */

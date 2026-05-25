@@ -84,6 +84,20 @@ export async function runCurrent(args: RunCurrentArgs, deps: RunCurrentDeps): Pr
     for (const d of drift) deps.stdout(`  drift: ${d}\n`);
   }
 
+  // Injected components (`suit inject`). Shown distinctly from the up-applied
+  // resolution above. Absent/empty `injected` reproduces the prior output
+  // exactly — no new lines for a lockfile that only `suit up` wrote.
+  const injected = lock.injected ?? [];
+  if (injected.length > 0) {
+    deps.stdout(`\ninjected (${injected.length}):\n`);
+    for (const inj of injected) {
+      const n = inj.files.length;
+      deps.stdout(
+        `  + ${inj.component} (injected ${inj.injectedAt}, ${n} file${n === 1 ? '' : 's'})\n`,
+      );
+    }
+  }
+
   // Lockfile path footer for discoverability.
   deps.stdout(`\nlockfile:     ${path.join(args.projectDir, LOCKFILE_PATH)}\n`);
   return 0;
