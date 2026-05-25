@@ -159,6 +159,8 @@ function parseUpArgs(rest: string[]): UpArgs {
 
 interface InjectArgs {
   component: string | null;
+  /** Which kind of inject — set alongside `component` by the supplying flag. */
+  kind: 'accessory' | 'bundle' | 'skill' | 'hook' | null;
   home: string | null;
   from: string | null;
   dryRun: boolean;
@@ -171,15 +173,18 @@ interface InjectArgs {
 }
 
 /**
- * Parse `suit inject` args (increment 1).
+ * Parse `suit inject` args.
  *
- * `--bundle` is an alias of `--accessory`: a bundle is just a named accessory
- * whose include block lists components. `--target owner/session` (NATS
- * discovery) is a LATER increment — recorded here so the dispatcher can exit 2
- * with a "not yet implemented" message rather than silently ignoring it.
+ * Exactly ONE component-kind flag is required: `--accessory`/`--bundle` (a
+ * bundle is just a named accessory whose include block lists components),
+ * `--skill <name>`, or `--hook <name>` (sugar for a single bare component).
+ * `--target owner/session` (NATS discovery) is a LATER increment — recorded
+ * here so the dispatcher can exit 2 with a "not yet implemented" message rather
+ * than silently ignoring it.
  */
 function parseInjectArgs(rest: string[]): InjectArgs {
   let component: string | null = null;
+  let kind: InjectArgs['kind'] = null;
   let home: string | null = null;
   let from: string | null = null;
   let dryRun = false;
@@ -205,11 +210,15 @@ function parseInjectArgs(rest: string[]): InjectArgs {
       flag = arg.slice(0, eq);
       eqValue = arg.slice(eq + 1);
     }
-    if (flag === '--accessory' || flag === '--bundle') {
+    if (flag === '--accessory' || flag === '--bundle' || flag === '--skill' || flag === '--hook') {
       const r = takeValue(i, eqValue);
       if (r.value === null) { err = err ?? `suit inject: ${flag} requires a value`; continue; }
-      if (component !== null) { err = err ?? 'suit inject: only one component may be injected at a time'; continue; }
+      if (component !== null) { err = err ?? 'suit inject: exactly one of --accessory/--bundle/--skill/--hook may be given'; continue; }
       component = r.value;
+      kind = flag === '--accessory' ? 'accessory'
+        : flag === '--bundle' ? 'bundle'
+        : flag === '--skill' ? 'skill'
+        : 'hook';
       i = r.next;
     } else if (flag === '--home') {
       const r = takeValue(i, eqValue);
@@ -239,7 +248,7 @@ function parseInjectArgs(rest: string[]): InjectArgs {
       err = err ?? `suit inject: unrecognized argument "${arg}"`;
     }
   }
-  return { component, home, from, dryRun, noReload, force, json, targetRequested, err };
+  return { component, kind, home, from, dryRun, noReload, force, json, targetRequested, err };
 }
 
 interface PrepareArgs {
@@ -596,8 +605,8 @@ async function main(): Promise<number> {
       process.stderr.write('suit inject: not yet implemented: use --home\n');
       return 2;
     }
-    if (parsed.component === null) {
-      process.stderr.write('suit inject: --accessory (or --bundle) <name> is required\n');
+    if (parsed.component === null || parsed.kind === null) {
+      process.stderr.write('suit inject: exactly one of --accessory/--bundle/--skill/--hook <name> is required\n');
       return 2;
     }
     // Home resolution (increment 1): --home > $CLAUDE_PROJECT_DIR > cwd.
@@ -607,6 +616,7 @@ async function main(): Promise<number> {
     return runInject(
       {
         component: parsed.component,
+        kind: parsed.kind,
         home,
         contentDir,
         userDir: paths.userOverlayDir,

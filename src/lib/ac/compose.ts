@@ -130,6 +130,7 @@ async function emitForTarget(
   skillsDrop: string[],
   projectDir: string,
   repoConfig: Record<string, Record<string, unknown>>,
+  restrictTo: Set<string> | undefined,
 ): Promise<PendingFile[]> {
   const adapter = getAdapter(target);
   if (!adapter) {
@@ -139,6 +140,15 @@ async function emitForTarget(
   const eligible = catalog.filter((c) => {
     if (!c.manifest.targets.includes(target)) return false;
     if (!adapter.supports(c)) return false;
+    // Explicit keep-list (suit inject): emit a component ONLY if it is named in
+    // the keep-set, keyed `<type>:<name>`. This REPLACES the skill-only dropSet
+    // filter — without it, the category/drop model leaves every non-skill
+    // component (hooks/agents/commands/rules/mcp) unfiltered, over-emitting the
+    // entire wardrobe. When `restrictTo` is undefined (suit up/prepare), behavior
+    // is unchanged.
+    if (restrictTo !== undefined) {
+      return restrictTo.has(`${c.manifest.type}:${c.manifest.name}`);
+    }
     if (c.manifest.type === 'skill' && dropSet.has(c.manifest.name)) return false;
     return true;
   });
@@ -217,6 +227,15 @@ export interface ComposeBundleArgs {
   projectDir: string;
   contentDir: string;
   userDir: string;
+  /**
+   * Explicit emission keep-set for `suit inject`. Keys are `<type>:<name>`
+   * (e.g. `"skill:ousterhout"`, `"agent:architect-review"`, `"hook:rtk-suggest"`).
+   * When provided, `emitForTarget` keeps a component ONLY if its `<type>:<name>`
+   * is in this set — replacing the category/drop model so inject emits exactly
+   * the declared components, not the whole catalog. When undefined (`suit
+   * up`/`prepare`), the standard category/drop filter applies unchanged.
+   */
+  restrictTo?: Set<string>;
 }
 
 export interface ComposeBundleDeps {
@@ -313,6 +332,7 @@ export async function composeBundle(
       canonicalResolution.skillsDrop,
       args.projectDir,
       repoConfig as Record<string, Record<string, unknown>>,
+      args.restrictTo,
     );
     allFiles.push(...targetFiles);
   }
