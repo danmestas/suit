@@ -74,6 +74,7 @@ describe('ContentStore.init', () => {
     expect(r.ok).toBe(true);
     expect(existsSync(path.join(target, '.git'))).toBe(true);
     expect(existsSync(path.join(target, 'README.md'))).toBe(true);
+    expect(existsSync(path.join(target, '.suit-source'))).toBe(false);
   });
 
   it('returns ok=false if target exists and force=false', async () => {

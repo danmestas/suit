@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import YAML from 'yaml';
 import type {
   Adapter,
   ComponentSource,
@@ -8,6 +9,7 @@ import type {
 } from '../lib/types.js';
 import {
   selectRules,
+  selectRulesForAnyTarget,
   composeRulesBody,
   isOwnerOfRulesFile,
 } from '../lib/rules.js';
@@ -21,6 +23,10 @@ const GEMINI_EVENTS = new Set([
   'AfterModel',
   'AfterAgent',
 ]);
+
+function yamlValue(v: string): string {
+  return YAML.stringify(v).trimEnd();
+}
 
 function validateGeminiHookEvent(event: string, componentName: string): void {
   if (!GEMINI_EVENTS.has(event)) {
@@ -47,6 +53,8 @@ export const geminiAdapter: Adapter = {
         return emitRules(component, ctx);
       case 'hook':
         return emitHook(component);
+      case 'agent':
+        return emitAgent(component);
       case 'mcp':
         return emitMcp(component);
       case 'outfit':
@@ -58,7 +66,7 @@ export const geminiAdapter: Adapter = {
         // at resolution time. Outfits, however, may carry a `permissions:` block
         // that emits .gemini/settings.fragment.json (see emitOutfit).
         return [];
-      // agent and plugin are schema-rejected by validate.ts (compatibility matrix).
+      // plugin is schema-rejected by validate.ts (compatibility matrix).
       default:
         throw new Error(
           `gemini adapter: type "${component.manifest.type}" is not supported on Gemini`,
@@ -117,16 +125,40 @@ function emitSkill(component: ComponentSource): EmittedFile[] {
   ];
 }
 
+function emitAgent(component: ComponentSource): EmittedFile[] {
+  const { manifest, body } = component;
+  const lines = [
+    '---',
+    `name: ${yamlValue(manifest.name)}`,
+    `description: ${yamlValue(manifest.description)}`,
+  ];
+  if (manifest.agent?.tools) lines.push(`tools: [${manifest.agent.tools.join(', ')}]`);
+  if (manifest.agent?.model) lines.push(`model: ${yamlValue(manifest.agent.model)}`);
+  if (manifest.agent?.color) lines.push(`color: ${yamlValue(manifest.agent.color)}`);
+  lines.push('---');
+
+  return [
+    {
+      path: `agents/${manifest.name}.md`,
+      content: `${lines.join('\n')}\n\n${body.trimStart()}`,
+    },
+  ];
+}
+
 function emitRules(component: ComponentSource, ctx: AdapterContext): EmittedFile[] {
   if (!isOwnerOfRulesFile(component, ctx.allComponents, 'gemini')) return [];
   const scope = component.manifest.scope ?? 'project';
-  const sorted = selectRules(ctx.allComponents, 'gemini', scope);
-  const content = composeRulesBody(sorted);
-  // Project scope: GEMINI.md at repo root. User scope: ~/.gemini/GEMINI.md
-  // (path here is relative to dist/gemini/; the user-scope path is the
-  // installer's responsibility to relocate).
-  const filename = scope === 'user' ? '.gemini/GEMINI.md' : 'GEMINI.md';
-  return [{ path: filename, content }];
+  if (scope === 'user') {
+    const sorted = selectRules(ctx.allComponents, 'gemini', scope);
+    const content = composeRulesBody(sorted);
+    return [{ path: '.gemini/GEMINI.md', content }];
+  }
+  const files: EmittedFile[] = [{ path: 'GEMINI.md', content: '@AGENTS.md\n' }];
+  if ((ctx.agentsMdOwnerTarget ?? 'gemini') === 'gemini') {
+    const sorted = selectRulesForAnyTarget(ctx.allComponents, ctx.targets ?? ['gemini'], 'project');
+    files.unshift({ path: 'AGENTS.md', content: composeRulesBody(sorted) });
+  }
+  return files;
 }
 
 async function emitHook(component: ComponentSource): Promise<EmittedFile[]> {

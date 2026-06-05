@@ -7,6 +7,7 @@ import { claudeCodeAdapter } from '../../adapters/claude-code.ts';
 import { ManifestSchema } from '../../lib/schema.ts';
 import type { ComponentSource } from '../../lib/types.ts';
 import { runGolden } from './golden.ts';
+import { mergeBuffers } from '../../lib/merge.ts';
 
 const HERE = path.resolve(fileURLToPath(import.meta.url), '..');
 
@@ -33,21 +34,54 @@ describe('claude-code adapter', () => {
     expect(result.diff).toEqual([]);
   });
 
-  it('composes rules into one CLAUDE.md ordered by before/after', async () => {
+  it('composes project rules into AGENTS.md plus a CLAUDE.md shim', async () => {
     const root = path.join(HERE, 'claude-code/rules-compose');
     const baseStyle = await loadComponent(path.join(root, 'component'), root);
     const prPolicy = await loadComponent(path.join(root, 'extra/rules/pr-policy'), root);
     const all = [baseStyle, prPolicy];
-    const results = await Promise.all(
-      all.map((c) =>
-        claudeCodeAdapter.emit(c, { config: {}, allComponents: all, repoRoot: root }),
-      ),
+    const files = (
+      await Promise.all(
+        all.map((c) =>
+          claudeCodeAdapter.emit(c, { config: {}, allComponents: all, repoRoot: root }),
+        ),
+      )
+    ).flat();
+    const expectedRules = await fs.readFile(path.join(root, 'expected/AGENTS.md'), 'utf8');
+    expect(files.find((f) => f.path === 'AGENTS.md')?.content.toString()).toBe(
+      expectedRules,
     );
-    const claudeMd = results.flat().find((f) => f.path === 'CLAUDE.md');
-    const expected = await fs.readFile(path.join(root, 'expected/CLAUDE.md'), 'utf8');
-    expect(claudeMd?.content.toString()).toBe(expected);
-    const claudeMdCount = results.flat().filter((f) => f.path === 'CLAUDE.md').length;
-    expect(claudeMdCount).toBe(1);
+    expect(files.find((f) => f.path === 'CLAUDE.md')?.content.toString()).toBe(
+      '@AGENTS.md\n',
+    );
+    expect(files.filter((f) => f.path === 'AGENTS.md').length).toBe(1);
+    expect(files.filter((f) => f.path === 'CLAUDE.md').length).toBe(1);
+  });
+
+  it('preserves user-scope rules in .claude/CLAUDE.md', async () => {
+    const component: ComponentSource = {
+      dir: HERE,
+      relativeDir: 'rules/user-style',
+      manifest: ManifestSchema.parse({
+        name: 'user-style',
+        version: '0.0.0',
+        description: 'User style rules',
+        type: 'rules',
+        scope: 'user',
+        targets: ['claude-code'],
+      }),
+      body: 'Keep personal Claude rules here.\n',
+    };
+    const files = await claudeCodeAdapter.emit(component, {
+      config: {},
+      allComponents: [component],
+      repoRoot: HERE,
+    });
+    expect(files).toEqual([
+      {
+        path: '.claude/CLAUDE.md',
+        content: '## user-style\n\nKeep personal Claude rules here.\n',
+      },
+    ]);
   });
 
   it('emits a hook component with settings fragment + script', async () => {
@@ -55,9 +89,57 @@ describe('claude-code adapter', () => {
     expect(result.diff).toEqual([]);
   });
 
-  it('emits an mcp component as .mcp.fragment.json', async () => {
+  it('emits an mcp component as .mcp.json', async () => {
     const result = await runGolden(claudeCodeAdapter, path.join(HERE, 'claude-code/mcp-basic'));
     expect(result.diff).toEqual([]);
+  });
+
+  it('emits multiple mcp components to the same mergeable .mcp.json path', async () => {
+    const root = path.join(HERE, 'claude-code/mcp-basic');
+    const first = await loadComponent(path.join(root, 'component'), root);
+    const second: ComponentSource = {
+      ...first,
+      manifest: {
+        ...first.manifest,
+        name: 'other-mcp',
+        mcp: {
+          command: 'python',
+          args: ['server.py'],
+        },
+      },
+    };
+    const firstEmit = await claudeCodeAdapter.emit(first, {
+      config: {},
+      allComponents: [first, second],
+      repoRoot: root,
+    });
+    const secondEmit = await claudeCodeAdapter.emit(second, {
+      config: {},
+      allComponents: [first, second],
+      repoRoot: root,
+    });
+    const firstMcp = firstEmit.find((f) => f.path === '.mcp.json');
+    const secondMcp = secondEmit.find((f) => f.path === '.mcp.json');
+    expect(firstMcp).toBeDefined();
+    expect(secondMcp).toBeDefined();
+
+    const merged = mergeBuffers('.mcp.json', firstMcp!.content, secondMcp!.content);
+    expect(merged).not.toBeNull();
+    expect(JSON.parse(merged!.toString())).toEqual({
+      mcpServers: {
+        'my-mcp': {
+          command: 'node',
+          args: ['server.js'],
+          env: {
+            LOG_LEVEL: 'debug',
+          },
+        },
+        'other-mcp': {
+          command: 'python',
+          args: ['server.py'],
+        },
+      },
+    });
   });
 
   it('emits a plugin component listing included skills', async () => {
