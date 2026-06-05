@@ -54,6 +54,23 @@ export function selectRules(
 }
 
 /**
+ * Filter rules to those targeting at least one active target for a shared
+ * portable instructions file such as root AGENTS.md.
+ */
+export function selectRulesForAnyTarget(
+  all: ComponentSource[],
+  targets: Target[],
+  scope: 'project' | 'user',
+): ComponentSource[] {
+  const active = new Set(targets);
+  const filtered = all
+    .filter((c) => c.manifest.type === 'rules')
+    .filter((c) => (c.manifest.scope ?? 'project') === scope)
+    .filter((c) => c.manifest.targets.some((target) => active.has(target)));
+  return topoSortRules(filtered);
+}
+
+/**
  * Compose a rules body — `## <name>` headers separating each rule's body.
  * Output ends with a single trailing newline.
  */

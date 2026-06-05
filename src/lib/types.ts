@@ -117,4 +117,8 @@ export interface AdapterContext {
   allComponents: ComponentSource[];
   /** Repo root absolute path. */
   repoRoot: string;
+  /** Active emit targets for this composition; adapters may use this for shared root files. */
+  targets?: Target[];
+  /** Target responsible for emitting shared root AGENTS.md, when any. */
+  agentsMdOwnerTarget?: Target;
 }

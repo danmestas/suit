@@ -14,7 +14,7 @@ const MATRIX: Record<ComponentType, Record<Target, Cell>> = {
   skill:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
   plugin:    { 'claude-code': 'ok', codex: 'error', gemini: 'error', pi: 'ok' },
   hook:      { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'warn' },
-  agent:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'error', pi: 'ok' },
+  agent:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
   rules:     { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },
   mcp:       { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'warn' },
   outfit:    { 'claude-code': 'ok', codex: 'ok',    gemini: 'ok',    pi: 'ok' },

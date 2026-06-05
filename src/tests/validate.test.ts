@@ -127,8 +127,8 @@ describe('validateComponents category warnings', () => {
   });
 });
 
-describe('validateComponents — Gemini-specific rejections', () => {
-  it('rejects agent type targeting gemini', () => {
+describe('validateComponents — Gemini-specific compatibility', () => {
+  it('allows agent type targeting gemini', () => {
     const errors = validateComponents([
       mk({
         name: 'rev',
@@ -137,7 +137,7 @@ describe('validateComponents — Gemini-specific rejections', () => {
         agent: { tools: ['Read'], model: 'gemini-2.0-flash' },
       }),
     ]);
-    expect(errors.some((e) => e.severity === 'error' && /agent.*gemini/i.test(e.message))).toBe(true);
+    expect(errors.some((e) => e.severity === 'error' && /agent.*gemini/i.test(e.message))).toBe(false);
   });
 
   it('rejects plugin type targeting gemini', () => {

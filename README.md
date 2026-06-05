@@ -24,23 +24,26 @@ This puts two binaries on your PATH:
 
 ## Quick start
 
-The standard workflow: `suit up` to dress the project, work with native harness CLIs, `suit off` when you're done.
+The standard workflow: choose a wardrobe template repo (usually your own fork), `suit init <wardrobe-repo-or-fork>` once to record and clone that source of truth, then `suit up` to emit derived harness files into each project. Work with native harness CLIs, and `suit off` when you're done.
 
 ```bash
 # Install once
 npm install -g @agent-ops/suit
 
-# Point at any suit-compatible content repo (one-time setup per machine)
-suit init https://github.com/your-username/your-config
+# Point at your wardrobe fork/template repo (one-time setup per machine).
+# That repo owns canonical outfits, cuts, accessories, skills, agents, hooks,
+# rules, commands, and MCP config.
+suit init https://github.com/your-username/your-wardrobe
 
 # In any project, dress it with an outfit + cut (+ optional accessories):
 cd ~/projects/foo
 suit up --outfit backend --cut focused
 # or, on a TTY, just `suit up` and pick from a numbered list
 
-# Now use your harnesses normally — they pick up the dressed config:
-claude                          # native invocation; inherits .claude/CLAUDE.md, skills, hooks
-codex --skip-git-repo-check
+# Now use your harnesses normally — they pick up the emitted artifacts:
+claude                          # native invocation; inherits derived .claude/ content
+gemini                          # native invocation; inherits derived .gemini/ content
+codex --skip-git-repo-check     # reads the portable AGENTS.md rules layer
 pi --provider openrouter
 
 # Inspect or remove when you're done:
@@ -66,10 +69,12 @@ suit list outfits
 suit list cuts
 suit list accessories
 suit status
-suit sync                       # pull latest from your content repo
+suit sync                       # pull latest from your wardrobe repo
 ```
 
 For the deeper walkthrough — content tier resolution, authoring, refuse-when-dirty semantics, drift detection — see [USAGE.md](docs/USAGE.md).
+
+`suit up` output is derived from the wardrobe. Treat emitted `.claude/` and `.gemini/` content as generated: change the wardrobe repo, then re-run `suit up`, rather than hand-editing harness directories. `AGENTS.md` is the portable rules layer for broader harness compatibility; `CLAUDE.md` and `GEMINI.md` are thin generated shims for their native CLIs.
 
 ## Runtime injection (`suit inject`)
 
@@ -97,23 +102,25 @@ Injected components are recorded in `.suit/lock.json` under a distinct `injected
 
 > Injecting into a *remote* worker by name (`--target <owner>/<session>`, over the agent mesh) is on the roadmap. Today `suit inject` targets a local harness home via `--home`.
 
-## Local content repo (point suit at a checkout)
+## Local wardrobe checkout (point suit at a checkout)
 
-If you're maintaining a content repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
+If you're maintaining a wardrobe repo locally and want suit to read from it without cloning into `~/.local/share/suit/content/`:
 
 ```bash
-export SUIT_CONTENT_PATH=~/projects/your-config
+export SUIT_CONTENT_PATH=~/projects/your-wardrobe
 suit list outfits
 suit claude --outfit backend
 ```
 
-`SUIT_CONTENT_PATH` overrides the default cloned-content location for the current shell.
+`SUIT_CONTENT_PATH` overrides the default cloned-wardrobe location for the current shell.
 
 ## How it works
 
-`suit` reads YAML-frontmatter outfit and cut definitions, computes a per-session resolution (which skills to keep, which to drop, what cut prompt to inject), then prelaunches the target harness with a filtered view of `~/.<harness>/` mirrored to a tempdir. Your real `~/.<harness>/` is never modified.
+The wardrobe repo is the source of truth. It owns canonical outfits, cuts, accessories, skills, agents, hooks, rules, commands, and MCP configuration. `suit init <wardrobe-repo-or-fork>` clones that repo into `~/.local/share/suit/content/`; `suit sync` pulls it forward; `SUIT_CONTENT_PATH` points suit at a local checkout while authoring.
 
-For Codex and Copilot (which read `AGENTS.md` and `copilot-instructions.md` from the project root), `suit` invokes `suit-build docs` to generate filtered markdown into a tempdir and runs the harness with that as the working directory.
+`suit up` reads the wardrobe, computes a per-project resolution, and emits derived Claude Code and Gemini CLI artifacts into the project (`.claude/`, `.gemini/`, plus the portable root files each harness consumes). Those emitted files are not the editing surface. Edit the wardrobe and re-emit; use `suit current` to inspect what was applied and `suit off` to remove it.
+
+`AGENTS.md` is the compatibility layer for portable rules. If another harness needs shared instructions in this increment, put them in AGENTS.md rather than expanding suit's emitter surface. Root `CLAUDE.md` and `GEMINI.md` should stay thin/generated shims that point their CLIs at the portable rules and emitted harness-specific content.
 
 ## Development
 

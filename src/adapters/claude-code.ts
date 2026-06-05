@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import type { Adapter, ComponentSource, EmittedFile, AdapterContext } from '../lib/types.js';
-import { selectRules, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules.js';
+import { selectRules, selectRulesForAnyTarget, composeRulesBody, isOwnerOfRulesFile } from '../lib/rules.js';
 import { applyPassthroughPermissions } from './_permissions.js';
 
 function yamlValue(v: string): string {
@@ -99,10 +99,21 @@ function emitAgent(component: ComponentSource): EmittedFile[] {
 function emitRules(component: ComponentSource, ctx: AdapterContext): EmittedFile[] {
   if (!isOwnerOfRulesFile(component, ctx.allComponents, 'claude-code')) return [];
   const scope = component.manifest.scope ?? 'project';
-  const sorted = selectRules(ctx.allComponents, 'claude-code', scope);
-  const content = composeRulesBody(sorted);
-  const filename = scope === 'user' ? '.claude/CLAUDE.md' : 'CLAUDE.md';
-  return [{ path: filename, content }];
+  if (scope === 'user') {
+    const sorted = selectRules(ctx.allComponents, 'claude-code', scope);
+    const content = composeRulesBody(sorted);
+    return [{ path: '.claude/CLAUDE.md', content }];
+  }
+  const files: EmittedFile[] = [{ path: 'CLAUDE.md', content: '@AGENTS.md\n' }];
+  if ((ctx.agentsMdOwnerTarget ?? 'claude-code') === 'claude-code') {
+    const sorted = selectRulesForAnyTarget(
+      ctx.allComponents,
+      ctx.targets ?? ['claude-code'],
+      'project',
+    );
+    files.unshift({ path: 'AGENTS.md', content: composeRulesBody(sorted) });
+  }
+  return files;
 }
 
 async function emitHook(component: ComponentSource): Promise<EmittedFile[]> {
@@ -146,7 +157,7 @@ function emitMcp(component: ComponentSource): EmittedFile[] {
       },
     },
   };
-  return [{ path: '.mcp.fragment.json', content: `${JSON.stringify(fragment, null, 2)}\n` }];
+  return [{ path: '.mcp.json', content: `${JSON.stringify(fragment, null, 2)}\n` }];
 }
 
 function emitPlugin(component: ComponentSource, ctx: AdapterContext): EmittedFile[] {

@@ -190,6 +190,81 @@ describe('runUp — basic apply', () => {
     expect(out).toMatch(/Lockfile:/);
   });
 
+  it('writes one shared AGENTS.md for mixed Claude and Gemini project rules', async () => {
+    const wardrobe = await mkdirT('suit-wardrobe-mixed-rules-');
+    await fs.mkdir(path.join(wardrobe, 'outfits', 'engineer'), { recursive: true });
+    await fs.writeFile(
+      path.join(wardrobe, 'outfits', 'engineer', 'outfit.md'),
+      `---
+name: engineer
+version: 1.0.0
+type: outfit
+description: Engineering outfit
+targets: [claude-code, gemini]
+categories: [tooling]
+---
+engineer body
+`,
+    );
+    await fs.mkdir(path.join(wardrobe, 'rules', 'claude-only'), { recursive: true });
+    await fs.writeFile(
+      path.join(wardrobe, 'rules', 'claude-only', 'SKILL.md'),
+      `---
+name: claude-only
+version: 1.0.0
+type: rules
+description: Claude-only rule
+targets: [claude-code]
+scope: project
+---
+Claude rule body.
+`,
+    );
+    await fs.mkdir(path.join(wardrobe, 'rules', 'gemini-only'), { recursive: true });
+    await fs.writeFile(
+      path.join(wardrobe, 'rules', 'gemini-only', 'SKILL.md'),
+      `---
+name: gemini-only
+version: 1.0.0
+type: rules
+description: Gemini-only rule
+targets: [gemini]
+scope: project
+---
+Gemini rule body.
+`,
+    );
+    const proj = await mkProject();
+    const userDir = await mkdirT('suit-up-user-');
+    const cap = capture();
+
+    const code = await runUp(
+      {
+        outfit: 'engineer',
+        cut: null,
+        accessories: [],
+        force: false,
+        projectDir: proj,
+        contentDir: wardrobe,
+        userDir,
+        isTTY: false,
+      },
+      { stdout: cap.push, stderr: cap.pushE },
+    );
+
+    expect(cap.err.join('')).toBe('');
+    expect(code).toBe(0);
+    const agentsMd = await fs.readFile(path.join(proj, 'AGENTS.md'), 'utf8');
+    expect(agentsMd).toContain('## claude-only');
+    expect(agentsMd).toContain('Claude rule body.');
+    expect(agentsMd).toContain('## gemini-only');
+    expect(agentsMd).toContain('Gemini rule body.');
+    const claudeMd = await fs.readFile(path.join(proj, 'CLAUDE.md'), 'utf8');
+    expect(claudeMd).toContain('@AGENTS.md');
+    const geminiMd = await fs.readFile(path.join(proj, 'GEMINI.md'), 'utf8');
+    expect(geminiMd).toBe('@AGENTS.md\n');
+  });
+
   it('refuses when a target file exists and is not suit-managed', async () => {
     const wardrobe = await mkWardrobe();
     const proj = await mkProject();

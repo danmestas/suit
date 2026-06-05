@@ -4,18 +4,20 @@ A task-oriented walkthrough of `suit`. The [README](../README.md) has install + 
 
 ## 1. Overview
 
-`suit` is a CLI that filters and composes harness configs (Claude Code, Codex, Gemini CLI, GitHub Copilot, APM, Pi) using YAML-frontmatter outfit files, cut files, and skills. The CLI ships separately from the content it reads: you install `@agent-ops/suit` once, point it at a content repo (clone the canonical [`suit-template`](https://github.com/danmestas/suit-template) or fork your own), then launch any harness through `suit <harness>` to apply the outfit and cut you want for that session.
+`suit` is a CLI that applies a wardrobe to local agent harnesses. The wardrobe template repo is the source of truth: it owns canonical outfits, cuts, accessories, skills, agents, hooks, rules, commands, and MCP configuration. The CLI ships separately from that wardrobe. Install `@agent-ops/suit` once, point it at the canonical [`suit-template`](https://github.com/danmestas/suit-template) or your own fork with `suit init <wardrobe-repo-or-fork>`, then use `suit up` to emit derived Claude Code and Gemini CLI artifacts into a project.
 
 The mental model is:
 
 | Layer | Where it lives | Mutability |
 |---|---|---|
 | Tool | `@agent-ops/suit` from npm | Stable; bumped on release |
-| Content | Cloned content repo at `~/.local/share/suit/content/` | You edit / pull |
-| Overlays | `~/.config/suit/` (user) and `<cwd>/.suit/` (project) | Optional; override content |
+| Wardrobe source | Your template repo / fork | Canonical editing surface |
+| Cloned wardrobe | `~/.local/share/suit/content/` | Managed by `suit init` / `suit sync`; edit a working fork, then sync |
+| Overlays | `~/.config/suit/` (user) and `<cwd>/.suit/` (project) | Optional local overrides |
+| Emitted project artifacts | `.claude/`, `.gemini/`, root `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` | Derived from wardrobe; do not hand-edit |
 | Harness HOME | `~/.<harness>/` (e.g., `~/.claude/`) | Never touched by `suit` |
 
-`suit` mirrors the relevant pieces of `~/.<harness>/` into a per-session tempdir, drops in the kept skills, generates an injected prompt or `AGENTS.md`, and spawns the harness binary against that tempdir. Your real harness home stays untouched.
+`AGENTS.md` is the portable rules layer. Root `CLAUDE.md` and `GEMINI.md` should be treated as thin generated shims for their native CLIs, and emitted `.claude/` / `.gemini/` content is generated output. If broader harness compatibility needs shared instructions in this increment, put them in `AGENTS.md` rather than expanding suit's emitter surface.
 
 For the deeper "why" behind individual decisions, see [docs/adr/](./adr/).
 
@@ -35,16 +37,16 @@ suit status          # confirm content + harness presence
 | `suit` | The runtime launcher you invoke directly |
 | `suit-build` | A build helper that `suit` shells out to for Codex/Copilot prelaunch (rarely invoked by hand) |
 
-Both must be on PATH together; if one is missing you'll see `ENOENT: spawn suit-build` when launching Codex or Copilot. A `suit init` with no URL reads `suit.templateUrl` from the package's `package.json` (default: `https://github.com/danmestas/suit-template`) and clones it into `~/.local/share/suit/content/`. Pass a positional URL to use a different template:
+Both must be on PATH together; if one is missing you'll see `ENOENT: spawn suit-build` when launching Codex or Copilot. A `suit init` with no URL reads `suit.templateUrl` from the package's `package.json` (default: `https://github.com/danmestas/suit-template`) and clones that wardrobe into `~/.local/share/suit/content/`. Most teams should fork the template repo, make that fork the canonical wardrobe, and initialize from it:
 
 ```bash
-suit init https://github.com/your-org/your-config
+suit init https://github.com/your-org/your-wardrobe
 ```
 
 If the target directory already exists, `suit init` refuses without `--force`. Re-clone with:
 
 ```bash
-suit init --force https://github.com/your-org/your-config
+suit init --force https://github.com/your-org/your-wardrobe
 ```
 
 After init, run `suit status` to confirm:
@@ -76,14 +78,14 @@ suit show <outfit|cut|accessory> <name>
 
 `suit` has **two modes of working** (v0.5+):
 
-- **`suit up` / `suit off` — project-state mutator** (the standard daily-driver flow). `suit up` writes resolved components into the project's `.claude/`, `.codex/`, `.pi/` etc. directly, backed by `.suit/lock.json`. Native invocations of `claude`, `codex`, `pi` from inside the dressed project pick up the suit automatically — no wrapper needed. Right for "wear this for the next few hours of work in this project."
+- **`suit up` / `suit off` — project-state mutator** (the standard daily-driver flow). `suit up` resolves the wardrobe and writes derived artifacts into the project, including `.claude/`, `.gemini/`, and portable root instruction files. Native invocations of `claude` and `gemini` from inside the dressed project pick up the emitted configuration — no wrapper needed. Right for "wear this for the next few hours of work in this project."
 - **`suit <harness>` — stateless launcher**. Spawns the harness binary against an ephemeral prelaunch tempdir, deletes the tempdir on exit. Right for "try this outfit for one query without dressing the project."
 
-Both modes of working use the same outfit/cut/accessory composition model. The mutator is the default — reach for the launcher when you specifically want one-off behavior.
+Both modes of working use the same outfit/cut/accessory composition model. The mutator is the default — reach for the launcher when you specifically want one-off behavior. Do not manually edit emitted `.claude/` or `.gemini/` files; edit the wardrobe and re-run `suit up`.
 
 ### 3.1 `suit up` — dress the project (the standard flow)
 
-Writes the resolved components directly into the project's harness directories (`.claude/`, `.codex/`, `.pi/`, etc.) backed by `.suit/lock.json`. Native invocations of the harness CLIs from inside the project then pick up the suit automatically — no `suit <harness>` wrapper required.
+Writes resolved, derived components directly into the project (notably `.claude/`, `.gemini/`, and root instruction shims) backed by `.suit/lock.json`. Native invocations of the harness CLIs from inside the project then pick up the suit automatically — no `suit <harness>` wrapper required.
 
 ```bash
 cd ~/projects/foo
@@ -108,6 +110,8 @@ suit up                          # interactive picker on a TTY
 **Interactive picker** (TTY only): if `--outfit` is missing on a TTY, `suit up` prompts you to pick from the available outfits / cuts / accessories — numbered list per primitive, blank input skips the optional sections, comma-separated multi-select for accessories.
 
 JSON fragment files emitted by multiple components (e.g. `.claude/settings.fragment.json` from each hook) are deep-merged so all contributions land in one file. Markdown emits don't merge — they're already composed at the adapter layer.
+
+Generated harness artifacts are not authoritative. If `.claude/` or `.gemini/` content is wrong, fix the outfit/cut/accessory/skill/agent/hook/rule/command/MCP definition in the wardrobe repo and re-run `suit up`; local edits to emitted files will be detected as drift and can be overwritten by `--force`.
 
 ### 3.2 `suit off` — undress the project
 
@@ -302,17 +306,17 @@ Already up to date
 
 ### 3.10 `suit init [<url>] [--force]`
 
-Clones a content repo. Without `<url>`, reads `suit.templateUrl` from the installed package's `package.json`. Forks of `suit` itself can change that field to point at their own template.
+Clones the wardrobe source. Without `<url>`, reads `suit.templateUrl` from the installed package's `package.json`. Forks of `suit` itself can change that field to point at their own template, but normal users should pass their wardrobe fork/template repo explicitly.
 
 ```bash
-suit init                                                 # default suit-template
-suit init https://github.com/your-org/your-config         # explicit URL
-suit init --force https://github.com/your-org/your-config # blow away existing
+suit init                                                   # default suit-template
+suit init https://github.com/your-org/your-wardrobe          # your canonical wardrobe
+suit init --force https://github.com/your-org/your-wardrobe  # re-clone existing content dir
 ```
 
 Exit codes: 0 on success, 1 on git failure, 2 on missing URL with no `templateUrl` configured.
 
-After clone, `suit init` warns (but does not fail) if the cloned repo has neither `outfits/` nor `cuts/` — that probably means you pointed at the wrong repo.
+After clone, `suit init` warns (but does not fail) if the cloned repo has neither `outfits/` nor `cuts/` — that probably means you pointed at the wrong repo. A valid wardrobe may also contain canonical `accessories/`, `skills/`, `agents/`, `hooks/`, `rules/`, `commands/`, and MCP configuration.
 
 ## 4. Outfits, cuts, and skills
 
@@ -478,19 +482,19 @@ Step by step:
 
 Your real `~/.<harness>/` is never modified. See ADR-0002 for the two-binary split that makes step 5 work.
 
-## 5. Content sources and resolution order
+## 5. Wardrobe sources and resolution order
 
-Outfits, cuts, accessories, and skills are looked up across three tiers, highest priority first:
+Wardrobe components are looked up across three tiers, highest priority first. The cloned wardrobe is the durable source of truth; project/user overlays are escape hatches for local overrides.
 
 | Priority | Tier | Path |
 |---|---|---|
 | 1 | Project overlay | `<cwd>/.suit/outfits/<name>.md` (and `cuts/`, `accessories/`, `skills/`) |
 | 2 | User overlay | `~/.config/suit/outfits/<name>.md` (and `cuts/`, `accessories/`, `skills/`) |
-| 3 | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or `<name>.md` for non-builtin tiers; `accessories/<name>/accessory.md` likewise) |
+| 3 | Cloned wardrobe | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or `<name>.md` for non-builtin tiers; `accessories/<name>/accessory.md` likewise) |
 
 Note the slight shape difference: builtin uses a `<name>/outfit.md` directory layout, while the overlay tiers accept a flat `<name>.md`. Both work — `suit list` shows whichever tier found it.
 
-Worked example. Say you have a `backend` outfit in your cloned content (builtin tier) and want to tweak it for one repo:
+Worked example. Say your cloned wardrobe has a `backend` outfit and you want to tweak it for one repo:
 
 ```bash
 mkdir -p /path/to/my-repo/.suit/outfits
@@ -519,15 +523,15 @@ To make an override that follows you across all repos, drop the same file at `~/
 
 | Variable | Effect |
 |---|---|
-| `SUIT_CONTENT_PATH` | Replace tier 3 entirely. Useful for dev-mode against a working content repo. |
+| `SUIT_CONTENT_PATH` | Replace tier 3 entirely. Useful for dev-mode against a working wardrobe checkout. |
 | `XDG_DATA_HOME` | Move tier 3 to `$XDG_DATA_HOME/suit/content/` instead of `~/.local/share/suit/content/`. |
 | `XDG_CONFIG_HOME` | Move tier 2 to `$XDG_CONFIG_HOME/suit/` instead of `~/.config/suit/`. |
 
-`SUIT_CONTENT_PATH` wins over `XDG_DATA_HOME` for the content directory specifically. Common dev pattern:
+`SUIT_CONTENT_PATH` wins over `XDG_DATA_HOME` for the cloned wardrobe directory specifically. Common dev pattern:
 
 ```bash
-export SUIT_CONTENT_PATH=~/projects/agent-config
-suit list outfits       # reads from your working content repo
+export SUIT_CONTENT_PATH=~/projects/your-wardrobe
+suit list outfits       # reads from your working wardrobe checkout
 suit claude --outfit backend
 ```
 
@@ -539,11 +543,11 @@ Choose a tier first:
 
 | Goal | Tier | Path |
 |---|---|---|
-| Sharable outfit/cut/skill maintained in version control | Default content | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or in the source repo and pulled via `suit sync`) |
+| Sharable outfit/cut/accessory/skill/agent/hook/rule/command/MCP config maintained in version control | Cloned wardrobe | `~/.local/share/suit/content/outfits/<name>/outfit.md` (or in the source repo and pulled via `suit sync`) |
 | Personal override across all repos | User | `~/.config/suit/outfits/<name>.md` |
 | Repo-specific override | Project | `<repo>/.suit/outfits/<name>.md` |
 
-Most authoring happens in the default-content tier — that's the cloned repo. Edit it, commit, push to your fork; everywhere else `suit sync` picks it up.
+Most authoring happens in the wardrobe source repo — usually your fork of `suit-template`. Edit that repo, commit, push, then run `suit sync` (or set `SUIT_CONTENT_PATH` to a local checkout while authoring). Do not author by editing emitted project files such as `.claude/agents/...`, `.gemini/...`, root `CLAUDE.md`, or root `GEMINI.md`; those are regenerated by `suit up`.
 
 The canonical `suit-template` (and forks of it) ships slash commands under `.claude/commands/` to scaffold new content with AI assistance:
 
@@ -647,9 +651,9 @@ If `suit status` looks healthy but a launch silently fails, re-run with `--verbo
 | Command | Purpose | Most-common form |
 |---|---|---|
 | `suit --help` | Show usage | `suit --help` |
-| `suit init [<url>]` | Clone content repo | `suit init` (uses `templateUrl`) |
+| `suit init [<url>]` | Clone wardrobe repo | `suit init https://github.com/you/your-wardrobe` |
 | `suit init --force <url>` | Re-clone, overwriting | `suit init --force https://github.com/.../...` |
-| `suit sync` | `git pull` content repo | `suit sync` |
+| `suit sync` | `git pull` cloned wardrobe | `suit sync` |
 | `suit status` | Show version, content, harness presence | `suit status` (or bare `suit`) |
 | `suit doctor` | Verify each harness binary on PATH | `suit doctor` |
 | `suit list outfits` | List discoverable outfits | `suit list outfits` |
@@ -664,14 +668,14 @@ If `suit status` looks healthy but a launch silently fails, re-run with `--verbo
 
 | Env var | Effect |
 |---|---|
-| `SUIT_CONTENT_PATH` | Override content dir |
-| `XDG_DATA_HOME` | Reroot cloned content |
+| `SUIT_CONTENT_PATH` | Override cloned wardrobe dir |
+| `XDG_DATA_HOME` | Reroot cloned wardrobe |
 | `XDG_CONFIG_HOME` | Reroot user overlay |
 
 | Tier | Path | Beats |
 |---|---|---|
-| Project | `<cwd>/.suit/` | User, builtin |
-| User | `~/.config/suit/` | Builtin |
-| Builtin | `~/.local/share/suit/content/` | — |
+| Project | `<cwd>/.suit/` | User, cloned wardrobe |
+| User | `~/.config/suit/` | Cloned wardrobe |
+| Cloned wardrobe | `~/.local/share/suit/content/` | — |
 
 See also: [ADR index](./adr/README.md) for design decisions, especially ADR-0001 (three-repo split), ADR-0002 (`suit` vs `suit-build`), ADR-0003 (`SUIT_CONTENT_PATH`), and ADR-0008 (ContentStore as a deep module).

@@ -28,22 +28,54 @@ describe('gemini adapter', () => {
     expect(result.matched).toBe(true);
   });
 
-  it('composes rules into a single GEMINI.md ordered by before/after', async () => {
+  it('composes project rules into AGENTS.md plus a GEMINI.md shim', async () => {
     const root = path.join(HERE, 'gemini/rules-compose');
     const baseStyle = await loadComponent(path.join(root, 'component'), root);
     const prPolicy = await loadComponent(path.join(root, 'extra/rules/pr-policy'), root);
     const all = [baseStyle, prPolicy];
-    const results = await Promise.all(
-      all.map((c) =>
-        geminiAdapter.emit(c, { config: {}, allComponents: all, repoRoot: root }),
-      ),
+    const files = (
+      await Promise.all(
+        all.map((c) =>
+          geminiAdapter.emit(c, { config: {}, allComponents: all, repoRoot: root }),
+        ),
+      )
+    ).flat();
+    const expectedRules = await fs.readFile(path.join(root, 'expected/AGENTS.md'), 'utf8');
+    expect(files.find((f) => f.path === 'AGENTS.md')?.content.toString()).toBe(
+      expectedRules,
     );
-    const geminiMd = results.flat().find((f) => f.path === 'GEMINI.md');
-    const expected = await fs.readFile(path.join(root, 'expected/GEMINI.md'), 'utf8');
-    expect(geminiMd?.content.toString()).toBe(expected);
-    // Idempotent: only one rule emits the file.
-    const count = results.flat().filter((f) => f.path === 'GEMINI.md').length;
-    expect(count).toBe(1);
+    expect(files.find((f) => f.path === 'GEMINI.md')?.content.toString()).toBe(
+      '@AGENTS.md\n',
+    );
+    expect(files.filter((f) => f.path === 'AGENTS.md').length).toBe(1);
+    expect(files.filter((f) => f.path === 'GEMINI.md').length).toBe(1);
+  });
+
+  it('preserves user-scope rules in .gemini/GEMINI.md', async () => {
+    const component: ComponentSource = {
+      dir: HERE,
+      relativeDir: 'rules/user-style',
+      manifest: ManifestSchema.parse({
+        name: 'user-style',
+        version: '0.0.0',
+        description: 'User style rules',
+        type: 'rules',
+        scope: 'user',
+        targets: ['gemini'],
+      }),
+      body: 'Keep personal Gemini rules here.\n',
+    };
+    const files = await geminiAdapter.emit(component, {
+      config: {},
+      allComponents: [component],
+      repoRoot: HERE,
+    });
+    expect(files).toEqual([
+      {
+        path: '.gemini/GEMINI.md',
+        content: '## user-style\n\nKeep personal Gemini rules here.\n',
+      },
+    ]);
   });
 
   it('emits a hook component with .gemini/settings fragment + script', async () => {
@@ -83,23 +115,9 @@ describe('gemini adapter', () => {
     expect(result.diff).toEqual([]);
   });
 
-  it('throws a clear error when emitting an agent (validator should have caught it)', async () => {
-    const fake: ComponentSource = {
-      dir: '/tmp/fake',
-      relativeDir: 'agents/fake',
-      body: 'body',
-      manifest: {
-        name: 'fake',
-        version: '1.0.0',
-        description: 'd',
-        type: 'agent',
-        targets: ['gemini'],
-        agent: { tools: ['Read'] },
-      } as ComponentSource['manifest'],
-    };
-    await expect(
-      geminiAdapter.emit(fake, { config: {}, allComponents: [fake], repoRoot: '/tmp/fake' }),
-    ).rejects.toThrow(/not supported on Gemini/);
+  it('emits an agent component as Markdown with YAML frontmatter', async () => {
+    const result = await runGolden(geminiAdapter, path.join(HERE, 'gemini/agent-basic'));
+    expect(result.diff).toEqual([]);
   });
 
   it('throws a clear error when emitting a plugin', async () => {

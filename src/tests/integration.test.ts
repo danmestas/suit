@@ -26,8 +26,10 @@ describe('end-to-end build', () => {
     const skillOut = await fs.readFile(path.join(repo, 'dist/claude-code/skills/foo/SKILL.md'), 'utf8');
     expect(skillOut).toContain('Foo body.');
     const claudeMd = await fs.readFile(path.join(repo, 'dist/claude-code/CLAUDE.md'), 'utf8');
-    expect(claudeMd).toContain('## style');
-    expect(claudeMd).toContain('Use spaces.');
+    expect(claudeMd).toBe('@AGENTS.md\n');
+    const agentsMd = await fs.readFile(path.join(repo, 'dist/claude-code/AGENTS.md'), 'utf8');
+    expect(agentsMd).toContain('## style');
+    expect(agentsMd).toContain('Use spaces.');
     const pluginJson = await fs.readFile(
       path.join(repo, 'dist/claude-code/.claude-plugin/plugin.json'),
       'utf8',

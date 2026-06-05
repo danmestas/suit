@@ -36,9 +36,11 @@ describe('gemini end-to-end build', () => {
     const skillBody = await fs.readFile(path.join(repo, 'dist/gemini/skills/foo/skill.md'), 'utf8');
     expect(skillBody).toContain('Foo body.');
 
-    // Rules composed in alphabetical-with-after order: style → pr-policy.
+    // Rules composed in AGENTS.md; GEMINI.md is a thin shim.
     const geminiMd = await fs.readFile(path.join(repo, 'dist/gemini/GEMINI.md'), 'utf8');
-    expect(geminiMd.indexOf('## style')).toBeLessThan(geminiMd.indexOf('## pr-policy'));
+    expect(geminiMd).toBe('@AGENTS.md\n');
+    const agentsMd = await fs.readFile(path.join(repo, 'dist/gemini/AGENTS.md'), 'utf8');
+    expect(agentsMd.indexOf('## style')).toBeLessThan(agentsMd.indexOf('## pr-policy'));
 
     // MCP fragment present.
     const mcpFragment = JSON.parse(

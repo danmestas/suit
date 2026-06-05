@@ -131,6 +131,8 @@ async function emitForTarget(
   projectDir: string,
   repoConfig: Record<string, Record<string, unknown>>,
   restrictTo: Set<string> | undefined,
+  targets: Target[],
+  agentsMdOwnerTarget: Target | undefined,
 ): Promise<PendingFile[]> {
   const adapter = getAdapter(target);
   if (!adapter) {
@@ -155,8 +157,10 @@ async function emitForTarget(
 
   const ctx = {
     config: (repoConfig[target] ?? {}) as Record<string, unknown>,
-    allComponents: eligible,
+    allComponents: catalog,
     repoRoot: projectDir,
+    targets,
+    agentsMdOwnerTarget,
   };
 
   const out: PendingFile[] = [];
@@ -324,6 +328,11 @@ export async function composeBundle(
   });
 
   const repoConfig = await loadRepoConfig(args.projectDir);
+  const agentsMdOwnerTarget = targets.includes('claude-code')
+    ? 'claude-code'
+    : targets.includes('gemini')
+      ? 'gemini'
+      : undefined;
   const allFiles: PendingFile[] = [];
   for (const target of targets) {
     const targetFiles = await emitForTarget(
@@ -333,6 +342,8 @@ export async function composeBundle(
       args.projectDir,
       repoConfig as Record<string, Record<string, unknown>>,
       args.restrictTo,
+      targets,
+      agentsMdOwnerTarget,
     );
     allFiles.push(...targetFiles);
   }
